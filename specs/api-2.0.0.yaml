@@ -1,0 +1,139 @@
+---
+openapi: 3.0.0
+info:
+  title: Deno Land APIs
+  description: Describes the API available on api.deno.land.
+  contact:
+    url: https://deno.land/
+  version: 2.0.0
+tags:
+- name: registry
+  description: Provides APIs related to the module registry.
+- name: infrastructure
+  description: APIs that relate to internal infrastructure.
+paths:
+  /modules:
+    get:
+      tags:
+      - registry
+      summary: Provides a list of registered modules.
+      description: Provides a list of registered modules.
+      responses:
+        "200":
+          description: A JSON array of registered modules.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Module"
+  /modules/{name}:
+    summary: Represents a registered module
+    description: >
+      This resource represents an individual registered module repository.
+    get:
+      tags:
+        - registry
+      summary: Gets a registered module by ID.
+      parameters:
+        - name: id
+          in: path
+          description: Module name
+          required: true
+          schema:
+            $ref: "#/components/schemas/ModuleName"
+      responses:
+        "200":
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Module"
+  /modules/{name}/{version}:
+    summary: Represents a version/tag of a registered module.
+    get:
+      tags:
+        - registry
+      summary: Gets a registered module by ID and version.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            $ref: "#/components/schemas/ModuleName"
+        - name: version
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ModuleVersion"
+  /ping:
+    get:
+      tags:
+        - infrastructure
+      summary: Server heartbeat operation
+      description: >
+        This operation shows how to override the global security defined above,
+        as we want to open it up for all users.
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/pong"
+components:
+  schemas:
+    Module:
+      type: object
+      properties:
+        name:
+          $ref: "#/components/schemas/ModuleName"
+        description:
+          type: string
+          nullable: true
+        versions:
+          type: array
+          items:
+            type: string
+      example:
+        name: oak
+        description: An HTTP framework
+        versions: ["v10.0.0", "v10.0.1"]
+      required:
+        - name
+        - description
+        - versions
+      description: Representation of a module
+    ModuleName:
+      type: string
+      pattern: "^[A-Za-z_]{3,}$"
+    ModuleVersion:
+      type: object
+      properties:
+        name:
+          $ref: "#/components/schemas/ModuleName"
+        description:
+          type: string
+          nullable: true
+        version:
+          type: string
+        files_url:
+          type: string
+          format: uri
+      example:
+        name: oak
+        description: An HTTP framework
+        version: v10.0.1
+        files_url: "https://api.deno.land/modules/oak/v10.0.1/files"
+    pong:
+      type: object
+      properties:
+        pong:
+          type: boolean
