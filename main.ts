@@ -1,6 +1,6 @@
 // Copyright 2018-2022 the Deno authors. All rights reserved. MIT license.
 
-import { Router } from "https://deno.land/x/acorn@0.0.1/mod.ts";
+import { Router } from "https://deno.land/x/acorn@0.0.2/mod.ts";
 
 const router = new Router();
 
