@@ -1,3 +1,5 @@
+// Copyright 2018-2022 the Deno authors. All rights reserved. MIT license.
+
 import { Router } from "https://deno.land/x/acorn@0.0.1/mod.ts";
 
 const router = new Router();
@@ -21,9 +23,7 @@ router.all("/", () => {
   );
 });
 
-router.get("/ping", () => {
-  return { pong: true };
-});
+router.get("/ping", () => ({ pong: true }));
 
 router.addEventListener("listen", (evt) => {
   console.log(
