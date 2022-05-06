@@ -12,7 +12,7 @@ tags:
 - name: infrastructure
   description: APIs that relate to internal infrastructure.
 paths:
-  /modules:
+  /v2/modules:
     get:
       tags:
       - registry
@@ -27,7 +27,7 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/Module"
-  /modules/{name}:
+  /v2/modules/{name}:
     summary: Represents a registered module
     description: >
       This resource represents an individual registered module repository.
@@ -49,7 +49,7 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Module"
-  /modules/{name}/{version}:
+  /v2/modules/{name}/{version}:
     summary: Represents a version/tag of a registered module.
     get:
       tags:
@@ -72,7 +72,37 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ModuleVersion"
+                $ref: "#/components/schemas/VersionedModule"
+  /v2/modules/{name}/{version}/raw/{path}:
+    summary: Retrieves the original file from a versioned module.
+    get:
+      tags:
+        - registry
+      summary: Retrieves the original file from a versioned module.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            $ref: "#/components/schemas/ModuleName"
+        - name: version
+          in: path
+          required: true
+          schema:
+            type: string
+            example: v10.0.1
+      responses:
+        "200":
+          description: Successful operation
+          content:
+            application/*:
+              schema:
+                type: string
+                format: binary
+            text/*:
+              schema:
+                type: string
+                format: binary
   /ping:
     get:
       tags:
@@ -90,6 +120,26 @@ paths:
                 $ref: "#/components/schemas/pong"
 components:
   schemas:
+    File:
+      type: object
+      properties:
+        path:
+          type: string
+          example: /mod.ts
+        size:
+          type: number
+          format: int64
+          example: 3454
+        type:
+          type: string
+          enum:
+            - file
+            - dir
+          example: file
+        raw_url:
+          type: string
+          format: uri
+          example: "https://api.deno.land/modules/oak/v10.0.1/raw/mod.ts"
     Module:
       type: object
       properties:
@@ -98,23 +148,27 @@ components:
         description:
           type: string
           nullable: true
+          example: A middleware framework for Deno
+        latest_version:
+          type: string
+          nullable: true
+          example: v10.0.1
         versions:
           type: array
           items:
             type: string
-      example:
-        name: oak
-        description: An HTTP framework
-        versions: ["v10.0.0", "v10.0.1"]
+          example: ["v10.0.0", "v10.0.1"]
       required:
         - name
         - description
+        - latest_version
         - versions
       description: Representation of a module
     ModuleName:
       type: string
       pattern: "^[A-Za-z_]{3,}$"
-    ModuleVersion:
+      example: oak
+    VersionedModule:
       type: object
       properties:
         name:
@@ -122,16 +176,36 @@ components:
         description:
           type: string
           nullable: true
+          example: A middleware framework for Deno
         version:
           type: string
-        files_url:
+          example: v10.0.1
+        uploaded_at:
           type: string
-          format: uri
-      example:
-        name: oak
-        description: An HTTP framework
-        version: v10.0.1
-        files_url: "https://api.deno.land/modules/oak/v10.0.1/files"
+          format: date-time
+          example: 2022-05-06T01:03:14.774Z
+        upload_options:
+          $ref: "#/components/schemas/UploadOptions"
+        files:
+          type: array
+          items:
+            $ref: "#/components/schemas/File"
+    UploadOptions:
+      type: object
+      properties:
+        type:
+          type: string
+          example: github
+        repository:
+          type: string
+          example: oakserver/oak
+        ref:
+          type: string
+          example: v10.0.1
+      required:
+        - type
+        - repository
+        - ref
     pong:
       type: object
       properties:
