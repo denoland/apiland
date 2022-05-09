@@ -1,5 +1,6 @@
 {
   "tasks": {
-    "dev": "deno run --allow-net --allow-hrtime main.ts"
+    "dev": "deno run --allow-net --allow-hrtime --allow-env --allow-read=. main.ts",
+    "test": "deno test --allow-net --allow-hrtime --allow-env --allow-read=."
   }
 }

@@ -6,6 +6,9 @@ info:
   contact:
     url: https://deno.land/
   version: 2.0.0
+servers:
+  - url: https://apiland.deno.dev
+    description: The latest deployment of this repository on Deploy.
 tags:
 - name: registry
   description: Provides APIs related to the module registry.
@@ -36,7 +39,7 @@ paths:
         - registry
       summary: Gets a registered module by ID.
       parameters:
-        - name: id
+        - name: name
           in: path
           description: Module name
           required: true
@@ -56,7 +59,7 @@ paths:
         - registry
       summary: Gets a registered module by ID and version.
       parameters:
-        - name: id
+        - name: name
           in: path
           required: true
           schema:
@@ -80,7 +83,7 @@ paths:
         - registry
       summary: Retrieves the original file from a versioned module.
       parameters:
-        - name: id
+        - name: name
           in: path
           required: true
           schema:
@@ -91,6 +94,12 @@ paths:
           schema:
             type: string
             example: v10.0.1
+        - name: path
+          in: path
+          required: true
+          schema:
+            type: string
+            example: mod.ts
       responses:
         "200":
           description: Successful operation
