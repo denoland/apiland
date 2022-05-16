@@ -9,6 +9,8 @@ import {
 
 await config({ export: true });
 
+console.log(Deno.env.get("GOOGLE_PRIVATE_KEY"));
+
 function getServiceAccountFromEnv() {
   return {
     client_email: Deno.env.get("GOOGLE_CLIENT_EMAIL") ?? "",
