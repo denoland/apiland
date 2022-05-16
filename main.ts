@@ -9,12 +9,13 @@ import {
 
 await config({ export: true });
 
-console.log(JSON.parse(Deno.env.get("GOOGLE_PRIVATE_KEY") ?? ""));
-
 function getServiceAccountFromEnv() {
+  const privateKey = Deno.env.get("GOOGLE_PRIVATE_KEY") ?? "";
   return {
     client_email: Deno.env.get("GOOGLE_CLIENT_EMAIL") ?? "",
-    private_key: Deno.env.get("GOOGLE_PRIVATE_KEY") ?? "",
+    private_key: privateKey.startsWith(`"`)
+      ? JSON.parse(privateKey)
+      : privateKey,
     private_key_id: Deno.env.get("GOOGLE_PRIVATE_KEY_ID") ?? "",
     project_id: Deno.env.get("GOOGLE_PROJECT_ID") ?? "",
   };
