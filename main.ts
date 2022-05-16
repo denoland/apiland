@@ -1,13 +1,25 @@
 // Copyright 2018-2022 the Deno authors. All rights reserved. MIT license.
 
+import { config } from "https://deno.land/std@0.139.0/dotenv/mod.ts";
 import { Router } from "https://deno.land/x/acorn@0.0.4/mod.ts";
-import modulesDB from "./mocks/modules.json" assert { type: "json" };
-import modulesVersionsDB from "./mocks/modules_versions.json" assert {
-  type: "json",
-};
+import {
+  Datastore,
+  entityToObject,
+} from "https://deno.land/x/google_datastore@0.0.1/mod.ts";
 
-type ModuleKey = keyof typeof modulesDB;
-type VersionsKey<Key extends ModuleKey> = keyof (typeof modulesVersionsDB)[Key];
+await config({ export: true });
+
+function getServiceAccountFromEnv() {
+  return {
+    client_email: Deno.env.get("GOOGLE_CLIENT_EMAIL") ?? "",
+    private_key: Deno.env.get("GOOGLE_PRIVATE_KEY") ?? "",
+    private_key_id: Deno.env.get("GOOGLE_PRIVATE_KEY_ID") ?? "",
+    project_id: Deno.env.get("GOOGLE_PROJECT_ID") ?? "",
+  };
+}
+
+const keys = getServiceAccountFromEnv();
+const datastore = new Datastore(keys);
 
 export const router = new Router();
 
@@ -30,19 +42,34 @@ router.all("/", () => {
   );
 });
 
-router.get("/v2/modules", () => Object.values(modulesDB));
+router.get("/v2/modules", async () => {
+  const response = await datastore.runQuery({ kind: [{ name: "module" }] });
+  return response.batch.entityResults.map(({ entity }) =>
+    entityToObject(entity)
+  );
+});
 router.get(
   "/v2/modules/:id",
-  (ctx) => modulesDB[ctx.params.id as ModuleKey],
-);
-router.get(
-  "/v2/modules/:id/:version",
-  (ctx) => {
-    return modulesVersionsDB[ctx.params.id as ModuleKey][
-      ctx.params.version as VersionsKey<ModuleKey>
-    ];
+  async (ctx) => {
+    const response = await datastore.lookup([{
+      path: [{
+        kind: "module",
+        name: ctx.params.id,
+      }],
+    }]);
+    if (response.found) {
+      return entityToObject(response.found[0].entity);
+    }
   },
 );
+// router.get(
+//   "/v2/modules/:id/:version",
+//   (ctx) => {
+//     return modulesVersionsDB[ctx.params.id as ModuleKey][
+//       ctx.params.version as VersionsKey<ModuleKey>
+//     ];
+//   },
+// );
 
 router.get("/ping", () => ({ pong: true }));
 
