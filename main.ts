@@ -9,7 +9,7 @@ import {
 
 await config({ export: true });
 
-console.log(Deno.env.get("GOOGLE_PRIVATE_KEY"));
+console.log(JSON.parse(Deno.env.get("GOOGLE_PRIVATE_KEY") ?? ""));
 
 function getServiceAccountFromEnv() {
   return {
