@@ -5,7 +5,7 @@ import { Router } from "https://deno.land/x/acorn@0.0.4/mod.ts";
 import {
   Datastore,
   entityToObject,
-} from "https://deno.land/x/google_datastore@0.0.1/mod.ts";
+} from "https://deno.land/x/google_datastore@0.0.2/mod.ts";
 
 await config({ export: true });
 
