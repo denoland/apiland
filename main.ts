@@ -5,7 +5,7 @@ import { Router } from "https://deno.land/x/acorn@0.0.4/mod.ts";
 import {
   Datastore,
   entityToObject,
-} from "https://deno.land/x/google_datastore@0.0.2/mod.ts";
+} from "https://deno.land/x/google_datastore@0.0.5/mod.ts";
 
 await config({ export: true });
 
@@ -65,14 +65,23 @@ router.get(
     }
   },
 );
-// router.get(
-//   "/v2/modules/:id/:version",
-//   (ctx) => {
-//     return modulesVersionsDB[ctx.params.id as ModuleKey][
-//       ctx.params.version as VersionsKey<ModuleKey>
-//     ];
-//   },
-// );
+router.get(
+  "/v2/modules/:id/:version",
+  async (ctx) => {
+    const response = await datastore.lookup([{
+      path: [{
+        kind: "module",
+        name: ctx.params.id,
+      }, {
+        kind: "module_version",
+        name: ctx.params.version,
+      }],
+    }]);
+    if (response.found) {
+      return entityToObject(response.found[0].entity);
+    }
+  },
+);
 
 router.get("/ping", () => ({ pong: true }));
 
