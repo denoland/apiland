@@ -9,8 +9,8 @@ import {
 import {
   Datastore,
   entityToObject,
-} from "https://deno.land/x/google_datastore@0.0.5/mod.ts";
-import { type Query } from "https://deno.land/x/google_datastore@0.0.5/types.d.ts";
+} from "https://deno.land/x/google_datastore@0.0.6/mod.ts";
+import { type Query } from "https://deno.land/x/google_datastore@0.0.6/types.d.ts";
 
 await config({ export: true });
 
@@ -114,6 +114,37 @@ router.get(
     }
   },
 );
+router.get("/v2/modules/:id/:version/doc/:path*", async (ctx) => {
+  const query: Query = {
+    kind: [{ name: "doc_node" }],
+    filter: {
+      propertyFilter: {
+        property: { name: "__key__" },
+        op: "HAS_ANCESTOR",
+        value: {
+          keyValue: {
+            path: [{
+              kind: "module",
+              name: ctx.params.id,
+            }, {
+              kind: "module_version",
+              name: ctx.params.version,
+            }, {
+              kind: "module_entry",
+              name: `/${ctx.params.path}`,
+            }],
+          },
+        },
+      },
+    },
+  };
+  const response = await datastore.runQuery(query);
+  if (response.batch.entityResults) {
+    return response.batch.entityResults.map(({ entity }) =>
+      entityToObject(entity)
+    );
+  }
+});
 
 router.get("/ping", () => ({ pong: true }));
 
