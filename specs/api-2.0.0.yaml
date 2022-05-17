@@ -45,6 +45,21 @@ paths:
           required: true
           schema:
             $ref: "#/components/schemas/ModuleName"
+        - name: limit
+          in: query
+          description: The number of items to limit the response to.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+        - name: page
+          in: query
+          description: >
+            The page number to use as an offset for results. It is a 1 based
+            index. Must be used in conjunction with `limit`.
+          schema:
+            type: integer
+            minimum: 1
       responses:
         "200":
           description: Successful operation
