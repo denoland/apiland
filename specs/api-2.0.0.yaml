@@ -21,30 +21,7 @@ paths:
       - registry
       summary: Provides a list of registered modules.
       description: Provides a list of registered modules.
-      responses:
-        "200":
-          description: A JSON array of registered modules.
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/Module"
-  /v2/modules/{name}:
-    summary: Represents a registered module
-    description: >
-      This resource represents an individual registered module repository.
-    get:
-      tags:
-        - registry
-      summary: Gets a registered module by ID.
       parameters:
-        - name: name
-          in: path
-          description: Module name
-          required: true
-          schema:
-            $ref: "#/components/schemas/ModuleName"
         - name: limit
           in: query
           description: The number of items to limit the response to.
@@ -62,11 +39,64 @@ paths:
             minimum: 1
       responses:
         "200":
+          description: A JSON array of registered modules.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Module"
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HttpError"
+            text/html:
+                schema:
+                  type: string
+        "404":
+          description: >
+            Not found - no resources for the given query were found. Try
+            changing the query parameters.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HttpError"
+            text/html:
+              schema:
+                type: string
+  /v2/modules/{name}:
+    summary: Represents a registered module
+    description: >
+      This resource represents an individual registered module repository.
+    get:
+      tags:
+        - registry
+      summary: Gets a registered module by ID.
+      parameters:
+        - name: name
+          in: path
+          description: Module name
+          required: true
+          schema:
+            $ref: "#/components/schemas/ModuleName"
+      responses:
+        "200":
           description: Successful operation
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/Module"
+        "404":
+          description: Not found - the requested resource was not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HttpError"
+            text/html:
+              schema:
+                type: string
   /v2/modules/{name}/{version}:
     summary: Represents a version/tag of a registered module.
     get:
@@ -91,6 +121,15 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/VersionedModule"
+        "404":
+          description: Not found - the requested resource was not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HttpError"
+            text/html:
+              schema:
+                type: string
   /v2/modules/{name}/{version}/raw/{path}:
     summary: Retrieves the original file from a versioned module.
     get:
@@ -127,6 +166,15 @@ paths:
               schema:
                 type: string
                 format: binary
+        "404":
+          description: Not found - the requested resource was not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HttpError"
+            text/html:
+              schema:
+                type: string
   /ping:
     get:
       tags:
@@ -164,6 +212,27 @@ components:
           type: string
           format: uri
           example: "https://api.deno.land/modules/oak/v10.0.1/raw/mod.ts"
+    HttpError:
+      type: object
+      properties:
+        status:
+          type: number
+          minimum: 400
+          maximum: 599
+          example: 400
+        statusText:
+          type: string
+          example: Bad Request
+        message:
+          type: string
+          example: Parameter "page" must be 1 or greater.
+        stack:
+          type: string
+          example: BadRequestError - Parameter "page" must be 1 or greater.
+      required:
+        - status
+        - statusText
+        - message
     Module:
       type: object
       properties:

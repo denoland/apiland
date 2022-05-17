@@ -1,7 +1,7 @@
 // Copyright 2018-2022 the Deno authors. All rights reserved. MIT license.
 
 import { config } from "https://deno.land/std@0.139.0/dotenv/mod.ts";
-import { Router } from "https://deno.land/x/acorn@0.0.6/mod.ts";
+import { Router } from "https://deno.land/x/acorn@0.0.7/mod.ts";
 import {
   errors,
   isHttpError,

@@ -4,7 +4,7 @@ import {
   assertEquals,
   assertStringIncludes,
 } from "https://deno.land/std@0.138.0/testing/asserts.ts";
-import { type RouterListenEvent } from "https://deno.land/x/acorn@0.0.4/mod.ts";
+import { type RouterListenEvent } from "https://deno.land/x/acorn@0.0.7/mod.ts";
 
 import { router } from "./main.ts";
 
