@@ -4,12 +4,12 @@ import {
   DatastoreError,
   objectSetKey,
   objectToEntity,
-} from "https://deno.land/x/google_datastore@0.0.6/mod.ts";
+} from "https://deno.land/x/google_datastore@0.0.7/mod.ts";
 
 import type {
   Mutation,
   PathElement,
-} from "https://deno.land/x/google_datastore@0.0.6/types.d.ts";
+} from "https://deno.land/x/google_datastore@0.0.7/types.d.ts";
 
 import type { DocNode } from "https://deno.land/x/deno_doc@v0.34.0/lib/types.d.ts";
 

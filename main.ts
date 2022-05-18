@@ -9,8 +9,7 @@ import {
 import {
   Datastore,
   entityToObject,
-} from "https://deno.land/x/google_datastore@0.0.6/mod.ts";
-import { type Query } from "https://deno.land/x/google_datastore@0.0.6/types.d.ts";
+} from "https://deno.land/x/google_datastore@0.0.7/mod.ts";
 
 await config({ export: true });
 
@@ -51,7 +50,7 @@ router.all("/", () => {
 });
 
 router.get("/v2/modules", async (ctx) => {
-  const query: Query = { kind: [{ name: "module" }] };
+  const query = datastore.createQuery("module");
   if (ctx.searchParams.limit) {
     const limit = parseInt(ctx.searchParams.limit, 10);
     if (limit < 1 || limit > 100) {
@@ -59,7 +58,7 @@ router.get("/v2/modules", async (ctx) => {
         `Parameter "limit" must be between 1 and 100, received ${limit}.`,
       );
     }
-    query.limit = limit;
+    query.limit(limit);
     if (ctx.searchParams.page) {
       const page = parseInt(ctx.searchParams.page, 10);
       if (page < 1) {
@@ -68,7 +67,7 @@ router.get("/v2/modules", async (ctx) => {
         );
       }
       if (page > 1) {
-        query.offset = (page - 1) * limit;
+        query.offset((page - 1) * limit);
       }
     }
   } else if (ctx.searchParams.page) {
@@ -115,29 +114,14 @@ router.get(
   },
 );
 router.get("/v2/modules/:id/:version/doc/:path*", async (ctx) => {
-  const query: Query = {
-    kind: [{ name: "doc_node" }],
-    filter: {
-      propertyFilter: {
-        property: { name: "__key__" },
-        op: "HAS_ANCESTOR",
-        value: {
-          keyValue: {
-            path: [{
-              kind: "module",
-              name: ctx.params.id,
-            }, {
-              kind: "module_version",
-              name: ctx.params.version,
-            }, {
-              kind: "module_entry",
-              name: `/${ctx.params.path}`,
-            }],
-          },
-        },
-      },
-    },
-  };
+  const query = datastore
+    .createQuery("doc_node")
+    .hasAncestor(
+      datastore.key(["module", ctx.params.id], [
+        "module_version",
+        ctx.params.version,
+      ], ["module_entry", `/${ctx.params.path}`]),
+    );
   const response = await datastore.runQuery(query);
   if (response.batch.entityResults) {
     return response.batch.entityResults.map(({ entity }) =>
