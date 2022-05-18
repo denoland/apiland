@@ -66,7 +66,7 @@ paths:
             text/html:
               schema:
                 type: string
-  /v2/modules/{name}:
+  /v2/modules/{module}:
     summary: Represents a registered module
     description: >
       This resource represents an individual registered module repository.
@@ -75,7 +75,7 @@ paths:
         - registry
       summary: Gets a registered module by ID.
       parameters:
-        - name: name
+        - name: module
           in: path
           description: Module name
           required: true
@@ -97,14 +97,14 @@ paths:
             text/html:
               schema:
                 type: string
-  /v2/modules/{name}/{version}:
+  /v2/modules/{module}/{version}:
     summary: Represents a version/tag of a registered module.
     get:
       tags:
         - registry
       summary: Gets a registered module by ID and version.
       parameters:
-        - name: name
+        - name: module
           in: path
           required: true
           schema:
@@ -130,14 +130,14 @@ paths:
             text/html:
               schema:
                 type: string
-  /v2/modules/{name}/{version}/raw/{path}:
+  /v2/modules/{module}/{version}/raw/{path}:
     summary: Retrieves the original file from a versioned module.
     get:
       tags:
         - registry
       summary: Retrieves the original file from a versioned module.
       parameters:
-        - name: name
+        - name: module
           in: path
           required: true
           schema:

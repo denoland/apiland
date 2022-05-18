@@ -39,6 +39,19 @@ router.all("/", () => {
     </head>
     <body>
       <h1>api.deno.land</h1>
+      <div>
+        <p><a href="/~/spec" target="_blank">Current Specification</a></p>
+      </div>
+      <h2>Endpoints</h2>
+      <div>
+        <ul>
+          <li><code>/v2/modules</code> - Provide a list of modules in the registry - [<a href="/v2/modules" target="_blank">example</a>]</li>
+          <li><code>/v2/modules/:module</code> - Provide information about a specific module - [<a href="/v2/modules/std" target="_blank">example</a>]</li>
+          <li><code>/v2/modules/:module/:version</code> - Provide information about a specific module version - [<a href="/v2/modules/std/0.139.0" target="_blank">example</a>]</li>
+          <li><code>/v2/modules/:module/:version/doc/:path*</code> - Provide documentation nodes for a specific path of a specific module version -  [<a href="/v2/modules/std/0.139.0/doc/archive/tar.ts" target="_blank">example</a>]</li>
+          <li><code>/ping</code> - A health endpoint for the server - [<a href="/ping" target="_blank">example</a>]</li>
+        <ul>
+      </div>
     </body>
   </html>`,
     {
@@ -47,6 +60,14 @@ router.all("/", () => {
       },
     },
   );
+});
+router.get("/~/spec", async () => {
+  const bodyInit = await Deno.readTextFile("./specs/api-2.0.0.yaml");
+  return new Response(bodyInit, {
+    headers: {
+      "content-type": "text/yaml",
+    },
+  });
 });
 
 router.get("/v2/modules", async (ctx) => {
@@ -83,12 +104,12 @@ router.get("/v2/modules", async (ctx) => {
   }
 });
 router.get(
-  "/v2/modules/:id",
+  "/v2/modules/:module",
   async (ctx) => {
     const response = await datastore.lookup([{
       path: [{
         kind: "module",
-        name: ctx.params.id,
+        name: ctx.params.module,
       }],
     }]);
     if (response.found) {
@@ -97,12 +118,12 @@ router.get(
   },
 );
 router.get(
-  "/v2/modules/:id/:version",
+  "/v2/modules/:module/:version",
   async (ctx) => {
     const response = await datastore.lookup([{
       path: [{
         kind: "module",
-        name: ctx.params.id,
+        name: ctx.params.module,
       }, {
         kind: "module_version",
         name: ctx.params.version,
@@ -113,11 +134,11 @@ router.get(
     }
   },
 );
-router.get("/v2/modules/:id/:version/doc/:path*", async (ctx) => {
+router.get("/v2/modules/:module/:version/doc/:path*", async (ctx) => {
   const query = datastore
     .createQuery("doc_node")
     .hasAncestor(
-      datastore.key(["module", ctx.params.id], [
+      datastore.key(["module", ctx.params.module], [
         "module_version",
         ctx.params.version,
       ], ["module_entry", `/${ctx.params.path}`]),
