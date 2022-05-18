@@ -11,7 +11,9 @@ servers:
     description: The latest deployment of this repository on Deploy.
 tags:
 - name: registry
-  description: Provides APIs related to the module registry.
+  description: Information about the module registry.
+- name: webhooks
+  description: Endpoints used for integration.
 - name: infrastructure
   description: APIs that relate to internal infrastructure.
 paths:
@@ -19,7 +21,7 @@ paths:
     get:
       tags:
       - registry
-      summary: Provides a list of registered modules.
+      summary: Lists registered modules.
       description: Provides a list of registered modules.
       parameters:
         - name: limit
@@ -67,13 +69,12 @@ paths:
               schema:
                 type: string
   /v2/modules/{module}:
-    summary: Represents a registered module
-    description: >
-      This resource represents an individual registered module repository.
     get:
       tags:
         - registry
-      summary: Gets a registered module by ID.
+      summary: Gets information about a module.
+      description: >
+        This resource represents an individual registered module repository.
       parameters:
         - name: module
           in: path
@@ -98,11 +99,13 @@ paths:
               schema:
                 type: string
   /v2/modules/{module}/{version}:
-    summary: Represents a version/tag of a registered module.
     get:
       tags:
         - registry
-      summary: Gets a registered module by ID and version.
+      summary: Get information about a module version.
+      description: >
+        Returns information about a specific version of a module available in
+        the registry.
       parameters:
         - name: module
           in: path
@@ -120,7 +123,50 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/VersionedModule"
+                $ref: "#/components/schemas/ModuleVersion"
+        "404":
+          description: Not found - the requested resource was not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HttpError"
+            text/html:
+              schema:
+                type: string
+  /v2/modules/{module}/{version}/doc/{path}:
+    get:
+      tags:
+        - registry
+      summary: Get doc nodes for a file.
+      description: >
+        Get doc nodes for a file.
+      parameters:
+        - name: module
+          in: path
+          required: true
+          schema:
+            $ref: "#/components/schemas/ModuleName"
+        - name: version
+          in: path
+          required: true
+          schema:
+            type: string
+            example: v10.0.1
+        - name: path
+          in: path
+          required: true
+          schema:
+            type: string
+            example: mod.ts
+      responses:
+        "200":
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/DocNode"
         "404":
           description: Not found - the requested resource was not found
           content:
@@ -131,11 +177,10 @@ paths:
               schema:
                 type: string
   /v2/modules/{module}/{version}/raw/{path}:
-    summary: Retrieves the original file from a versioned module.
     get:
       tags:
         - registry
-      summary: Retrieves the original file from a versioned module.
+      summary: Get raw content for a file.
       parameters:
         - name: module
           in: path
@@ -192,6 +237,23 @@ paths:
                 $ref: "#/components/schemas/pong"
 components:
   schemas:
+    DocNode:
+      type: object
+      properties:
+        kind:
+          type: string
+          enum:
+            - moduleDoc
+            - function
+            - variable
+            - enum
+            - class
+            - typeAlias
+            - namespace
+            - interface
+            - import
+        jsDoc:
+          $ref: "#/components/schemas/JsDoc"
     File:
       type: object
       properties:
@@ -233,6 +295,40 @@ components:
         - status
         - statusText
         - message
+    JsDoc:
+      type: object
+      properties:
+        doc:
+          type: string
+        tags:
+          type: array
+          items:
+            $ref: "#/components/schemas/JsDocTag"
+    JsDocTag:
+      type: object
+      properties:
+        kind:
+          type: string
+          enum:
+            - callback
+            - constructor
+            - deprecated
+            - enum
+            - example
+            - extends
+            - module
+            - param
+            - public
+            - private
+            - property
+            - protected
+            - readonly
+            - return
+            - template
+            - this
+            - typedef
+            - type
+            - unsupported
     Module:
       type: object
       properties:
@@ -261,7 +357,7 @@ components:
       type: string
       pattern: "^[A-Za-z_]{3,}$"
       example: oak
-    VersionedModule:
+    ModuleVersion:
       type: object
       properties:
         name:
