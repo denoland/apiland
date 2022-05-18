@@ -9,7 +9,7 @@ import {
 import {
   Datastore,
   entityToObject,
-} from "https://deno.land/x/google_datastore@0.0.7/mod.ts";
+} from "https://deno.land/x/google_datastore@0.0.8/mod.ts";
 
 await config({ export: true });
 
@@ -107,12 +107,9 @@ router.get("/v2/modules", async (ctx) => {
 router.get(
   "/v2/modules/:module",
   async (ctx) => {
-    const response = await datastore.lookup([{
-      path: [{
-        kind: "module",
-        name: ctx.params.module,
-      }],
-    }]);
+    const response = await datastore.lookup(
+      datastore.key(["module", ctx.params.module]),
+    );
     if (response.found) {
       return entityToObject(response.found[0].entity);
     }
@@ -121,15 +118,15 @@ router.get(
 router.get(
   "/v2/modules/:module/:version",
   async (ctx) => {
-    const response = await datastore.lookup([{
-      path: [{
-        kind: "module",
-        name: ctx.params.module,
-      }, {
-        kind: "module_version",
-        name: ctx.params.version,
-      }],
-    }]);
+    const response = await datastore.lookup(
+      datastore.key([
+        "module",
+        ctx.params.module,
+      ], [
+        "module_version",
+        ctx.params.version,
+      ]),
+    );
     if (response.found) {
       return entityToObject(response.found[0].entity);
     }
