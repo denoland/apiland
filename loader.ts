@@ -1,15 +1,15 @@
-import { config } from "https://deno.land/std@0.139.0/dotenv/mod.ts";
+import { config } from "https://deno.land/std@0.140.0/dotenv/mod.ts";
 import {
   Datastore,
-  DatastoreError,
   objectSetKey,
   objectToEntity,
-} from "https://deno.land/x/google_datastore@0.0.7/mod.ts";
+} from "https://deno.land/x/google_datastore@0.0.9/mod.ts";
+import { DatastoreError } from "https://deno.land/x/google_datastore@0.0.9/error.ts";
 
 import type {
   Mutation,
   PathElement,
-} from "https://deno.land/x/google_datastore@0.0.7/types.d.ts";
+} from "https://deno.land/x/google_datastore@0.0.9/types.d.ts";
 
 import type { DocNode } from "https://deno.land/x/deno_doc@v0.34.0/lib/types.d.ts";
 

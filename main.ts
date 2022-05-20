@@ -1,6 +1,6 @@
 // Copyright 2018-2022 the Deno authors. All rights reserved. MIT license.
 
-import { config } from "https://deno.land/std@0.139.0/dotenv/mod.ts";
+import { config } from "https://deno.land/std@0.140.0/dotenv/mod.ts";
 import { Router } from "https://deno.land/x/acorn@0.0.7/mod.ts";
 import {
   errors,
@@ -9,7 +9,7 @@ import {
 import {
   Datastore,
   entityToObject,
-} from "https://deno.land/x/google_datastore@0.0.8/mod.ts";
+} from "https://deno.land/x/google_datastore@0.0.9/mod.ts";
 
 await config({ export: true });
 
@@ -132,21 +132,38 @@ router.get(
     }
   },
 );
+router.get("/v2/modules/:module/:version/doc", async (ctx) => {
+  const query = datastore
+    .createQuery("doc_node")
+    .hasAncestor(datastore.key(
+      ["module", ctx.params.module],
+      ["module_version", ctx.params.version],
+    ));
+  if (ctx.searchParams.kind) {
+    query.filter("kind", ctx.searchParams.kind);
+  }
+  const results = [];
+  for await (const entity of datastore.streamQuery(query)) {
+    results.push(entityToObject(entity));
+  }
+  return results.length ? results : undefined;
+});
 router.get("/v2/modules/:module/:version/doc/:path*", async (ctx) => {
   const query = datastore
     .createQuery("doc_node")
-    .hasAncestor(
-      datastore.key(["module", ctx.params.module], [
-        "module_version",
-        ctx.params.version,
-      ], ["module_entry", `/${ctx.params.path}`]),
-    );
-  const response = await datastore.runQuery(query);
-  if (response.batch.entityResults) {
-    return response.batch.entityResults.map(({ entity }) =>
-      entityToObject(entity)
-    );
+    .hasAncestor(datastore.key(
+      ["module", ctx.params.module],
+      ["module_version", ctx.params.version],
+      ["module_entry", `/${ctx.params.path}`],
+    ));
+  if (ctx.searchParams.kind) {
+    query.filter("kind", ctx.searchParams.kind);
   }
+  const results = [];
+  for await (const entity of datastore.streamQuery(query)) {
+    results.push(entityToObject(entity));
+  }
+  return results.length ? results : undefined;
 });
 
 router.get("/ping", () => ({ pong: true }));
