@@ -165,7 +165,7 @@ paths:
               schema:
                 type: array
                 items:
-                  $ref: "#/components/schemas/DocNode"
+                  $ref: "#/components/schemas/DocNodeByEntry"
         "404":
           description: Not found - the requested resource was not found
           content:
@@ -292,6 +292,16 @@ components:
           $ref: "#/components/schemas/DocNodeKind"
         jsDoc:
           $ref: "#/components/schemas/JsDoc"
+    DocNodeByEntry:
+      type: object
+      properties:
+        module_entry:
+          type: string
+          example: /mod.ts
+        doc_nodes:
+          type: array
+          items:
+            $ref: "#/components/schemas/DocNode"
     DocNodeKind:
       type: string
       enum:

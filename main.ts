@@ -10,6 +10,7 @@ import {
   Datastore,
   entityToObject,
 } from "https://deno.land/x/google_datastore@0.0.9/mod.ts";
+import type { Entity } from "https://deno.land/x/google_datastore@0.0.9/types.d.ts";
 
 await config({ export: true });
 
@@ -132,6 +133,27 @@ router.get(
     }
   },
 );
+
+function asDocNodeMap(entities: Entity[]) {
+  const map: Record<string, unknown[]> = Object.create(null);
+  for (const entity of entities) {
+    if (entity.key) {
+      const key = entity.key.path.find((v) => v.kind === "module_entry")?.name;
+      if (key) {
+        if (!(key in map)) {
+          map[key] = [];
+        }
+        map[key].push(entityToObject(entity));
+      }
+    }
+  }
+  const arr = [];
+  for (const [module_entry, doc_nodes] of Object.entries(map)) {
+    arr.push({ module_entry, doc_nodes });
+  }
+  return arr;
+}
+
 router.get("/v2/modules/:module/:version/doc", async (ctx) => {
   const query = datastore
     .createQuery("doc_node")
@@ -144,9 +166,9 @@ router.get("/v2/modules/:module/:version/doc", async (ctx) => {
   }
   const results = [];
   for await (const entity of datastore.streamQuery(query)) {
-    results.push(entityToObject(entity));
+    results.push(entity);
   }
-  return results.length ? results : undefined;
+  return results.length ? asDocNodeMap(results) : undefined;
 });
 router.get("/v2/modules/:module/:version/doc/:path*", async (ctx) => {
   const query = datastore
