@@ -73,10 +73,40 @@ router.get("/ping", () => ({ pong: true }));
 
 // ## Registry related APIs ##
 
+interface PagedItems<T> {
+  items: T[];
+  next?: string;
+  previous?: string;
+}
+
+function pagedResults<T>(
+  items: T[],
+  base: URL,
+  current: number,
+  limit: number,
+  hasNext?: boolean,
+): PagedItems<T> {
+  const pagedItems: PagedItems<T> = { items };
+  base.searchParams.set("limit", String(limit));
+  if (hasNext) {
+    const next = current + 1;
+    base.searchParams.set("page", String(next));
+    pagedItems.next = `${base.pathname}${base.search}${base.hash}`;
+  }
+  if (current > 1) {
+    const prev = current - 1;
+    base.searchParams.set("page", String(prev));
+    pagedItems.previous = `${base.pathname}${base.search}${base.hash}`;
+  }
+  return pagedItems;
+}
+
 router.get("/v2/modules", async (ctx) => {
   const query = datastore.createQuery("module");
+  let limit = 100;
+  let page = 1;
   if (ctx.searchParams.limit) {
-    const limit = parseInt(ctx.searchParams.limit, 10);
+    limit = parseInt(ctx.searchParams.limit, 10);
     if (limit < 1 || limit > 100) {
       throw new errors.BadRequest(
         `Parameter "limit" must be between 1 and 100, received ${limit}.`,
@@ -84,7 +114,7 @@ router.get("/v2/modules", async (ctx) => {
     }
     query.limit(limit);
     if (ctx.searchParams.page) {
-      const page = parseInt(ctx.searchParams.page, 10);
+      page = parseInt(ctx.searchParams.page, 10);
       if (page < 1) {
         throw new errors.BadRequest(
           `Parameter "page" must be 1 or greater, received ${page}.`,
@@ -101,8 +131,13 @@ router.get("/v2/modules", async (ctx) => {
   }
   const response = await datastore.runQuery(query);
   if (response.batch.entityResults) {
-    return response.batch.entityResults.map(({ entity }) =>
-      entityToObject(entity)
+    const hasNext = response.batch.moreResults !== "NO_MORE_RESULTS";
+    return pagedResults(
+      response.batch.entityResults.map(({ entity }) => entityToObject(entity)),
+      ctx.url(),
+      page,
+      limit,
+      hasNext,
     );
   }
 });
@@ -135,6 +170,8 @@ router.get(
   },
 );
 
+// ## DocNode related APIs
+
 function asDocNodeMap(entities: Entity[]) {
   const map: Record<string, unknown[]> = Object.create(null);
   for (const entity of entities) {
@@ -154,8 +191,6 @@ function asDocNodeMap(entities: Entity[]) {
   }
   return arr;
 }
-
-// ## DocNode related APIs
 
 router.get("/v2/modules/:module/:version/doc", async (ctx) => {
   const query = datastore

@@ -47,7 +47,7 @@ paths:
               schema:
                 type: array
                 items:
-                  $ref: "#/components/schemas/Module"
+                  $ref: "#/components/schemas/ModuleList"
         "400":
           description: Bad request
           content:
@@ -413,6 +413,15 @@ components:
         - latest_version
         - versions
       description: Representation of a module
+    ModuleList:
+      allOf:
+        - $ref: "#/components/schemas/ListBase"
+        - type: object
+          properties:
+            items:
+              type: array
+              items:
+                $ref: "#/components/schemas/Module"
     ModuleName:
       type: string
       pattern: "^[A-Za-z_]{3,}$"
@@ -439,6 +448,15 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/File"
+    ListBase:
+      type: object
+      properties:
+        next:
+          type: string
+          example: /modules?limit=100&page=3
+        previous:
+          type: string
+          example: /modules?limit=100&page=1
     UploadOptions:
       type: object
       properties:
