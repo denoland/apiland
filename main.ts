@@ -1,6 +1,11 @@
 // Copyright 2018-2022 the Deno authors. All rights reserved. MIT license.
 
-import { config } from "https://deno.land/std@0.140.0/dotenv/mod.ts";
+/**
+ * The main API server process.
+ *
+ * @module
+ */
+
 import { Router } from "https://deno.land/x/acorn@0.0.7/mod.ts";
 import {
   errors,
@@ -12,25 +17,14 @@ import {
 } from "https://deno.land/x/google_datastore@0.0.9/mod.ts";
 import type { Entity } from "https://deno.land/x/google_datastore@0.0.9/types.d.ts";
 
-await config({ export: true });
+import { keys } from "./auth.ts";
 
-function getServiceAccountFromEnv() {
-  const privateKey = Deno.env.get("GOOGLE_PRIVATE_KEY") ?? "";
-  return {
-    client_email: Deno.env.get("GOOGLE_CLIENT_EMAIL") ?? "",
-    private_key: privateKey.startsWith(`"`)
-      ? JSON.parse(privateKey)
-      : privateKey,
-    private_key_id: Deno.env.get("GOOGLE_PRIVATE_KEY_ID") ?? "",
-    project_id: Deno.env.get("GOOGLE_PROJECT_ID") ?? "",
-  };
-}
-
-const keys = getServiceAccountFromEnv();
 const datastore = new Datastore(keys);
 
+// The router is exported for testing purposes.
 export const router = new Router();
 
+// Provide a basic landing page.
 router.all("/", () => {
   return new Response(
     `<!DOCTYPE html>
@@ -63,6 +57,8 @@ router.all("/", () => {
     },
   );
 });
+
+// Return the current API spec
 router.get("/~/spec", async () => {
   const bodyInit = await Deno.readTextFile("./specs/api-2.0.0.yaml");
   return new Response(bodyInit, {
@@ -71,6 +67,11 @@ router.get("/~/spec", async () => {
     },
   });
 });
+
+// server healthcheck endpoint
+router.get("/ping", () => ({ pong: true }));
+
+// ## Registry related APIs ##
 
 router.get("/v2/modules", async (ctx) => {
   const query = datastore.createQuery("module");
@@ -154,6 +155,8 @@ function asDocNodeMap(entities: Entity[]) {
   return arr;
 }
 
+// ## DocNode related APIs
+
 router.get("/v2/modules/:module/:version/doc", async (ctx) => {
   const query = datastore
     .createQuery("doc_node")
@@ -188,7 +191,7 @@ router.get("/v2/modules/:module/:version/doc/:path*", async (ctx) => {
   return results.length ? results : undefined;
 });
 
-router.get("/ping", () => ({ pong: true }));
+// basic logging and error handling
 
 router.addEventListener("listen", (evt) => {
   console.log(
