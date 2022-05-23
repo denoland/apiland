@@ -42,10 +42,10 @@ router.all("/", () => {
       <div>
         <ul>
           <li><code>/v2/modules</code> - Provide a list of modules in the registry - [<a href="/v2/modules" target="_blank">example</a>]</li>
+          <li><code>/v2/metrics/module/:module</code> - Provide metric information for a module -  [<a href="/v2/metrics/module/oak" target="_blank">example</a>]</li>
           <li><code>/v2/modules/:module</code> - Provide information about a specific module - [<a href="/v2/modules/std" target="_blank">example</a>]</li>
-          <li><code>/v2/modules/:module/metrics</code> - Provide metric information for a module -  [<a href="/v2/modules/oak/metrics" target="_blank">example</a>]</li>
-          <li><code>/v2/modules/:module/v/:version</code> - Provide information about a specific module version - [<a href="/v2/modules/std/v/0.139.0" target="_blank">example</a>]</li>
-          <li><code>/v2/modules/:module/v/:version/doc/:path*</code> - Provide documentation nodes for a specific path of a specific module version -  [<a href="/v2/modules/std/v/0.139.0/doc/archive/tar.ts" target="_blank">example</a>]</li>
+          <li><code>/v2/modules/:module/:version</code> - Provide information about a specific module version - [<a href="/v2/modules/std/0.139.0" target="_blank">example</a>]</li>
+          <li><code>/v2/modules/:module/:version/doc/:path*</code> - Provide documentation nodes for a specific path of a specific module version -  [<a href="/v2/modules/std/0.139.0/doc/archive/tar.ts" target="_blank">example</a>]</li>
           <li><code>/ping</code> - A health endpoint for the server - [<a href="/ping" target="_blank">example</a>]</li>
         <ul>
       </div>
@@ -69,8 +69,20 @@ router.get("/~/spec", async () => {
   });
 });
 
-// server healthcheck endpoint
+// server health-check endpoint
 router.get("/ping", () => ({ pong: true }));
+
+// ## Metrics related APIs ##
+
+router.get("/v2/metrics/module/:module", async (ctx) => {
+  const response = await datastore.lookup(
+    datastore.key(["module_metrics", ctx.params.module]),
+  );
+  if (response.found) {
+    console.log(response.found[0].entity);
+    return entityToObject(response.found[0].entity);
+  }
+});
 
 // ## Registry related APIs ##
 
@@ -153,17 +165,8 @@ router.get(
     }
   },
 );
-router.get("/v2/modules/:module/metrics", async (ctx) => {
-  const response = await datastore.lookup(
-    datastore.key(["module_metrics", ctx.params.module]),
-  );
-  if (response.found) {
-    console.log(response.found[0].entity);
-    return entityToObject(response.found[0].entity);
-  }
-});
 router.get(
-  "/v2/modules/:module/v/:version",
+  "/v2/modules/:module/:version",
   async (ctx) => {
     const response = await datastore.lookup(
       datastore.key([
@@ -202,7 +205,7 @@ function asDocNodeMap(entities: Entity[]) {
   return arr;
 }
 
-router.get("/v2/modules/:module/v/:version/doc", async (ctx) => {
+router.get("/v2/modules/:module/:version/doc", async (ctx) => {
   const query = datastore
     .createQuery("doc_node")
     .hasAncestor(datastore.key(
@@ -218,7 +221,7 @@ router.get("/v2/modules/:module/v/:version/doc", async (ctx) => {
   }
   return results.length ? asDocNodeMap(results) : undefined;
 });
-router.get("/v2/modules/:module/v/:version/doc/:path*", async (ctx) => {
+router.get("/v2/modules/:module/:version/doc/:path*", async (ctx) => {
   const query = datastore
     .createQuery("doc_node")
     .hasAncestor(datastore.key(
