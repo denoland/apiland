@@ -21,6 +21,34 @@ import { keys } from "./auth.ts";
 
 const datastore = new Datastore(keys);
 
+interface PagedItems<T> {
+  items: T[];
+  next?: string;
+  previous?: string;
+}
+
+function pagedResults<T>(
+  items: T[],
+  base: URL,
+  current: number,
+  limit: number,
+  hasNext?: boolean,
+): PagedItems<T> {
+  const pagedItems: PagedItems<T> = { items };
+  base.searchParams.set("limit", String(limit));
+  if (hasNext) {
+    const next = current + 1;
+    base.searchParams.set("page", String(next));
+    pagedItems.next = `${base.pathname}${base.search}${base.hash}`;
+  }
+  if (current > 1) {
+    const prev = current - 1;
+    base.searchParams.set("page", String(prev));
+    pagedItems.previous = `${base.pathname}${base.search}${base.hash}`;
+  }
+  return pagedItems;
+}
+
 // The router is exported for testing purposes.
 export const router = new Router();
 
@@ -42,7 +70,7 @@ router.all("/", () => {
       <div>
         <ul>
           <li><code>/v2/modules</code> - Provide a list of modules in the registry - [<a href="/v2/modules" target="_blank">example</a>]</li>
-          <li><code>/v2/metrics/module/:module</code> - Provide metric information for a module -  [<a href="/v2/metrics/module/oak" target="_blank">example</a>]</li>
+          <li><code>/v2/metrics/modules/:module</code> - Provide metric information for a module -  [<a href="/v2/metrics/modules/oak" target="_blank">example</a>]</li>
           <li><code>/v2/modules/:module</code> - Provide information about a specific module - [<a href="/v2/modules/std" target="_blank">example</a>]</li>
           <li><code>/v2/modules/:module/:version</code> - Provide information about a specific module version - [<a href="/v2/modules/std/0.139.0" target="_blank">example</a>]</li>
           <li><code>/v2/modules/:module/:version/doc/:path*</code> - Provide documentation nodes for a specific path of a specific module version -  [<a href="/v2/modules/std/0.139.0/doc/archive/tar.ts" target="_blank">example</a>]</li>
@@ -74,7 +102,48 @@ router.get("/ping", () => ({ pong: true }));
 
 // ## Metrics related APIs ##
 
-router.get("/v2/metrics/module/:module", async (ctx) => {
+router.get("/v2/metrics/modules", async (ctx) => {
+  const query = datastore.createQuery("module_metrics");
+  let limit = 100;
+  let page = 1;
+  if (ctx.searchParams.limit) {
+    limit = parseInt(ctx.searchParams.limit, 10);
+    if (limit < 1 || limit > 100) {
+      throw new errors.BadRequest(
+        `Parameter "limit" must be between 1 and 100, received ${limit}.`,
+      );
+    }
+    query.limit(limit);
+    if (ctx.searchParams.page) {
+      page = parseInt(ctx.searchParams.page, 10);
+      if (page < 1) {
+        throw new errors.BadRequest(
+          `Parameter "page" must be 1 or greater, received ${page}.`,
+        );
+      }
+      if (page > 1) {
+        query.offset((page - 1) * limit);
+      }
+    }
+  } else if (ctx.searchParams.page) {
+    throw new errors.BadRequest(
+      `Parameter "page" cannot be specified without "limit" being specified.`,
+    );
+  }
+  query.order("popularity.sessions_30_day", true);
+  const response = await datastore.runQuery(query);
+  if (response.batch.entityResults) {
+    const hasNext = response.batch.moreResults !== "NO_MORE_RESULTS";
+    return pagedResults(
+      response.batch.entityResults.map(({ entity }) => entityToObject(entity)),
+      ctx.url(),
+      page,
+      limit,
+      hasNext,
+    );
+  }
+});
+router.get("/v2/metrics/modules/:module", async (ctx) => {
   const response = await datastore.lookup(
     datastore.key(["module_metrics", ctx.params.module]),
   );
@@ -85,34 +154,6 @@ router.get("/v2/metrics/module/:module", async (ctx) => {
 });
 
 // ## Registry related APIs ##
-
-interface PagedItems<T> {
-  items: T[];
-  next?: string;
-  previous?: string;
-}
-
-function pagedResults<T>(
-  items: T[],
-  base: URL,
-  current: number,
-  limit: number,
-  hasNext?: boolean,
-): PagedItems<T> {
-  const pagedItems: PagedItems<T> = { items };
-  base.searchParams.set("limit", String(limit));
-  if (hasNext) {
-    const next = current + 1;
-    base.searchParams.set("page", String(next));
-    pagedItems.next = `${base.pathname}${base.search}${base.hash}`;
-  }
-  if (current > 1) {
-    const prev = current - 1;
-    base.searchParams.set("page", String(prev));
-    pagedItems.previous = `${base.pathname}${base.search}${base.hash}`;
-  }
-  return pagedItems;
-}
 
 router.get("/v2/modules", async (ctx) => {
   const query = datastore.createQuery("module");
