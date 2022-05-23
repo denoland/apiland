@@ -7,6 +7,7 @@
 
 import {
   Datastore,
+  entityToObject,
   objectSetKey,
   objectToEntity,
 } from "https://deno.land/x/google_datastore@0.0.11/mod.ts";
@@ -16,7 +17,7 @@ import {
   GoogleAuth,
 } from "https://googleapis.deno.dev/v1/analyticsreporting:v4.ts";
 import { keys } from "./auth.ts";
-import type { ModuleMetrics } from "./types.d.ts";
+import type { Module, ModuleMetrics } from "./types.d.ts";
 
 const auth = new GoogleAuth().fromJSON(keys);
 const reporter = new AnalyticsReporting(auth);
@@ -98,6 +99,48 @@ if (mutations.length) {
   const datastore = new Datastore(keys);
   for await (
     const res of datastore.commit(mutations, { transactional: false })
+  ) {
+    remaining -= res.mutationResults.length;
+    console.log(
+      `%cCommitted %c${res.mutationResults.length}%c changes. %c${remaining}%c to go.`,
+      "color:green",
+      "color:yellow",
+      "color:white",
+      "color:yellow",
+      "color:white",
+    );
+  }
+
+  const moduleMutations: Mutation[] = [];
+
+  console.log(
+    "%cUpdate %cmodule scores%c...",
+    "color:green",
+    "color:yellow",
+    "color:white",
+  );
+
+  const query = datastore.createQuery("module");
+  for await (const moduleEntity of datastore.streamQuery(query)) {
+    const module = entityToObject<Module>(moduleEntity);
+    const popularityScore = sessions[module.name];
+    if (popularityScore !== undefined) {
+      module.popularity_score = popularityScore;
+    } else {
+      delete module.popularity_score;
+    }
+    moduleMutations.push({ update: objectToEntity(module) });
+  }
+
+  remaining = moduleMutations.length;
+  console.log(
+    `%cCommitting %c${remaining}%c changes...`,
+    "color:green",
+    "color:yellow",
+    "color:white",
+  );
+  for await (
+    const res of datastore.commit(moduleMutations, { transactional: false })
   ) {
     remaining -= res.mutationResults.length;
     console.log(

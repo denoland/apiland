@@ -142,6 +142,7 @@ router.get("/v2/modules", async (ctx) => {
       `Parameter "page" cannot be specified without "limit" being specified.`,
     );
   }
+  query.order("popularity_score", true);
   const response = await datastore.runQuery(query);
   if (response.batch.entityResults) {
     const hasNext = response.batch.moreResults !== "NO_MORE_RESULTS";
