@@ -13,11 +13,24 @@ import {
 } from "https://deno.land/x/oak_commons@0.3.1/http_errors.ts";
 import {
   Datastore,
+  DatastoreError,
   entityToObject,
+  type KeyInit,
+  objectSetKey,
+  objectToEntity,
 } from "https://deno.land/x/google_datastore@0.0.11/mod.ts";
-import type { Entity } from "https://deno.land/x/google_datastore@0.0.11/types.d.ts";
+import type {
+  Entity,
+  Key,
+  Mutation,
+} from "https://deno.land/x/google_datastore@0.0.11/types.d.ts";
 
 import { keys } from "./auth.ts";
+import {
+  type DocNode,
+  type DocNodeNamespace,
+  generateDocNodes,
+} from "./docs.ts";
 
 const datastore = new Datastore(keys);
 
@@ -25,6 +38,12 @@ interface PagedItems<T> {
   items: T[];
   next?: string;
   previous?: string;
+}
+
+function assert(cond: unknown, message = "Assertion failed."): asserts cond {
+  if (!cond) {
+    throw new Error(message);
+  }
 }
 
 function pagedResults<T>(
@@ -263,22 +282,214 @@ router.get("/v2/modules/:module/:version/doc", async (ctx) => {
   }
   return results.length ? asDocNodeMap(results) : undefined;
 });
-router.get("/v2/modules/:module/:version/doc/:path*", async (ctx) => {
-  const query = datastore
-    .createQuery("doc_node")
-    .hasAncestor(datastore.key(
-      ["module", ctx.params.module],
-      ["module_version", ctx.params.version],
-      ["module_entry", `/${ctx.params.path}`],
-    ));
-  if (ctx.searchParams.kind) {
-    query.filter("kind", ctx.searchParams.kind);
+
+/** Recursively add doc nodes to the mutations, serializing the definition
+ * fields and breaking out namespace entries as their own entities.
+ *
+ * The definition fields are serialized, because Datastore only supports 20
+ * nested entities, which can occur in doc nodes with complex types.
+ */
+function addNodes(
+  mutations: Mutation[],
+  docNodes: DocNode[],
+  keyInit: KeyInit[],
+) {
+  let id = 1;
+  for (const docNode of docNodes) {
+    const paths: KeyInit[] = [...keyInit, ["doc_node", id++]];
+    // deno-lint-ignore no-explicit-any
+    let node: any;
+    switch (docNode.kind) {
+      case "namespace": {
+        const { namespaceDef, ...namespaceNode } = docNode;
+        objectSetKey(namespaceNode, datastore.key(...paths));
+        mutations.push({ upsert: objectToEntity(namespaceNode) });
+        addNodes(mutations, namespaceDef.elements, paths);
+        continue;
+      }
+      case "class": {
+        const { classDef, ...rest } = docNode;
+        node = { classDef: JSON.stringify(classDef), ...rest };
+        break;
+      }
+      case "enum": {
+        const { enumDef, ...rest } = docNode;
+        node = { enumDef: JSON.stringify(enumDef), ...rest };
+        break;
+      }
+      case "function": {
+        const { functionDef, ...rest } = docNode;
+        node = { functionDef: JSON.stringify(functionDef), ...rest };
+        break;
+      }
+      case "import": {
+        const { importDef, ...rest } = docNode;
+        node = { importDef: JSON.stringify(importDef), ...rest };
+        break;
+      }
+      case "interface": {
+        const { interfaceDef, ...rest } = docNode;
+        node = { interfaceDef: JSON.stringify(interfaceDef), ...rest };
+        break;
+      }
+      case "moduleDoc": {
+        node = docNode;
+        break;
+      }
+      case "typeAlias": {
+        const { typeAliasDef, ...rest } = docNode;
+        node = { typeAliasDef: JSON.stringify(typeAliasDef), ...rest };
+        break;
+      }
+      case "variable": {
+        const { variableDef, ...rest } = docNode;
+        node = { variableDef: JSON.stringify(variableDef), ...rest };
+        break;
+      }
+    }
+    objectSetKey(node, datastore.key(...paths));
+    mutations.push({ upsert: objectToEntity(node) });
   }
-  const results = [];
+}
+
+/** Given a set of doc nodes, commit them to the datastore. */
+async function commitDocNodes(
+  module: string,
+  version: string,
+  path: string,
+  docNodes: DocNode[],
+) {
+  const mutations: Mutation[] = [];
+  const keyInit = [["module", module], ["module_version", version], [
+    "module_entry",
+    `/${path}`,
+  ]] as KeyInit[];
+  addNodes(mutations, docNodes, keyInit);
+  console.log(
+    `  Committing ${mutations.length} doc nodes for ${module}@${version}/${path}...`,
+  );
+  try {
+    for await (
+      const _result of datastore.commit(mutations, { transactional: false })
+    ) {
+      console.log(`  Committed batch for ${module}@${version}/${path}.`);
+    }
+  } catch (error) {
+    if (error instanceof DatastoreError) {
+      console.log("Datastore Error:");
+      console.log(`${error.status} ${error.message}`);
+      console.log(error.statusInfo);
+    } else {
+      console.log("Unexpected Error:");
+      console.log(error);
+    }
+    return;
+  }
+  console.log(`  Done.`);
+}
+
+/** Determine if a datastore key is equal to another one. */
+function isKeyEqual(a: Key, b: Key): boolean {
+  if (
+    a.partitionId?.projectId === b.partitionId?.projectId &&
+    a.partitionId?.namespaceId === b.partitionId?.namespaceId &&
+    a.path.length === b.path.length
+  ) {
+    for (let i = 0; i < a.path.length; i++) {
+      const aPathElement = a.path[i];
+      const bPathElement = b.path[i];
+      if (
+        aPathElement.kind !== bPathElement.kind ||
+        aPathElement.id !== bPathElement.id ||
+        aPathElement.name !== bPathElement.name
+      ) {
+        return false;
+      }
+    }
+    return true;
+  }
+  return false;
+}
+
+/** Query the datastore for doc nodes, deserializing the definitions and
+ * recursively querying namespaces. */
+async function queryDocNodes(
+  ancestor: Key,
+  kind?: string,
+): Promise<DocNode[]> {
+  const query = datastore.createQuery("doc_node").hasAncestor(ancestor);
+  if (kind) {
+    query.filter("kind", kind);
+  }
+  const results: DocNode[] = [];
+  const namespaces: [DocNodeNamespace, Key][] = [];
   for await (const entity of datastore.streamQuery(query)) {
-    results.push(entityToObject(entity));
+    const docNode: DocNode = entityToObject(entity);
+    results.push(docNode);
+    assert(entity.key);
+    switch (docNode.kind) {
+      case "namespace":
+        if (!isKeyEqual(ancestor, entity.key)) {
+          namespaces.push([docNode, entity.key]);
+        }
+        break;
+      case "class":
+        docNode.classDef = JSON.parse(docNode.classDef as unknown as string);
+        break;
+      case "enum":
+        docNode.enumDef = JSON.parse(docNode.enumDef as unknown as string);
+        break;
+      case "function":
+        docNode.functionDef = JSON.parse(
+          docNode.functionDef as unknown as string,
+        );
+        break;
+      case "import":
+        docNode.importDef = JSON.parse(docNode.importDef as unknown as string);
+        break;
+      case "interface":
+        docNode.interfaceDef = JSON.parse(
+          docNode.interfaceDef as unknown as string,
+        );
+        break;
+      case "typeAlias":
+        docNode.typeAliasDef = JSON.parse(
+          docNode.typeAliasDef as unknown as string,
+        );
+        break;
+      case "variable":
+        docNode.variableDef = JSON.parse(
+          docNode.variableDef as unknown as string,
+        );
+    }
   }
-  return results.length ? results : undefined;
+  for (const [namespace, key] of namespaces) {
+    namespace.namespaceDef = { elements: await queryDocNodes(key, kind) };
+  }
+  return results;
+}
+
+router.get("/v2/modules/:module/:version/doc/:path*", async (ctx) => {
+  const { module, version, path } = ctx.params;
+  const moduleEntryKey = datastore.key(
+    ["module", module],
+    ["module_version", version],
+    ["module_entry", `/${path}`],
+  );
+  // attempt to retrieve the doc nodes from the datastore
+  const results = await queryDocNodes(moduleEntryKey, ctx.searchParams.kind);
+  if (results.length) {
+    return results;
+  }
+  try {
+    // ensure that the module actually exists
+    await datastore.lookup(moduleEntryKey);
+    const docNodes = await generateDocNodes(module, version, path);
+    commitDocNodes(module, version, path, docNodes);
+    return docNodes;
+  } catch {
+    return undefined;
+  }
 });
 
 // basic logging and error handling
