@@ -18,12 +18,11 @@ import {
   Datastore,
   objectSetKey,
   objectToEntity,
-} from "https://deno.land/x/google_datastore@0.0.9/mod.ts";
-import { DatastoreError } from "https://deno.land/x/google_datastore@0.0.9/error.ts";
+} from "https://deno.land/x/google_datastore@0.0.10/mod.ts";
 import type {
   Mutation,
   PathElement,
-} from "https://deno.land/x/google_datastore@0.0.9/types.d.ts";
+} from "https://deno.land/x/google_datastore@0.0.10/types.d.ts";
 
 import { keys } from "./auth.ts";
 import type { Module, ModuleVersion } from "./types.d.ts";
@@ -187,42 +186,23 @@ if (args["dry-run"]) {
 }
 
 const datastore = new Datastore(keys);
-
-async function commit(mutations: Mutation[]) {
-  while (mutations.length) {
-    let current: Mutation[];
-    if (mutations.length > 500) {
-      current = mutations.slice(0, 500);
-      mutations = mutations.slice(500);
-    } else {
-      current = mutations;
-      mutations = [];
-    }
-    try {
-      await datastore.commit(current, false);
-      console.log(
-        `%cCommitted %c${current.length}%c changes.`,
-        "color:green",
-        "color:yellow",
-        "color:white",
-      );
-    } catch (err) {
-      if (err instanceof DatastoreError) {
-        console.log(err.statusInfo);
-      } else {
-        console.log("Error occurred.");
-      }
-      return;
-    }
-  }
-}
-
+let remaining = mutations.length;
 console.log(
-  `%cCommitting %c${mutations.length}%c changes...`,
+  `%cCommitting %c${remaining}%c changes...`,
   "color:green",
   "color:yellow",
   "color:white",
 );
-await commit(mutations);
+for await (const res of datastore.commit(mutations, { transactional: false })) {
+  remaining -= res.mutationResults.length;
+  console.log(
+    `%cCommitted %c${res.mutationResults.length}%c changes. %c${remaining}%c to go.`,
+    "color:green",
+    "color:yellow",
+    "color:white",
+    "color:yellow",
+    "color:white",
+  );
+}
 
 console.log("%cDone.", "color:green");

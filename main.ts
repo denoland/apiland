@@ -14,8 +14,8 @@ import {
 import {
   Datastore,
   entityToObject,
-} from "https://deno.land/x/google_datastore@0.0.9/mod.ts";
-import type { Entity } from "https://deno.land/x/google_datastore@0.0.9/types.d.ts";
+} from "https://deno.land/x/google_datastore@0.0.10/mod.ts";
+import type { Entity } from "https://deno.land/x/google_datastore@0.0.10/types.d.ts";
 
 import { keys } from "./auth.ts";
 
