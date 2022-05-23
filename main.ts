@@ -14,8 +14,8 @@ import {
 import {
   Datastore,
   entityToObject,
-} from "https://deno.land/x/google_datastore@0.0.10/mod.ts";
-import type { Entity } from "https://deno.land/x/google_datastore@0.0.10/types.d.ts";
+} from "https://deno.land/x/google_datastore@0.0.11/mod.ts";
+import type { Entity } from "https://deno.land/x/google_datastore@0.0.11/types.d.ts";
 
 import { keys } from "./auth.ts";
 
@@ -43,8 +43,9 @@ router.all("/", () => {
         <ul>
           <li><code>/v2/modules</code> - Provide a list of modules in the registry - [<a href="/v2/modules" target="_blank">example</a>]</li>
           <li><code>/v2/modules/:module</code> - Provide information about a specific module - [<a href="/v2/modules/std" target="_blank">example</a>]</li>
-          <li><code>/v2/modules/:module/:version</code> - Provide information about a specific module version - [<a href="/v2/modules/std/0.139.0" target="_blank">example</a>]</li>
-          <li><code>/v2/modules/:module/:version/doc/:path*</code> - Provide documentation nodes for a specific path of a specific module version -  [<a href="/v2/modules/std/0.139.0/doc/archive/tar.ts" target="_blank">example</a>]</li>
+          <li><code>/v2/modules/:module/metrics</code> - Provide metric information for a module -  [<a href="/v2/modules/oak/metrics" target="_blank">example</a>]</li>
+          <li><code>/v2/modules/:module/v/:version</code> - Provide information about a specific module version - [<a href="/v2/modules/std/v/0.139.0" target="_blank">example</a>]</li>
+          <li><code>/v2/modules/:module/v/:version/doc/:path*</code> - Provide documentation nodes for a specific path of a specific module version -  [<a href="/v2/modules/std/v/0.139.0/doc/archive/tar.ts" target="_blank">example</a>]</li>
           <li><code>/ping</code> - A health endpoint for the server - [<a href="/ping" target="_blank">example</a>]</li>
         <ul>
       </div>
@@ -152,8 +153,17 @@ router.get(
     }
   },
 );
+router.get("/v2/modules/:module/metrics", async (ctx) => {
+  const response = await datastore.lookup(
+    datastore.key(["module_metrics", ctx.params.module]),
+  );
+  if (response.found) {
+    console.log(response.found[0].entity);
+    return entityToObject(response.found[0].entity);
+  }
+});
 router.get(
-  "/v2/modules/:module/:version",
+  "/v2/modules/:module/v/:version",
   async (ctx) => {
     const response = await datastore.lookup(
       datastore.key([
@@ -192,7 +202,7 @@ function asDocNodeMap(entities: Entity[]) {
   return arr;
 }
 
-router.get("/v2/modules/:module/:version/doc", async (ctx) => {
+router.get("/v2/modules/:module/v/:version/doc", async (ctx) => {
   const query = datastore
     .createQuery("doc_node")
     .hasAncestor(datastore.key(
@@ -208,7 +218,7 @@ router.get("/v2/modules/:module/:version/doc", async (ctx) => {
   }
   return results.length ? asDocNodeMap(results) : undefined;
 });
-router.get("/v2/modules/:module/:version/doc/:path*", async (ctx) => {
+router.get("/v2/modules/:module/v/:version/doc/:path*", async (ctx) => {
   const query = datastore
     .createQuery("doc_node")
     .hasAncestor(datastore.key(

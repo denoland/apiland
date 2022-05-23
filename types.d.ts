@@ -14,6 +14,20 @@ export interface Module {
   description: string;
   versions: string[];
   latest_version: string;
+  maintenance_score?: number;
+  popularity_score?: number;
+  quality_score?: number;
+}
+
+/** Stores as kind `module_metrics` in the datastore. */
+export interface ModuleMetrics {
+  name: string;
+  updated: Date;
+  maintenance: Record<string, never>;
+  popularity: {
+    sessions_30_day: number;
+  };
+  quality: Record<string, never>;
 }
 
 /** Stored as kind `module_version` in datastore. */

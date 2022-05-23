@@ -98,7 +98,37 @@ paths:
             text/html:
               schema:
                 type: string
-  /v2/modules/{module}/{version}:
+  /v2/modules/{module}/metrics:
+    get:
+      tags:
+        - registry
+      summary: Get metrics about a module.
+      description: >
+        Returns an object which provides metrics about a module across
+        popularity, quality, and maintenance.
+      parameters:
+        - name: module
+          in: path
+          required: true
+          schema:
+            $ref: "#/components/schemas/ModuleName"
+      responses:
+        "200":
+          description: successful operation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ModuleMetrics"
+        "404":
+          description: Not found - the requested resource was not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HttpError"
+            text/html:
+              schema:
+                type: string
+  /v2/modules/{module}/v/{version}:
     get:
       tags:
         - registry
@@ -133,7 +163,7 @@ paths:
             text/html:
               schema:
                 type: string
-  /v2/modules/{module}/{version}/doc:
+  /v2/modules/{module}/v/{version}/doc:
     get:
       tags:
         - registry
@@ -175,7 +205,7 @@ paths:
             text/html:
               schema:
                 type: string
-  /v2/modules/{module}/{version}/doc/{path}:
+  /v2/modules/{module}/v/{version}/doc/{path}:
     get:
       tags:
         - registry
@@ -224,7 +254,7 @@ paths:
             text/html:
               schema:
                 type: string
-  /v2/modules/{module}/{version}/raw/{path}:
+  /v2/modules/{module}/v/{version}/raw/{path}:
     get:
       tags:
         - registry
@@ -422,6 +452,33 @@ components:
               type: array
               items:
                 $ref: "#/components/schemas/Module"
+    ModuleMetrics:
+      type: object
+      properties:
+        name:
+          $ref: "#/components/schemas/ModuleName"
+        updated:
+          type: string
+          format: date-time
+        maintenance:
+          type: object
+        popularity:
+          type: object
+          properties:
+            sessions_30_day:
+              type: number
+              format: integer
+              example: 4792
+          required:
+            - "session_30_day"
+        quality:
+          type: object
+      required:
+        - "name"
+        - "updated"
+        - "maintenance"
+        - "popularity"
+        - "quality"
     ModuleName:
       type: string
       pattern: "^[A-Za-z_]{3,}$"

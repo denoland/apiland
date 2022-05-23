@@ -18,11 +18,11 @@ import {
   Datastore,
   objectSetKey,
   objectToEntity,
-} from "https://deno.land/x/google_datastore@0.0.10/mod.ts";
+} from "https://deno.land/x/google_datastore@0.0.11/mod.ts";
 import type {
   Mutation,
   PathElement,
-} from "https://deno.land/x/google_datastore@0.0.10/types.d.ts";
+} from "https://deno.land/x/google_datastore@0.0.11/types.d.ts";
 
 import { keys } from "./auth.ts";
 import type { Module, ModuleVersion } from "./types.d.ts";
