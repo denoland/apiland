@@ -6,7 +6,7 @@
  * @module
  */
 
-import { Router } from "https://deno.land/x/acorn@0.0.7/mod.ts";
+import { Router } from "https://deno.land/x/acorn@0.0.8/mod.ts";
 import {
   errors,
   isHttpError,
@@ -72,9 +72,8 @@ function pagedResults<T>(
 export const router = new Router();
 
 // Provide a basic landing page.
-router.all("/", () => {
-  return new Response(
-    `<!DOCTYPE html>
+router.all("/", () =>
+  `<!DOCTYPE html>
   <html>
     <head>
       <title>api.deno.land</title>
@@ -97,14 +96,7 @@ router.all("/", () => {
         <ul>
       </div>
     </body>
-  </html>`,
-    {
-      headers: {
-        "content-type": "text/html",
-      },
-    },
-  );
-});
+  </html>`);
 
 // Return the current API spec
 router.get("/~/spec", async () => {
