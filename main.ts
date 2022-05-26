@@ -16,14 +16,15 @@ import {
   DatastoreError,
   entityToObject,
   type KeyInit,
+  objectGetKey,
   objectSetKey,
   objectToEntity,
-} from "https://deno.land/x/google_datastore@0.0.11/mod.ts";
+} from "https://deno.land/x/google_datastore@0.0.13/mod.ts";
 import type {
   Entity,
   Key,
   Mutation,
-} from "https://deno.land/x/google_datastore@0.0.11/types.d.ts";
+} from "https://deno.land/x/google_datastore@0.0.13/types.d.ts";
 
 import { keys } from "./auth.ts";
 import {
@@ -417,14 +418,19 @@ async function queryDocNodes(
   const namespaces: [DocNodeNamespace, Key][] = [];
   for await (const entity of datastore.streamQuery(query)) {
     const docNode: DocNode = entityToObject(entity);
-    results.push(docNode);
     assert(entity.key);
+    if (!isKeyEqual(ancestor, entity.key)) {
+      results.push(docNode);
+    }
+  }
+  for (const docNode of results) {
     switch (docNode.kind) {
-      case "namespace":
-        if (!isKeyEqual(ancestor, entity.key)) {
-          namespaces.push([docNode, entity.key]);
-        }
+      case "namespace": {
+        const key = objectGetKey(docNode);
+        assert(key);
+        docNode.namespaceDef = { elements: await queryDocNodes(key, kind) };
         break;
+      }
       case "class":
         docNode.classDef = JSON.parse(docNode.classDef as unknown as string);
         break;

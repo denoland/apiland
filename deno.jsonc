@@ -1,4 +1,11 @@
 {
+  "fmt": {
+    "files": {
+      "exclude": [
+        "mocks"
+      ]
+    }
+  },
   "tasks": {
     "dev": "deno run --allow-net --allow-hrtime --allow-env --allow-read=. main.ts",
     "load": "deno run --allow-net --allow-env --allow-read=.env,.env.defaults load.ts",
