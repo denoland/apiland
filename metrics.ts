@@ -43,6 +43,9 @@ const res = await reporter.reportsBatchGet({
       {
         expression: "ga:sessions",
       },
+      {
+        expression: "ga:users",
+      },
     ],
     filtersExpression: "ga:pagePathLevel1==/x/",
     dimensions: [
@@ -53,11 +56,11 @@ const res = await reporter.reportsBatchGet({
   }],
 });
 
-const sessions: Record<string, number> = {};
+const metrics: Record<string, { sessions: number; users: number }> = {};
 
 if (res.reports?.[0].data?.rows) {
   for (const row of res.reports[0].data.rows) {
-    if (row.dimensions?.[0] && row.metrics?.[0].values?.[0]) {
+    if (row.dimensions?.[0] && row.metrics?.[0].values) {
       let [pkg] = row.dimensions[0].slice(1).split("@");
       if (!pkg || pkg.match(/^[$._\s]/)) {
         continue;
@@ -65,10 +68,11 @@ if (res.reports?.[0].data?.rows) {
       if (pkg.endsWith("/")) {
         pkg = pkg.slice(0, pkg.length - 1);
       }
-      if (!(pkg in sessions)) {
-        sessions[pkg] = 0;
+      if (!(pkg in metrics)) {
+        metrics[pkg] = { sessions: 0, users: 0 };
       }
-      sessions[pkg] += parseInt(row.metrics[0].values[0], 10);
+      metrics[pkg].sessions += parseInt(row.metrics[0].values[0], 10);
+      metrics[pkg].users += parseInt(row.metrics[0].values[1], 10);
     }
   }
 }
@@ -76,12 +80,15 @@ if (res.reports?.[0].data?.rows) {
 const updated = new Date();
 const mutations: Mutation[] = [];
 
-for (const [name, sessions_30_day] of Object.entries(sessions)) {
+for (
+  const [name, { sessions: sessions_30_day, users: users_30_day }] of Object
+    .entries(metrics)
+) {
   const metrics: ModuleMetrics = {
     name,
     updated,
     maintenance: {},
-    popularity: { sessions_30_day },
+    popularity: { sessions_30_day, users_30_day },
     quality: {},
   };
   objectSetKey(metrics, { path: [{ kind: "module_metrics", name }] });
@@ -123,9 +130,11 @@ if (mutations.length) {
   const query = datastore.createQuery("module");
   for await (const moduleEntity of datastore.streamQuery(query)) {
     const module = entityToObject<Module>(moduleEntity);
-    const popularityScore = sessions[module.name];
+    const popularityScore = metrics[module.name];
     if (popularityScore !== undefined) {
-      module.popularity_score = popularityScore;
+      module.popularity_score = Math.trunc(
+        (popularityScore.sessions * 0.6) + (popularityScore.users * 0.4),
+      );
     } else {
       delete module.popularity_score;
     }

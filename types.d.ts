@@ -26,6 +26,7 @@ export interface ModuleMetrics {
   maintenance: Record<string, never>;
   popularity: {
     sessions_30_day: number;
+    users_30_day: number;
   };
   quality: Record<string, never>;
 }
