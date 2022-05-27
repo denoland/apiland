@@ -413,8 +413,8 @@ function isPathEqual(a: PathElement[], b: PathElement[]): boolean {
       ) {
         return false;
       }
-      return true;
     }
+    return true;
   }
   return false;
 }
