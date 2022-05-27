@@ -16,7 +16,6 @@ import {
   DatastoreError,
   entityToObject,
   type KeyInit,
-  objectGetKey,
   objectSetKey,
   objectToEntity,
 } from "https://deno.land/x/google_datastore@0.0.13/mod.ts";
@@ -24,6 +23,8 @@ import type {
   Entity,
   Key,
   Mutation,
+  PartitionId,
+  PathElement,
 } from "https://deno.land/x/google_datastore@0.0.13/types.d.ts";
 
 import { keys } from "./auth.ts";
@@ -381,16 +382,30 @@ async function commitDocNodes(
   console.log(`  Done.`);
 }
 
+function isPartitionIdEqual(
+  a: PartitionId | undefined,
+  b: PartitionId | undefined,
+): boolean {
+  if (!a || !b) {
+    return true;
+  }
+  return a.namespaceId === b.namespaceId && a.projectId === b.projectId;
+}
+
 /** Determine if a datastore key is equal to another one. */
 function isKeyEqual(a: Key, b: Key): boolean {
-  if (
-    a.partitionId?.projectId === b.partitionId?.projectId &&
-    a.partitionId?.namespaceId === b.partitionId?.namespaceId &&
-    a.path.length === b.path.length
-  ) {
-    for (let i = 0; i < a.path.length; i++) {
-      const aPathElement = a.path[i];
-      const bPathElement = b.path[i];
+  if (isPartitionIdEqual(a.partitionId, b.partitionId)) {
+    return isPathEqual(a.path, b.path);
+  }
+  return false;
+}
+
+/** Return's `true` if the {@linkcode Key}'s path is equal, otherwise `false`.*/
+function isPathEqual(a: PathElement[], b: PathElement[]): boolean {
+  if (a.length === b.length) {
+    for (let i = 0; i < a.length; i++) {
+      const aPathElement = a[i];
+      const bPathElement = b[i];
       if (
         aPathElement.kind !== bPathElement.kind ||
         aPathElement.id !== bPathElement.id ||
@@ -398,10 +413,56 @@ function isKeyEqual(a: Key, b: Key): boolean {
       ) {
         return false;
       }
+      return true;
     }
-    return true;
   }
   return false;
+}
+
+/** If the `descendent` isn't a direct child of the `parent`, the
+ * {@linkcode Key} of the parent is returned. If the `descendent` is a direct
+ * child of the `parent`, `undefined` is returned. If the provided key is not
+ * a descendent of the parent, the function throws. */
+function descendentNotChild(parent: Key, descendent: Key): Key | undefined {
+  if (!isPartitionIdEqual(parent.partitionId, descendent.partitionId)) {
+    throw new TypeError("Keys are from different partitions.");
+  }
+  const { path: parentPath } = parent;
+  const { path: descendentPath } = descendent;
+  const descendentSlice = descendentPath.slice(0, parentPath.length);
+  if (!isPathEqual(parentPath, descendentSlice)) {
+    throw new TypeError(
+      "The provided key is not a descendent of the parent key.",
+    );
+  }
+  if (descendentPath.length === parentPath.length + 1) {
+    return undefined;
+  }
+  return {
+    partitionId: descendent.partitionId,
+    path: descendentPath.slice(0, -1),
+  };
+}
+
+/** An extension of {@linkcode Map} that handles comparison of
+ * {@linkcode Key}s */
+class KeyMap<V> extends Map<Key, V> {
+  get(key: Key): V | undefined {
+    for (const [k, v] of this) {
+      if (isKeyEqual(key, k)) {
+        return v;
+      }
+    }
+  }
+
+  has(key: Key): boolean {
+    for (const k of this.keys()) {
+      if (isKeyEqual(key, k)) {
+        return true;
+      }
+    }
+    return false;
+  }
 }
 
 /** Query the datastore for doc nodes, deserializing the definitions and
@@ -415,20 +476,26 @@ async function queryDocNodes(
     query.filter("kind", kind);
   }
   const results: DocNode[] = [];
-  const namespaces: [DocNodeNamespace, Key][] = [];
+  const namespaceElements = new KeyMap<DocNode[]>();
+  const namespaces = new KeyMap<DocNodeNamespace>();
   for await (const entity of datastore.streamQuery(query)) {
     const docNode: DocNode = entityToObject(entity);
     assert(entity.key);
     if (!isKeyEqual(ancestor, entity.key)) {
-      results.push(docNode);
+      const parentKey = descendentNotChild(ancestor, entity.key);
+      if (parentKey) {
+        if (!namespaceElements.has(parentKey)) {
+          namespaceElements.set(parentKey, []);
+        }
+        const elements = namespaceElements.get(parentKey)!;
+        elements.push(docNode);
+      } else {
+        results.push(docNode);
+      }
     }
-  }
-  for (const docNode of results) {
     switch (docNode.kind) {
       case "namespace": {
-        const key = objectGetKey(docNode);
-        assert(key);
-        docNode.namespaceDef = { elements: await queryDocNodes(key, kind) };
+        namespaces.set(entity.key, docNode);
         break;
       }
       case "class":
@@ -461,8 +528,8 @@ async function queryDocNodes(
         );
     }
   }
-  for (const [namespace, key] of namespaces) {
-    namespace.namespaceDef = { elements: await queryDocNodes(key, kind) };
+  for (const [key, namespace] of namespaces) {
+    namespace.namespaceDef = { elements: namespaceElements.get(key) ?? [] };
   }
   return results;
 }
