@@ -12,7 +12,7 @@
  * @module
  */
 
-import { parse } from "https://deno.land/std@0.140.0/flags/mod.ts";
+import { parse } from "https://deno.land/std@0.142.0/flags/mod.ts";
 
 import {
   Datastore,

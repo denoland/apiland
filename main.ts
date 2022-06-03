@@ -6,7 +6,7 @@
  * @module
  */
 
-import { Router } from "https://deno.land/x/acorn@0.0.8/mod.ts";
+import { Router } from "https://deno.land/x/acorn@0.0.9/mod.ts";
 import {
   errors,
   isHttpError,

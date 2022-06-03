@@ -4,7 +4,7 @@ import {
   assertEquals,
   assertStringIncludes,
 } from "https://deno.land/std@0.138.0/testing/asserts.ts";
-import { type RouterListenEvent } from "https://deno.land/x/acorn@0.0.8/mod.ts";
+import { type RouterListenEvent } from "https://deno.land/x/acorn@0.0.9/mod.ts";
 
 import { router } from "./main.ts";
 
@@ -47,7 +47,10 @@ Deno.test({
 
     const response = await fetch(`${hostname}/`);
     assertEquals(response.status, 200);
-    assertEquals(response.headers.get("content-type"), "text/html");
+    assertEquals(
+      response.headers.get("content-type"),
+      "text/html; charset=UTF-8",
+    );
     assertStringIncludes(await response.text(), "<h1>api.deno.land</h1>");
 
     teardown();
@@ -63,7 +66,7 @@ Deno.test({
     assertEquals(response.status, 200);
     assertEquals(
       response.headers.get("content-type"),
-      "application/json; charset=utf-8",
+      "application/json; charset=UTF-8",
     );
     assertEquals(await response.json(), { pong: true });
 
