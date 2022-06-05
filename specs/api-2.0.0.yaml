@@ -309,6 +309,90 @@ paths:
             text/html:
               schema:
                 type: string
+  /v2/modules/{module}/{version}/index/:
+    get:
+      tags:
+        - registry
+      summary: Get an index map of modules.
+      description: >
+        Retrieves an index map of directories in the module for where the values
+        are an array of children modules that can be documented. Items marked as
+        private or obvious tests are filtered out.
+      parameters:
+        - name: module
+          in: path
+          required: true
+          schema:
+            $ref: "#/components/schemas/ModuleName"
+        - name: version
+          in: path
+          required: true
+          schema:
+            type: string
+            example: v10.0.1
+      responses:
+        "200":
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/IndexMap"
+        "404":
+          description: Not found - the requested resource was not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HttpError"
+            text/html:
+              schema:
+                type: string
+  /v2/modules/{module}/{version}/index/{path}:
+    get:
+      tags:
+        - registry
+      summary: Get a sub index map of modules.
+      description: >
+        Retrieves an index map of directories in the module for a given path
+        where the values are an array of children modules that can be
+        documented. Items marked as private or obvious tests are filtered out.
+      parameters:
+        - name: module
+          in: path
+          required: true
+          schema:
+            $ref: "#/components/schemas/ModuleName"
+        - name: version
+          in: path
+          required: true
+          schema:
+            type: string
+            example: v10.0.1
+        - name: path
+          in: path
+          required: true
+          schema:
+            type: string
+            example: src
+      responses:
+        "200":
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/IndexMap"
+        "404":
+          description: Not found - the requested resource was not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HttpError"
+            text/html:
+              schema:
+                type: string
   /v2/modules/{module}/{version}/raw/{path}:
     get:
       tags:
@@ -569,6 +653,15 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/File"
+    IndexMap:
+      type: object
+      additionalProperties:
+        type: array
+        items:
+          type: string
+      example:
+        /: ["mod.ts"]
+        /src: ["lib.ts", "util.js"]
     ListBase:
       type: object
       properties:

@@ -19,6 +19,7 @@ import type { Entity } from "https://deno.land/x/google_datastore@0.0.13/types.d
 
 import { keys } from "./auth.ts";
 import { commitDocNodes, generateDocNodes, queryDocNodes } from "./docs.ts";
+import { ModuleEntry } from "./types.d.ts";
 
 const datastore = new Datastore(keys);
 
@@ -282,6 +283,25 @@ router.get("/v2/modules/:module/:version/doc/:path*", async (ctx) => {
   } catch {
     return undefined;
   }
+});
+
+router.get("/v2/modules/:module/:version/index/:path*{/}?", async (ctx) => {
+  const query = datastore
+    .createQuery("module_entry")
+    .filter("type", "dir")
+    .hasAncestor(datastore.key(
+      ["module", ctx.params.module],
+      ["module_version", ctx.params.version],
+    ));
+  const results: Record<string, string[]> = {};
+  const path = `/${ctx.params.path}`;
+  for await (const entity of datastore.streamQuery(query)) {
+    const obj: ModuleEntry = entityToObject(entity);
+    if (obj.path.startsWith(path) && obj.index) {
+      results[obj.path] = obj.index;
+    }
+  }
+  return Object.keys(results).length ? results : undefined;
 });
 
 // basic logging and error handling

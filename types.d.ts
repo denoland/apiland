@@ -49,6 +49,7 @@ export interface ModuleEntry {
   path: string;
   type: "file" | "dir";
   size: number;
+  index?: string[];
 }
 
 /** Stores as kind `doc_structure` in datastore. */

@@ -25,6 +25,7 @@ import type {
 } from "https://deno.land/x/google_datastore@0.0.13/types.d.ts";
 
 import { keys } from "./auth.ts";
+import { getIndexedModules, isIndexedDir } from "./docs.ts";
 import type { Module, ModuleVersion } from "./types.d.ts";
 
 interface ApiModuleData {
@@ -51,6 +52,7 @@ interface ModuleVersionMetaJson {
     path: string;
     size: number;
     type: "file" | "dir";
+    index?: string[];
   }[];
 }
 
@@ -161,9 +163,13 @@ if (versionArg) {
     }];
     objectSetKey(moduleVersion, { path: versionPath });
     mutations.push({ upsert: objectToEntity(moduleVersion) });
+    const { directory_listing: listing } = versionMeta;
     for (const moduleEntry of versionMeta.directory_listing) {
       if (moduleEntry.path === "") {
         moduleEntry.path = "/";
+      }
+      if (isIndexedDir(moduleEntry)) {
+        moduleEntry.index = getIndexedModules(moduleEntry.path, listing);
       }
       objectSetKey(moduleEntry, {
         path: [...versionPath, {
