@@ -6,6 +6,7 @@
       ]
     }
   },
+  "importMap": "./import-map.json",
   "tasks": {
     "dev": "deno run --check --allow-net --allow-hrtime --allow-env --allow-read=. main.ts",
     "load": "deno run --allow-net --allow-env --allow-read=.env,.env.defaults load.ts",

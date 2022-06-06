@@ -6,7 +6,7 @@
  * @module
  */
 
-import { config } from "https://deno.land/std@0.142.0/dotenv/mod.ts";
+import { config } from "std/dotenv/mod.ts";
 
 await config({ export: true });
 

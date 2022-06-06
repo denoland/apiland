@@ -10,12 +10,10 @@ import {
   entityToObject,
   objectSetKey,
   objectToEntity,
-} from "https://deno.land/x/google_datastore@0.0.13/mod.ts";
-import type { Mutation } from "https://deno.land/x/google_datastore@0.0.13/types.d.ts";
-import {
-  AnalyticsReporting,
-  GoogleAuth,
-} from "https://googleapis.deno.dev/v1/analyticsreporting:v4.ts";
+} from "google_datastore";
+import type { Mutation } from "google_datastore/types";
+import { AnalyticsReporting, GoogleAuth } from "google_analytics_reporting";
+
 import { keys } from "./auth.ts";
 import type { Module, ModuleMetrics } from "./types.d.ts";
 

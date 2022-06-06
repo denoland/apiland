@@ -1,10 +1,7 @@
 // Copyright 2018-2022 the Deno authors. All rights reserved. MIT license.
 
-import {
-  assertEquals,
-  assertStringIncludes,
-} from "https://deno.land/std@0.138.0/testing/asserts.ts";
-import { type RouterListenEvent } from "https://deno.land/x/acorn@0.0.9/mod.ts";
+import { assertEquals, assertStringIncludes } from "std/testing/asserts.ts";
+import { type RouterListenEvent } from "acorn";
 
 import { router } from "./main.ts";
 

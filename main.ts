@@ -6,22 +6,15 @@
  * @module
  */
 
-import { Router } from "https://deno.land/x/acorn@0.0.9/mod.ts";
-import {
-  errors,
-  isHttpError,
-} from "https://deno.land/x/oak_commons@0.3.1/http_errors.ts";
-import {
-  Datastore,
-  entityToObject,
-} from "https://deno.land/x/google_datastore@0.0.13/mod.ts";
-import type { Entity } from "https://deno.land/x/google_datastore@0.0.13/types.d.ts";
+import { auth, type Context, Router } from "acorn";
+import { errors, isHttpError } from "oak_commons/http_errors.ts";
+import { entityToObject } from "google_datastore";
+import type { Entity } from "google_datastore/types";
 
-import { keys } from "./auth.ts";
 import { commitDocNodes, generateDocNodes, queryDocNodes } from "./docs.ts";
+import { enqueue } from "./process.ts";
+import { datastore } from "./store.ts";
 import { ModuleEntry } from "./types.d.ts";
-
-const datastore = new Datastore(keys);
 
 interface PagedItems<T> {
   items: T[];
@@ -303,6 +296,36 @@ router.get("/v2/modules/:module/:version/index/:path*{/}?", async (ctx) => {
   }
   return Object.keys(results).length ? results : undefined;
 });
+
+// webhooks
+
+interface ApiPayload {
+  event: "create";
+  module: string;
+  version: string;
+}
+
+router.post(
+  "/webhook/publish",
+  auth(async (ctx: Context<ApiPayload>) => {
+    const body = await ctx.body();
+    if (!body || body.event !== "create" || !body.module || !body.version) {
+      throw new errors.BadRequest("Missing or malformed body");
+    }
+    const { module, version } = body;
+    const id = enqueue({ kind: "load", module, version });
+    return { result: "enqueued", id };
+  }, {
+    authorize(ctx) {
+      if (
+        ctx.request.headers.get("authorization")?.toLowerCase() ===
+          "bearer 123456789"
+      ) {
+        return true;
+      }
+    },
+  }),
+);
 
 // basic logging and error handling
 

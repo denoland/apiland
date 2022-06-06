@@ -12,17 +12,10 @@
  * @module
  */
 
-import { parse } from "https://deno.land/std@0.142.0/flags/mod.ts";
+import { parse } from "std/flags/mod.ts";
 
-import {
-  Datastore,
-  objectSetKey,
-  objectToEntity,
-} from "https://deno.land/x/google_datastore@0.0.13/mod.ts";
-import type {
-  Mutation,
-  PathElement,
-} from "https://deno.land/x/google_datastore@0.0.13/types.d.ts";
+import { Datastore, objectSetKey, objectToEntity } from "google_datastore";
+import type { Mutation, PathElement } from "google_datastore/types";
 
 import { keys } from "./auth.ts";
 import { getIndexedModules, isIndexedDir } from "./docs.ts";

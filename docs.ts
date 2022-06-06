@@ -1,16 +1,10 @@
-import {
-  doc,
-  type LoadResponse,
-} from "https://deno.land/x/deno_doc@v0.35.0/mod.ts";
+import { doc, type LoadResponse } from "deno_doc";
 import type {
   DocNode,
   DocNodeInterface,
   DocNodeNamespace,
-} from "https://deno.land/x/deno_doc@v0.35.0/lib/types.d.ts";
-export type {
-  DocNode,
-  DocNodeNamespace,
-} from "https://deno.land/x/deno_doc@v0.35.0/lib/types.d.ts";
+} from "deno_doc/types";
+export type { DocNode, DocNodeNamespace } from "deno_doc/types";
 import {
   type Datastore,
   DatastoreError,
@@ -18,14 +12,14 @@ import {
   type KeyInit,
   objectSetKey,
   objectToEntity,
-} from "https://deno.land/x/google_datastore@0.0.13/mod.ts";
+} from "google_datastore";
 import type {
   Key,
   Mutation,
   PartitionId,
   PathElement,
-} from "https://deno.land/x/google_datastore@0.0.13/types.d.ts";
-import { errors } from "https://deno.land/x/oak_commons@0.3.1/http_errors.ts";
+} from "google_datastore/types";
+import { errors } from "oak_commons/http_errors.ts";
 
 interface PackageMetaListing {
   path: string;

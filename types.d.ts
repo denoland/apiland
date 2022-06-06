@@ -6,7 +6,7 @@
  * @module
  */
 
-export type { DocNode } from "https://deno.land/x/deno_doc@v0.34.0/lib/types.d.ts";
+export type { DocNode } from "deno_doc/types";
 
 /** Stored as kind `module` in the datastore. */
 export interface Module {
