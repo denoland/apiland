@@ -83,7 +83,7 @@ function checkCache() {
       `%cEvicting %c${toEvict.length}%c responses from cache.`,
       "color:green",
       "color:yellow",
-      "color:white",
+      "color:none",
     );
     for (const evict of toEvict) {
       cachedResources.delete(evict);

@@ -152,7 +152,7 @@ export async function loadModule(
           `%cLoading %c${module}@${version}%c...`,
           "color:green",
           "color:yellow",
-          "color:white",
+          "color:none",
         );
       }
       const versionMeta = await getVersionMeta(module, version);

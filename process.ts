@@ -38,7 +38,7 @@ async function taskLoadModule(
     `[${id}]: %cCommitting %c${remaining}%c changes...`,
     "color:green",
     "color:yellow",
-    "color:white",
+    "color:none",
   );
   for await (
     const res of datastore.commit(mutations, { transactional: false })
@@ -48,9 +48,9 @@ async function taskLoadModule(
       `[${id}]: %cCommitted %c${res.mutationResults.length}%c changes. %c${remaining}%c to go.`,
       "color:green",
       "color:yellow",
-      "color:white",
+      "color:none",
       "color:yellow",
-      "color:white",
+      "color:none",
     );
   }
 }

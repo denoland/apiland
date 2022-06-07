@@ -24,7 +24,7 @@ console.log(
   `%cRunning %c30 day sessions report%c...`,
   "color:green",
   "color:yellow",
-  "color:white",
+  "color:none",
 );
 
 const res = await reporter.reportsBatchGet({
@@ -99,7 +99,7 @@ if (mutations.length) {
     `%cCommitting %c${remaining}%c changes...`,
     "color:green",
     "color:yellow",
-    "color:white",
+    "color:none",
   );
   const datastore = new Datastore(keys);
   for await (
@@ -110,9 +110,9 @@ if (mutations.length) {
       `%cCommitted %c${res.mutationResults.length}%c changes. %c${remaining}%c to go.`,
       "color:green",
       "color:yellow",
-      "color:white",
+      "color:none",
       "color:yellow",
-      "color:white",
+      "color:none",
     );
   }
 
@@ -122,7 +122,7 @@ if (mutations.length) {
     "%cUpdate %cmodule scores%c...",
     "color:green",
     "color:yellow",
-    "color:white",
+    "color:none",
   );
 
   const query = datastore.createQuery("module");
@@ -144,7 +144,7 @@ if (mutations.length) {
     `%cCommitting %c${remaining}%c changes...`,
     "color:green",
     "color:yellow",
-    "color:white",
+    "color:none",
   );
   for await (
     const res of datastore.commit(moduleMutations, { transactional: false })
@@ -154,9 +154,9 @@ if (mutations.length) {
       `%cCommitted %c${res.mutationResults.length}%c changes. %c${remaining}%c to go.`,
       "color:green",
       "color:yellow",
-      "color:white",
+      "color:none",
       "color:yellow",
-      "color:white",
+      "color:none",
     );
   }
 }
