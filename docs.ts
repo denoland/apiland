@@ -21,33 +21,15 @@ import type {
 } from "google_datastore/types";
 import { errors } from "oak_commons/http_errors.ts";
 
-interface PackageMetaListing {
-  path: string;
-  size: number;
-  type: "file" | "dir";
-}
+import { assert } from "./util.ts";
 
 const MAX_CACHE_SIZE = parseInt(Deno.env.get("MAX_CACHE_SIZE") ?? "", 10) ||
   25_000_000;
-const EXT = [".ts", ".tsx", ".mts", ".cts", ".js", ".jsx", ".mjs", ".cjs"];
-const INDEX_MODULES = ["mod", "lib", "main", "index"].flatMap((idx) =>
-  EXT.map((ext) => `${idx}${ext}`)
-);
-const RE_IGNORED_MODULE =
-  /(\/[_.].|(test|.+_test)\.(js|jsx|mjs|cjs|ts|tsx|mts|cts)$)/i;
-const RE_MODULE_EXT = /\.(?:js|jsx|mjs|cjs|ts|tsx|mts|cts)$/i;
-const RE_PRIVATE_PATH = /\/([_.][^/]+|testdata)/;
 
 const cachedSpecifiers = new Set<string>();
 const cachedResources = new Map<string, LoadResponse | undefined>();
 let cacheCheckQueued = false;
 let cacheSize = 0;
-
-function assert(cond: unknown, message = "Assertion failed."): asserts cond {
-  if (!cond) {
-    throw new Error(message);
-  }
-}
 
 async function load(specifier: string): Promise<LoadResponse | undefined> {
   if (cachedResources.has(specifier)) {
@@ -140,23 +122,6 @@ export async function generateDocNodes(
       throw new errors.InternalServerError("Unexpected object.");
     }
   }
-}
-
-export function getIndexedModules(
-  path: string,
-  list: PackageMetaListing[],
-): string[] {
-  const modules: string[] = [];
-  for (const { path: p, type } of list) {
-    const slice = path !== "/" ? p.slice(path.length) : p;
-    if (
-      p.startsWith(path) && type === "file" && slice.lastIndexOf("/") === 0 &&
-      p.match(RE_MODULE_EXT) && !slice.match(RE_IGNORED_MODULE)
-    ) {
-      modules.push(p);
-    }
-  }
-  return modules;
 }
 
 /** Namespaces and interfaces are open ended. This function will merge these
@@ -307,10 +272,6 @@ export async function commitDocNodes(
     return;
   }
   console.log(`  Done.`);
-}
-
-export function isIndexedDir(item: PackageMetaListing): boolean {
-  return item.type === "dir" && !item.path.match(RE_PRIVATE_PATH);
 }
 
 function isPartitionIdEqual(

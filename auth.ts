@@ -6,11 +6,27 @@
  * @module
  */
 
+import { type Context } from "acorn";
+
 import { config } from "std/dotenv/mod.ts";
 
 await config({ export: true });
 
 const privateKey = Deno.env.get("GOOGLE_PRIVATE_KEY") ?? "";
+const endpointToken = Deno.env.get("APILAND_AUTH_TOKEN") ?? "";
+const authHeaderValue = `bearer ${endpointToken}`;
+
+export const endpointAuth = {
+  authorize(ctx: Context) {
+    // TODO(@kitsonk) we need better authorization than this...
+    if (
+      ctx.request.headers.get("authorization")?.toLowerCase() ===
+        authHeaderValue
+    ) {
+      return true;
+    }
+  },
+};
 
 /** The service account keys used when connecting to the Google Datastore. */
 export const keys = {

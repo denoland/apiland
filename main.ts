@@ -11,6 +11,7 @@ import { errors, isHttpError } from "oak_commons/http_errors.ts";
 import { entityToObject } from "google_datastore";
 import type { Entity } from "google_datastore/types";
 
+import { endpointAuth } from "./auth.ts";
 import { commitDocNodes, generateDocNodes, queryDocNodes } from "./docs.ts";
 import { enqueue } from "./process.ts";
 import { datastore } from "./store.ts";
@@ -315,16 +316,7 @@ router.post(
     const { module, version } = body;
     const id = enqueue({ kind: "load", module, version });
     return { result: "enqueued", id };
-  }, {
-    authorize(ctx) {
-      if (
-        ctx.request.headers.get("authorization")?.toLowerCase() ===
-          "bearer 123456789"
-      ) {
-        return true;
-      }
-    },
-  }),
+  }, endpointAuth),
 );
 
 // basic logging and error handling
