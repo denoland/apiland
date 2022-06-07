@@ -1,3 +1,5 @@
+// Copyright 2018-2022 the Deno authors. All rights reserved. MIT license.
+
 import { doc, type LoadResponse } from "deno_doc";
 import type {
   DocNode,
@@ -22,8 +24,9 @@ import type {
 } from "google_datastore/types";
 import { errors } from "oak_commons/http_errors.ts";
 
-import { assert } from "./util.ts";
+import { enqueue } from "./process.ts";
 import { datastore } from "./store.ts";
+import { assert } from "./util.ts";
 
 const MAX_CACHE_SIZE = parseInt(Deno.env.get("MAX_CACHE_SIZE") ?? "", 10) ||
   25_000_000;
@@ -417,6 +420,40 @@ export function entitiesToDocNodes(
     namespace.namespaceDef = { elements: namespaceElements.get(key) ?? [] };
   }
   return results;
+}
+
+export async function getDocNodes(
+  module: string,
+  version: string,
+  entry: string,
+): Promise<[entry: string, nodes: DocNode[]] | undefined> {
+  const ancestor = datastore.key(
+    ["module", module],
+    ["module_version", version],
+    ["module_entry", entry],
+  );
+  const query = datastore
+    .createQuery("doc_node")
+    .hasAncestor(ancestor);
+  const entities: Entity[] = [];
+  for await (const entity of datastore.streamQuery(query)) {
+    entities.push(entity);
+  }
+  if (entities.length) {
+    return [entry, entitiesToDocNodes(ancestor, entities)];
+  } else {
+    try {
+      const response = await datastore.lookup(ancestor);
+      if (response.found && response.found.length) {
+        const path = entry.slice(1);
+        const docNodes = await generateDocNodes(module, version, path);
+        enqueue({ kind: "commit", module, version, path, docNodes });
+        return [entry, docNodes];
+      }
+    } catch {
+      // just swallow errors here
+    }
+  }
 }
 
 /** Query the datastore for doc nodes, deserializing the definitions and

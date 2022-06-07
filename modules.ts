@@ -1,3 +1,5 @@
+// Copyright 2018-2022 the Deno authors. All rights reserved. MIT license.
+
 import { entityToObject, objectSetKey, objectToEntity } from "google_datastore";
 import type { Mutation } from "google_datastore/types";
 

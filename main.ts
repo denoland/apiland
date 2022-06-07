@@ -9,14 +9,12 @@
 import { auth, type Context, Router } from "acorn";
 import { errors, isHttpError } from "oak_commons/http_errors.ts";
 import { entityToObject } from "google_datastore";
-import type { Entity } from "google_datastore/types";
 
 import { endpointAuth } from "./auth.ts";
 import {
-  commitDocNodes,
   type DocNode,
-  entitiesToDocNodes,
   generateDocNodes,
+  getDocNodes,
   queryDocNodes,
 } from "./docs.ts";
 import { enqueue } from "./process.ts";
@@ -229,37 +227,14 @@ router.post(
     if (!entries || !Array.isArray(entries)) {
       throw new errors.BadRequest("Body is missing or malformed");
     }
+    const results = await Promise.all(
+      entries.map((entry) => getDocNodes(module, version, entry)),
+    );
     const result: Record<string, DocNode[]> = {};
-    for (const entry of entries) {
-      const ancestor = datastore.key(
-        ["module", module],
-        ["module_version", version],
-        ["module_entry", entry],
-      );
-      const query = datastore
-        .createQuery("doc_node")
-        .hasAncestor(ancestor);
-      const entities: Entity[] = [];
-      for await (const entity of datastore.streamQuery(query)) {
-        entities.push(entity);
-      }
-      if (entities.length) {
-        result[entry] = entitiesToDocNodes(ancestor, entities);
-      } else {
-        try {
-          // ensure that the module actually exists
-          const response = await datastore.lookup(ancestor);
-          if (!response.found || !response.found.length) {
-            continue;
-          }
-          const path = entry.slice(1);
-          const docNodes = await generateDocNodes(module, version, path);
-          enqueue({ kind: "commit", module, version, path, docNodes });
-          result[entry] = docNodes;
-        } catch (e) {
-          console.log("failed", entry, e);
-          // we just swallow errors here
-        }
+    for (const item of results) {
+      if (item) {
+        const [entry, nodes] = item;
+        result[entry] = nodes;
       }
     }
     return result;
