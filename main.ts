@@ -12,7 +12,13 @@ import { entityToObject } from "google_datastore";
 import type { Entity } from "google_datastore/types";
 
 import { endpointAuth } from "./auth.ts";
-import { commitDocNodes, generateDocNodes, queryDocNodes } from "./docs.ts";
+import {
+  commitDocNodes,
+  type DocNode,
+  entitiesToDocNodes,
+  generateDocNodes,
+  queryDocNodes,
+} from "./docs.ts";
 import { enqueue } from "./process.ts";
 import { datastore } from "./store.ts";
 import { ModuleEntry } from "./types.d.ts";
@@ -215,42 +221,50 @@ router.get(
 
 // ## DocNode related APIs
 
-function asDocNodeMap(entities: Entity[]) {
-  const map: Record<string, unknown[]> = Object.create(null);
-  for (const entity of entities) {
-    if (entity.key) {
-      const key = entity.key.path.find((v) => v.kind === "module_entry")?.name;
-      if (key) {
-        if (!(key in map)) {
-          map[key] = [];
+router.post(
+  "/v2/modules/:module/:version/doc",
+  async (ctx: Context<string[], { module: string; version: string }>) => {
+    const { params: { module, version } } = ctx;
+    const entries = await ctx.body();
+    if (!entries || !Array.isArray(entries)) {
+      throw new errors.BadRequest("Body is missing or malformed");
+    }
+    const result: Record<string, DocNode[]> = {};
+    for (const entry of entries) {
+      const ancestor = datastore.key(
+        ["module", module],
+        ["module_version", version],
+        ["module_entry", entry],
+      );
+      const query = datastore
+        .createQuery("doc_node")
+        .hasAncestor(ancestor);
+      const entities: Entity[] = [];
+      for await (const entity of datastore.streamQuery(query)) {
+        entities.push(entity);
+      }
+      if (entities.length) {
+        result[entry] = entitiesToDocNodes(ancestor, entities);
+      } else {
+        try {
+          // ensure that the module actually exists
+          const response = await datastore.lookup(ancestor);
+          if (!response.found || !response.found.length) {
+            continue;
+          }
+          const path = entry.slice(1);
+          const docNodes = await generateDocNodes(module, version, path);
+          enqueue({ kind: "commit", module, version, path, docNodes });
+          result[entry] = docNodes;
+        } catch (e) {
+          console.log("failed", entry, e);
+          // we just swallow errors here
         }
-        map[key].push(entityToObject(entity));
       }
     }
-  }
-  const arr = [];
-  for (const [module_entry, doc_nodes] of Object.entries(map)) {
-    arr.push({ module_entry, doc_nodes });
-  }
-  return arr;
-}
-
-router.get("/v2/modules/:module/:version/doc", async (ctx) => {
-  const query = datastore
-    .createQuery("doc_node")
-    .hasAncestor(datastore.key(
-      ["module", ctx.params.module],
-      ["module_version", ctx.params.version],
-    ));
-  if (ctx.searchParams.kind) {
-    query.filter("kind", ctx.searchParams.kind);
-  }
-  const results = [];
-  for await (const entity of datastore.streamQuery(query)) {
-    results.push(entity);
-  }
-  return results.length ? asDocNodeMap(results) : undefined;
-});
+    return result;
+  },
+);
 
 router.get("/v2/modules/:module/:version/doc/:path*", async (ctx) => {
   const { module, version, path } = ctx.params;
@@ -272,7 +286,7 @@ router.get("/v2/modules/:module/:version/doc/:path*", async (ctx) => {
     // ensure that the module actually exists
     await datastore.lookup(moduleEntryKey);
     const docNodes = await generateDocNodes(module, version, path);
-    commitDocNodes(datastore, module, version, path, docNodes);
+    enqueue({ kind: "commit", module, version, path, docNodes });
     return docNodes;
   } catch {
     return undefined;

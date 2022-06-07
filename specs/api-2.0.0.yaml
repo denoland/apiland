@@ -219,11 +219,13 @@ paths:
               schema:
                 type: string
   /v2/modules/{module}/{version}/doc:
-    get:
+    post:
       tags:
         - registry
       summary: Get doc nodes for a module.
-      description: Get all the doc nodes for a module.
+      description: >
+        Get doc nodes for a module filtered by the array of paths provided in
+        the request body.
       parameters:
         - name: module
           in: path
@@ -236,12 +238,16 @@ paths:
           schema:
             type: string
             example: v10.0.1
-        - name: kind
-          in: query
-          description: >
-            Filter the results based on DocNode kind.
-          schema:
-            $ref: "#/components/schemas/DocNodeKind"
+      requestBody:
+        description: An array of paths to lookup.
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                type: string
+              example: ["/mod.ts", "/lib/mod.ts"]
       responses:
         "200":
           description: Successful operation
@@ -461,16 +467,14 @@ components:
           $ref: "#/components/schemas/DocNodeKind"
         jsDoc:
           $ref: "#/components/schemas/JsDoc"
+    DocNodeArray:
+      type: array
+      items:
+        $ref: "#/components/schemas/DocNode"
     DocNodeByEntry:
       type: object
-      properties:
-        module_entry:
-          type: string
-          example: /mod.ts
-        doc_nodes:
-          type: array
-          items:
-            $ref: "#/components/schemas/DocNode"
+      additionalProperties:
+        $ref: "#/components/schemas/DocNodeArray"
     DocNodeKind:
       type: string
       enum:

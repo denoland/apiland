@@ -14,6 +14,7 @@ import {
   objectToEntity,
 } from "google_datastore";
 import type {
+  Entity,
   Key,
   Mutation,
   PartitionId,
@@ -22,6 +23,7 @@ import type {
 import { errors } from "oak_commons/http_errors.ts";
 
 import { assert } from "./util.ts";
+import { datastore } from "./store.ts";
 
 const MAX_CACHE_SIZE = parseInt(Deno.env.get("MAX_CACHE_SIZE") ?? "", 10) ||
   25_000_000;
@@ -239,30 +241,28 @@ function addNodes(
 
 /** Given a set of doc nodes, commit them to the datastore. */
 export async function commitDocNodes(
-  datastore: Datastore,
+  id: number,
   module: string,
   version: string,
   path: string,
   docNodes: DocNode[],
 ) {
   const mutations: Mutation[] = [];
-  const keyInit = [["module", module], ["module_version", version], [
-    "module_entry",
-    `/${path}`,
-  ]] as KeyInit[];
+  const keyInit = [
+    ["module", module],
+    ["module_version", version],
+    ["module_entry", `/${path}`],
+  ] as KeyInit[];
   addNodes(datastore, mutations, docNodes, keyInit);
-  console.log(
-    `  Committing ${mutations.length} doc nodes for ${module}@${version}/${path}...`,
-  );
   try {
     for await (
       const _result of datastore.commit(mutations, { transactional: false })
     ) {
-      console.log(`  Committed batch for ${module}@${version}/${path}.`);
+      console.log(`[${id}]: Committed batch for ${module}@${version}/${path}.`);
     }
   } catch (error) {
     if (error instanceof DatastoreError) {
-      console.log("Datastore Error:");
+      console.log(`[${id}] Datastore Error:`);
       console.log(`${error.status} ${error.message}`);
       console.log(error.statusInfo);
     } else {
@@ -271,7 +271,6 @@ export async function commitDocNodes(
     }
     return;
   }
-  console.log(`  Done.`);
 }
 
 function isPartitionIdEqual(
@@ -357,21 +356,14 @@ class KeyMap<V> extends Map<Key, V> {
   }
 }
 
-/** Query the datastore for doc nodes, deserializing the definitions and
- * recursively querying namespaces. */
-export async function queryDocNodes(
-  datastore: Datastore,
+export function entitiesToDocNodes(
   ancestor: Key,
-  kind?: string,
-): Promise<DocNode[]> {
-  const query = datastore.createQuery("doc_node").hasAncestor(ancestor);
-  if (kind) {
-    query.filter("kind", kind);
-  }
+  entities: Entity[],
+): DocNode[] {
   const results: DocNode[] = [];
   const namespaceElements = new KeyMap<DocNode[]>();
   const namespaces = new KeyMap<DocNodeNamespace>();
-  for await (const entity of datastore.streamQuery(query)) {
+  for (const entity of entities) {
     const docNode: DocNode = entityToObject(entity);
     assert(entity.key);
     if (!isKeyEqual(ancestor, entity.key)) {
@@ -425,4 +417,22 @@ export async function queryDocNodes(
     namespace.namespaceDef = { elements: namespaceElements.get(key) ?? [] };
   }
   return results;
+}
+
+/** Query the datastore for doc nodes, deserializing the definitions and
+ * recursively querying namespaces. */
+export async function queryDocNodes(
+  datastore: Datastore,
+  ancestor: Key,
+  kind?: string,
+): Promise<DocNode[]> {
+  const query = datastore.createQuery("doc_node").hasAncestor(ancestor);
+  if (kind) {
+    query.filter("kind", kind);
+  }
+  const entities: Entity[] = [];
+  for await (const entity of datastore.streamQuery(query)) {
+    entities.push(entity);
+  }
+  return entitiesToDocNodes(ancestor, entities);
 }

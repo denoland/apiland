@@ -1,10 +1,19 @@
 // Copyright 2018-2022 the Deno authors. All rights reserved. MIT license.
 
+import { commitDocNodes, type DocNode } from "./docs.ts";
 import { loadModule } from "./modules.ts";
 import { datastore } from "./store.ts";
 
 interface TaskBase {
   kind: string;
+}
+
+interface CommitTask extends TaskBase {
+  kind: "commit";
+  module: string;
+  version: string;
+  path: string;
+  docNodes: DocNode[];
 }
 
 interface LoadTask extends TaskBase {
@@ -13,13 +22,27 @@ interface LoadTask extends TaskBase {
   version: string;
 }
 
-type TaskDescriptor = LoadTask;
+type TaskDescriptor = LoadTask | CommitTask;
 
 let uid = 1;
 
 const queue: [id: number, desc: TaskDescriptor][] = [];
 
 let processing = false;
+
+function taskCommitDocNodes(
+  id: number,
+  { module, version, path, docNodes }: CommitTask,
+) {
+  console.log(
+    `[${id}]: %cCommitting%c doc nodes for %c"${module}@${version}/${path}"%c...`,
+    "color:green",
+    "color:none",
+    "color:cyan",
+    "color:none",
+  );
+  return commitDocNodes(id, module, version, path, docNodes);
+}
 
 async function taskLoadModule(
   id: number,
@@ -57,11 +80,15 @@ async function taskLoadModule(
 
 function process(id: number, task: TaskDescriptor): Promise<void> {
   switch (task.kind) {
+    case "commit":
+      return taskCommitDocNodes(id, task);
     case "load":
       return taskLoadModule(id, task);
     default:
       console.error(
-        `%cERROR%c: [${id}]: unexpected task kind: %c${task.kind}`,
+        `%cERROR%c: [${id}]: unexpected task kind: %c${
+          (task as TaskBase).kind
+        }`,
         "color:red",
         "color:none",
         "color:yellow",
