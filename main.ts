@@ -57,10 +57,10 @@ router.all("/", () =>
   `<!DOCTYPE html>
   <html>
     <head>
-      <title>api.deno.land</title>
+      <title>apiland.deno.dev</title>
     </head>
     <body>
-      <h1>api.deno.land</h1>
+      <h1>apiland.deno.dev</h1>
       <div>
         <p><a href="/~/spec" target="_blank">Current Specification</a></p>
         <p><a href="https://redocly.github.io/redoc/?url=https://apiland.deno.dev/~/spec" target="_blank">Specification rendered as documentation</a></p>
