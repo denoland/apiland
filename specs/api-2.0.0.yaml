@@ -315,7 +315,7 @@ paths:
             text/html:
               schema:
                 type: string
-  /v2/modules/{module}/{version}/index/:
+  /v2/modules/{module}/{version}/index:
     get:
       tags:
         - registry
@@ -443,6 +443,37 @@ paths:
             text/html:
               schema:
                 type: string
+  /webhook/publish:
+    post:
+      tags:
+        - webhooks
+      summary: A module has been published.
+      description: >
+        A module has been published and apiland should add the module to the
+        datastore.
+      requestBody:
+        description: Information about the publish event
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PublishEvent"
+      responses:
+        "200":
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WebhookResponse"
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HttpError"
+            text/html:
+              schema:
+                type: string
   /ping:
     get:
       tags:
@@ -458,6 +489,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/pong"
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HttpError"
 components:
   schemas:
     DocNode:
@@ -657,6 +694,20 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/File"
+    PublishEvent:
+      type: object
+      properties:
+        event:
+          type: string
+          example: create
+        module:
+          type: string
+          example: oak
+        version:
+          type: string
+          example: all
+      required:
+        - event
     IndexMap:
       type: object
       additionalProperties:
@@ -691,6 +742,15 @@ components:
         - type
         - repository
         - ref
+    WebhookResponse:
+      type: object
+      properties:
+        result:
+          type: string
+          example: enqueued
+        id:
+          type: number
+          example: 1
     pong:
       type: object
       properties:
