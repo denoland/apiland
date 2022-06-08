@@ -1,6 +1,6 @@
 // Copyright 2018-2022 the Deno authors. All rights reserved. MIT license.
 
-import { commitDocNodes, type DocNode } from "./docs.ts";
+import { commitDocNodes, type DocNode, type DocNodeNull } from "./docs.ts";
 import { loadModule } from "./modules.ts";
 import { datastore } from "./store.ts";
 
@@ -13,7 +13,7 @@ interface CommitTask extends TaskBase {
   module: string;
   version: string;
   path: string;
-  docNodes: DocNode[];
+  docNodes: (DocNode | DocNodeNull)[];
 }
 
 interface LoadTask extends TaskBase {

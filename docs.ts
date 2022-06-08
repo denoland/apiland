@@ -2,7 +2,7 @@
 
 import { doc, type LoadResponse } from "deno_doc";
 import type {
-  DocNode,
+  DocNode as DenoDocNode,
   DocNodeInterface,
   DocNodeNamespace,
 } from "deno_doc/types";
@@ -27,6 +27,15 @@ import { errors } from "oak_commons/http_errors.ts";
 import { enqueue } from "./process.ts";
 import { datastore } from "./store.ts";
 import { assert } from "./util.ts";
+
+/** Used only in APIland to represent a module without any exported symbols in
+ * the datastore.
+ */
+export interface DocNodeNull {
+  kind: "null";
+}
+
+type DocNode = DenoDocNode | DocNodeNull;
 
 const MAX_CACHE_SIZE = parseInt(Deno.env.get("MAX_CACHE_SIZE") ?? "", 10) ||
   25_000_000;
@@ -109,7 +118,7 @@ export async function generateDocNodes(
   module: string,
   version: string,
   path: string,
-): Promise<DocNode[]> {
+): Promise<DenoDocNode[]> {
   const url = `https://deno.land/x/${module}@${version}/${path}`;
   try {
     const entries = mergeEntries(
@@ -131,8 +140,8 @@ export async function generateDocNodes(
 
 /** Namespaces and interfaces are open ended. This function will merge these
  * together, so that you have single entries per symbol. */
-function mergeEntries(entries: DocNode[]): DocNode[] {
-  const merged: DocNode[] = [];
+function mergeEntries(entries: DenoDocNode[]): DenoDocNode[] {
+  const merged: DenoDocNode[] = [];
   const namespaces = new Map<string, DocNodeNamespace>();
   const interfaces = new Map<string, DocNodeInterface>();
   for (const node of entries) {
@@ -190,6 +199,10 @@ function addNodes(
     // deno-lint-ignore no-explicit-any
     let node: any;
     switch (docNode.kind) {
+      case "moduleDoc":
+      case "null":
+        node = docNode;
+        break;
       case "namespace": {
         const { namespaceDef, ...namespaceNode } = docNode;
         objectSetKey(namespaceNode, datastore.key(...paths));
@@ -220,10 +233,6 @@ function addNodes(
       case "interface": {
         const { interfaceDef, ...rest } = docNode;
         node = { interfaceDef: JSON.stringify(interfaceDef), ...rest };
-        break;
-      }
-      case "moduleDoc": {
-        node = docNode;
         break;
       }
       case "typeAlias": {
@@ -359,15 +368,22 @@ class KeyMap<V> extends Map<Key, V> {
   }
 }
 
+function isDocNodeNull(node: DocNode): node is DocNodeNull {
+  return node.kind === "null";
+}
+
 export function entitiesToDocNodes(
   ancestor: Key,
   entities: Entity[],
-): DocNode[] {
-  const results: DocNode[] = [];
-  const namespaceElements = new KeyMap<DocNode[]>();
+): DenoDocNode[] {
+  const results: DenoDocNode[] = [];
+  const namespaceElements = new KeyMap<DenoDocNode[]>();
   const namespaces = new KeyMap<DocNodeNamespace>();
   for (const entity of entities) {
     const docNode: DocNode = entityToObject(entity);
+    if (isDocNodeNull(docNode)) {
+      continue;
+    }
     assert(entity.key);
     if (!isKeyEqual(ancestor, entity.key)) {
       const parentKey = descendentNotChild(ancestor, entity.key);
@@ -426,7 +442,7 @@ export async function getDocNodes(
   module: string,
   version: string,
   entry: string,
-): Promise<[entry: string, nodes: DocNode[]] | undefined> {
+): Promise<[entry: string, nodes: DenoDocNode[]] | undefined> {
   const ancestor = datastore.key(
     ["module", module],
     ["module_version", version],
@@ -447,7 +463,16 @@ export async function getDocNodes(
       if (response.found && response.found.length) {
         const path = entry.slice(1);
         const docNodes = await generateDocNodes(module, version, path);
-        enqueue({ kind: "commit", module, version, path, docNodes });
+        // if a module doesn't generate any doc nodes, we need to commit a null
+        // node to the datastore, see we don't continue to try to generate doc
+        // nodes for a module that doesn't export anything.
+        enqueue({
+          kind: "commit",
+          module,
+          version,
+          path,
+          docNodes: docNodes.length ? docNodes : [{ kind: "null" }],
+        });
         return [entry, docNodes];
       }
     } catch {
