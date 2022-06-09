@@ -9,6 +9,7 @@
 import { auth, type Context, Router } from "acorn";
 import { errors, isHttpError } from "oak_commons/http_errors.ts";
 import { entityToObject } from "google_datastore";
+import { type Query } from "google_datastore/query";
 
 import { endpointAuth } from "./auth.ts";
 import {
@@ -17,6 +18,7 @@ import {
   type JsDoc,
   queryDocNodes,
 } from "./docs.ts";
+import { loadModule } from "./modules.ts";
 import { enqueue } from "./process.ts";
 import { datastore } from "./store.ts";
 import { ModuleEntry } from "./types.d.ts";
@@ -220,6 +222,48 @@ router.get(
 
 // ## DocNode related APIs
 
+async function checkMaybeLoad(
+  module: string,
+  version: string,
+  path?: string,
+): Promise<boolean> {
+  const moduleVersionKey = datastore.key(
+    ["module", module],
+    ["module_version", version],
+  );
+  const result = await datastore.lookup(moduleVersionKey);
+  const moduleVersionExists = !!result.found;
+  if (!moduleVersionExists) {
+    try {
+      const mutations = await loadModule(module, version);
+      if (mutations.length <= 1) {
+        return false;
+      }
+      console.log(
+        `  adding ${module}@${version}. Committing ${mutations.length} changes...`,
+      );
+      for await (
+        const batch of datastore.commit(mutations, { transactional: false })
+      ) {
+        console.log(`  committed ${batch.mutationResults.length} changes.`);
+      }
+    } catch {
+      return false;
+    }
+  }
+  if (path) {
+    const pathKey = datastore.key(
+      ["module", module],
+      ["module_version", version],
+      ["module_entry", `/${path}`],
+    );
+    const result = await datastore.lookup(pathKey);
+    return !!result.found;
+  } else {
+    return true;
+  }
+}
+
 router.get("/v2/modules/:module/:version/doc/:path*", async (ctx) => {
   const { module, version, path } = ctx.params;
   const moduleEntryKey = datastore.key(
@@ -236,9 +280,11 @@ router.get("/v2/modules/:module/:version/doc/:path*", async (ctx) => {
   if (results.length) {
     return results;
   }
+  // attempt to load the module
+  if (!await checkMaybeLoad(module, version, path)) {
+    return undefined;
+  }
   try {
-    // ensure that the module actually exists
-    await datastore.lookup(moduleEntryKey);
     const docNodes = await generateDocNodes(module, version, path);
     enqueue({ kind: "commit", module, version, path, docNodes });
     return docNodes;
@@ -247,21 +293,38 @@ router.get("/v2/modules/:module/:version/doc/:path*", async (ctx) => {
   }
 });
 
+async function appendQuery(
+  results: Record<string, string[]>,
+  query: Query,
+  path: string,
+): Promise<boolean> {
+  let any = false;
+  for await (const entity of datastore.streamQuery(query)) {
+    any = true;
+    const obj: ModuleEntry = entityToObject(entity);
+    if (obj.path.startsWith(path) && obj.index) {
+      results[obj.path] = obj.index;
+    }
+  }
+  return any;
+}
+
 router.get("/v2/modules/:module/:version/index/:path*{/}?", async (ctx) => {
+  const { module, version, path: paramPath } = ctx.params;
   const moduleKey = datastore.key(
-    ["module", ctx.params.module],
-    ["module_version", ctx.params.version],
+    ["module", module],
+    ["module_version", version],
   );
   const query = datastore
     .createQuery("module_entry")
     .filter("type", "dir")
     .hasAncestor(moduleKey);
   const results: Record<string, string[]> = {};
-  const path = `/${ctx.params.path}`;
-  for await (const entity of datastore.streamQuery(query)) {
-    const obj: ModuleEntry = entityToObject(entity);
-    if (obj.path.startsWith(path) && obj.index) {
-      results[obj.path] = obj.index;
+  const path = `/${paramPath}`;
+  const any = await appendQuery(results, query, path);
+  if (!any) {
+    if (await checkMaybeLoad(module, version)) {
+      await appendQuery(results, query, path);
     }
   }
   if (Object.keys(results).length) {

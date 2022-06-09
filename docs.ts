@@ -275,7 +275,13 @@ export async function commitDocNodes(
     for await (
       const _result of datastore.commit(mutations, { transactional: false })
     ) {
-      console.log(`[${id}]: Committed batch for ${module}@${version}/${path}.`);
+      console.log(
+        `[${id}]: %cCommitted %cbatch for %c${module}@${version}/${path}%c.`,
+        "color:green",
+        "color:none",
+        "color:yellow",
+        "color:none",
+      );
     }
   } catch (error) {
     if (error instanceof DatastoreError) {
