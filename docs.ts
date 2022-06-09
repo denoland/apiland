@@ -6,7 +6,12 @@ import type {
   DocNodeInterface,
   DocNodeNamespace,
 } from "deno_doc/types";
-export type { DocNode, DocNodeNamespace } from "deno_doc/types";
+export type {
+  DocNode,
+  DocNodeModuleDoc,
+  DocNodeNamespace,
+  JsDoc,
+} from "deno_doc/types";
 import {
   type Datastore,
   DatastoreError,

@@ -13,13 +13,16 @@ import { entityToObject } from "google_datastore";
 import { endpointAuth } from "./auth.ts";
 import {
   type DocNode,
+  type DocNodeModuleDoc,
   generateDocNodes,
   getDocNodes,
+  type JsDoc,
   queryDocNodes,
 } from "./docs.ts";
 import { enqueue } from "./process.ts";
 import { datastore } from "./store.ts";
 import { ModuleEntry } from "./types.d.ts";
+import { assert } from "./util.ts";
 
 interface PagedItems<T> {
   items: T[];
@@ -269,13 +272,14 @@ router.get("/v2/modules/:module/:version/doc/:path*", async (ctx) => {
 });
 
 router.get("/v2/modules/:module/:version/index/:path*{/}?", async (ctx) => {
+  const moduleKey = datastore.key(
+    ["module", ctx.params.module],
+    ["module_version", ctx.params.version],
+  );
   const query = datastore
     .createQuery("module_entry")
     .filter("type", "dir")
-    .hasAncestor(datastore.key(
-      ["module", ctx.params.module],
-      ["module_version", ctx.params.version],
-    ));
+    .hasAncestor(moduleKey);
   const results: Record<string, string[]> = {};
   const path = `/${ctx.params.path}`;
   for await (const entity of datastore.streamQuery(query)) {
@@ -284,7 +288,28 @@ router.get("/v2/modules/:module/:version/index/:path*{/}?", async (ctx) => {
       results[obj.path] = obj.index;
     }
   }
-  return Object.keys(results).length ? results : undefined;
+  if (Object.keys(results).length) {
+    const docNodeQuery = datastore
+      .createQuery("doc_node")
+      .filter("kind", "moduleDoc")
+      .hasAncestor(moduleKey);
+    const docs: Record<string, JsDoc> = {};
+    for await (const entity of datastore.streamQuery(docNodeQuery)) {
+      assert(entity.key);
+      // this ensure we only find moduleDoc for the module, not from a re-exported
+      // namespace which might have module doc as well.
+      if (entity.key.path.length !== 4) {
+        continue;
+      }
+      const key = entity.key.path[2]?.name;
+      assert(key);
+      if (key.startsWith(path)) {
+        const obj: DocNodeModuleDoc = entityToObject(entity);
+        docs[key] = obj.jsDoc;
+      }
+    }
+    return { index: results, docs };
+  }
 });
 
 // webhooks

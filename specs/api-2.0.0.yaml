@@ -6,6 +6,9 @@ info:
   contact:
     url: https://deno.land/
   version: 2.0.0
+  license:
+    name: MIT
+    url: https://github.com/denoland/apiland/LICENSE.md
 servers:
   - url: https://apiland.deno.dev
     description: The latest deployment of this repository on Deploy.
@@ -26,6 +29,7 @@ paths:
       - metrics
       summary: Lists module metrics.
       description: Provides a list of metrics for modules.
+      operationId: getModulesMetrics
       parameters:
         - name: limit
           in: query
@@ -80,6 +84,7 @@ paths:
         description: >
           Returns an object which provides metrics about a module across
           popularity, quality, and maintenance.
+        operationId: getModuleMetrics
         parameters:
           - name: module
             in: path
@@ -108,6 +113,7 @@ paths:
       - registry
       summary: Lists registered modules.
       description: Provides a list of registered modules.
+      operationId: getModules
       parameters:
         - name: limit
           in: query
@@ -160,6 +166,7 @@ paths:
       summary: Gets information about a module.
       description: >
         This resource represents an individual registered module repository.
+      operationId: getModule
       parameters:
         - name: module
           in: path
@@ -191,6 +198,7 @@ paths:
       description: >
         Returns information about a specific version of a module available in
         the registry.
+      operationId: getModuleVersion
       parameters:
         - name: module
           in: path
@@ -226,6 +234,7 @@ paths:
       description: >
         Get doc nodes for a module filtered by the array of paths provided in
         the request body.
+      operationId: getModuleVersionDoc
       parameters:
         - name: module
           in: path
@@ -273,6 +282,7 @@ paths:
       summary: Get doc nodes for a file.
       description: >
         Get doc nodes for a file.
+      operationId: getModuleVersionDocByPath
       parameters:
         - name: module
           in: path
@@ -321,9 +331,11 @@ paths:
         - registry
       summary: Get an index map of modules.
       description: >
-        Retrieves an index map of directories in the module for where the values
-        are an array of children modules that can be documented. Items marked as
-        private or obvious tests are filtered out.
+        Responds with an object containing an `index` and `docs` properties. 
+        The `index` is a map of folders and the modules inside those folders.
+        Items marked as private or obvious tests are filtered out. The `docs` is
+        any module level JSDoc available for the module.
+      operationId: getModuleVersionIndex
       parameters:
         - name: module
           in: path
@@ -342,9 +354,7 @@ paths:
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/IndexMap"
+                $ref: "#/components/schemas/IndexDoc"
         "404":
           description: Not found - the requested resource was not found
           content:
@@ -360,9 +370,11 @@ paths:
         - registry
       summary: Get a sub index map of modules.
       description: >
-        Retrieves an index map of directories in the module for a given path
-        where the values are an array of children modules that can be
-        documented. Items marked as private or obvious tests are filtered out.
+        Responds with an object containing an `index` and `docs` properties for
+        a given path. The `index` is a map of folders and the modules inside
+        those folders. Items marked as private or obvious tests are filtered
+        out. The `docs` is any module level JSDoc available for the module.
+      operationId: getModuleVersionIndexByPath
       parameters:
         - name: module
           in: path
@@ -387,9 +399,7 @@ paths:
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/IndexMap"
+                $ref: "#/components/schemas/IndexDoc"
         "404":
           description: Not found - the requested resource was not found
           content:
@@ -404,6 +414,7 @@ paths:
       tags:
         - registry
       summary: Get raw content for a file.
+      operationId: getModuleVersionPathRaw
       parameters:
         - name: module
           in: path
@@ -451,6 +462,7 @@ paths:
       description: >
         A module has been published and apiland should add the module to the
         datastore.
+      operationId: postWebhookPublish
       requestBody:
         description: Information about the publish event
         required: true
@@ -482,6 +494,7 @@ paths:
       description: >
         This operation shows how to override the global security defined above,
         as we want to open it up for all users.
+      operationId: getPing
       responses:
         "200":
           description: OK
@@ -574,6 +587,10 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/JsDocTag"
+    JsDocMap:
+      type: object
+      additionalProperties:
+        $ref: "#/components/schemas/JsDoc"
     JsDocTag:
       type: object
       properties:
@@ -710,6 +727,16 @@ components:
         - event
         - module
         - version
+    IndexDoc:
+      type: object
+      properties:
+        index:
+          $ref: "#/components/schemas/IndexMap"
+        docs:
+          $ref: "#/components/schemas/JsDocMap"
+      required:
+        - "index"
+        - "docs"
     IndexMap:
       type: object
       additionalProperties:
@@ -717,8 +744,8 @@ components:
         items:
           type: string
       example:
-        /: ["mod.ts"]
-        /src: ["lib.ts", "util.js"]
+        /: ["/mod.ts"]
+        /src: ["/src/lib.ts", "/src/util.js"]
     ListBase:
       type: object
       properties:
