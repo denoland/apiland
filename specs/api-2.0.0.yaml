@@ -226,55 +226,6 @@ paths:
             text/html:
               schema:
                 type: string
-  /v2/modules/{module}/{version}/doc:
-    post:
-      tags:
-        - registry
-      summary: Get doc nodes for a module.
-      description: >
-        Get doc nodes for a module filtered by the array of paths provided in
-        the request body.
-      operationId: getModuleVersionDoc
-      parameters:
-        - name: module
-          in: path
-          required: true
-          schema:
-            $ref: "#/components/schemas/ModuleName"
-        - name: version
-          in: path
-          required: true
-          schema:
-            type: string
-            example: v10.0.1
-      requestBody:
-        description: An array of paths to lookup.
-        required: true
-        content:
-          application/json:
-            schema:
-              type: array
-              items:
-                type: string
-              example: ["/mod.ts", "/lib/mod.ts"]
-      responses:
-        "200":
-          description: Successful operation
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/DocNodeByEntry"
-        "404":
-          description: Not found - the requested resource was not found
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/HttpError"
-            text/html:
-              schema:
-                type: string
   /v2/modules/{module}/{version}/doc/{path}:
     get:
       tags:
