@@ -13,8 +13,10 @@ import { type Query } from "google_datastore/query";
 
 import { endpointAuth } from "./auth.ts";
 import {
+  type DocNode,
   type DocNodeModuleDoc,
   generateDocNodes,
+  getDocNodes,
   type JsDoc,
   queryDocNodes,
 } from "./docs.ts";
@@ -221,6 +223,28 @@ router.get(
 );
 
 // ## DocNode related APIs
+
+router.post(
+  "/v2/modules/:module/:version/doc",
+  async (ctx: Context<string[], { module: string; version: string }>) => {
+    const { params: { module, version } } = ctx;
+    const entries = await ctx.body();
+    if (!entries || !Array.isArray(entries)) {
+      throw new errors.BadRequest("Body is missing or malformed");
+    }
+    const results = await Promise.all(
+      entries.map((entry) => getDocNodes(module, version, entry)),
+    );
+    const result: Record<string, DocNode[]> = {};
+    for (const item of results) {
+      if (item) {
+        const [entry, nodes] = item;
+        result[entry] = nodes;
+      }
+    }
+    return result;
+  },
+);
 
 async function checkMaybeLoad(
   module: string,
