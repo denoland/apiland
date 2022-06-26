@@ -2,18 +2,21 @@
 
 import { commitDocNodes, type DocNode, type DocNodeNull } from "./docs.ts";
 import { loadModule } from "./modules.ts";
-import { datastore } from "./store.ts";
+import { algolia, datastore } from "./store.ts";
 
 interface TaskBase {
   kind: string;
 }
 
-interface CommitTask extends TaskBase {
-  kind: "commit";
+interface ModuleBase {
   module: string;
   version: string;
   path: string;
   docNodes: (DocNode | DocNodeNull)[];
+}
+
+interface CommitTask extends TaskBase, ModuleBase {
+  kind: "commit";
 }
 
 interface LoadTask extends TaskBase {
@@ -22,7 +25,11 @@ interface LoadTask extends TaskBase {
   version: string;
 }
 
-type TaskDescriptor = LoadTask | CommitTask;
+interface AlgoliaTask extends TaskBase, ModuleBase {
+  kind: "algolia";
+}
+
+type TaskDescriptor = LoadTask | CommitTask | AlgoliaTask;
 
 let uid = 1;
 
@@ -78,12 +85,38 @@ async function taskLoadModule(
   }
 }
 
+async function taskAlgolia(
+  id: number,
+  { module, version, docNodes }: AlgoliaTask,
+) {
+  const index = algolia.initIndex("deno_modules");
+  console.log(
+    `[${id}]: %Indexing%c module %c"${module}@${version}"%c...`,
+    "color:green",
+    "color:none",
+    "color:cyan",
+    "color:none",
+  );
+  index.saveObjects(docNodes, {
+    autoGenerateObjectIDIfNotExist: true,
+  }).wait();
+  console.log(
+    `[${id}]: %cIndexed%c module %c${module}@${version}%c.`,
+    "color:green",
+    "color:none",
+    "color:yellow",
+    "color:none",
+  );
+}
+
 function process(id: number, task: TaskDescriptor): Promise<void> {
   switch (task.kind) {
     case "commit":
       return taskCommitDocNodes(id, task);
     case "load":
       return taskLoadModule(id, task);
+    case "algolia":
+      return taskAlgolia(id, task);
     default:
       console.error(
         `%cERROR%c: [${id}]: unexpected task kind: %c${

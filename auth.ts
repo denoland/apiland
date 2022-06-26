@@ -38,3 +38,9 @@ export const keys = {
   private_key_id: Deno.env.get("GOOGLE_PRIVATE_KEY_ID") ?? "",
   project_id: Deno.env.get("GOOGLE_PROJECT_ID") ?? "",
 };
+
+/** Algolia credentials required to upload docNodes to algolia. */
+export const algoliaKeys = {
+  appId: Deno.env.get("ALGOLIA_APP_ID") ?? "",
+  apiKey: Deno.env.get("ALGOLIA_API_KEY") ?? "",
+};

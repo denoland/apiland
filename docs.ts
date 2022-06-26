@@ -474,6 +474,10 @@ export async function getDocNodes(
       if (response.found && response.found.length) {
         const path = entry.slice(1);
         const docNodes = await generateDocNodes(module, version, path);
+        // Upload docNodes to algolia.
+        if (docNodes.length) {
+          enqueue({ kind: "algolia", module, version, path, docNodes });
+        }
         // if a module doesn't generate any doc nodes, we need to commit a null
         // node to the datastore, see we don't continue to try to generate doc
         // nodes for a module that doesn't export anything.
