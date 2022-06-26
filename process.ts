@@ -85,7 +85,7 @@ async function taskLoadModule(
   }
 }
 
-async function taskAlgolia(
+function taskAlgolia(
   id: number,
   { module, version, docNodes }: AlgoliaTask,
 ) {
@@ -107,7 +107,6 @@ async function taskAlgolia(
     "color:yellow",
     "color:none",
   );
-  return Promise.resolve();
 }
 
 function process(id: number, task: TaskDescriptor): Promise<void> {
@@ -117,7 +116,7 @@ function process(id: number, task: TaskDescriptor): Promise<void> {
     case "load":
       return taskLoadModule(id, task);
     case "algolia":
-      return taskAlgolia(id, task);
+      return Promise.resolve(taskAlgolia(id, task));
     default:
       console.error(
         `%cERROR%c: [${id}]: unexpected task kind: %c${
