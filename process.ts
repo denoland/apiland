@@ -85,7 +85,7 @@ async function taskLoadModule(
   }
 }
 
-function taskAlgolia(
+async function taskAlgolia(
   id: number,
   { module, version, docNodes }: AlgoliaTask,
 ) {
@@ -107,6 +107,7 @@ function taskAlgolia(
     "color:yellow",
     "color:none",
   );
+  return Promise.resolve();
 }
 
 function process(id: number, task: TaskDescriptor): Promise<void> {
