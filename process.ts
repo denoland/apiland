@@ -85,7 +85,7 @@ async function taskLoadModule(
   }
 }
 
-async function taskAlgolia(
+function taskAlgolia(
   id: number,
   { module, version, docNodes }: AlgoliaTask,
 ) {
