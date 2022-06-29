@@ -97,9 +97,20 @@ function taskAlgolia(
     "color:cyan",
     "color:none",
   );
-  index.saveObjects(docNodes, {
-    autoGenerateObjectIDIfNotExist: true,
-  }).wait();
+  // deno-lint-ignore no-explicit-any
+  const docNodesWithIDs: Record<string, any>[] = [];
+  docNodes.map((node) => {
+    if (node.kind !== "null") {
+      const location = node.location;
+      const fullPath = `${location.filename}:${location.line}:${location.col}`;
+      const objectID = `${fullPath}_${node.kind}_${node.name}`;
+      docNodesWithIDs.push({
+        objectID,
+        ...node,
+      });
+    }
+  });
+  index.saveObjects(docNodesWithIDs).wait();
   console.log(
     `[${id}]: %cIndexed%c module %c${module}@${version}%c.`,
     "color:green",
