@@ -2,18 +2,21 @@
 
 import { commitDocNodes, type DocNode, type DocNodeNull } from "./docs.ts";
 import { loadModule } from "./modules.ts";
-import { datastore } from "./store.ts";
+import { algolia, datastore } from "./store.ts";
 
 interface TaskBase {
   kind: string;
 }
 
-interface CommitTask extends TaskBase {
-  kind: "commit";
+interface ModuleBase {
   module: string;
   version: string;
   path: string;
   docNodes: (DocNode | DocNodeNull)[];
+}
+
+interface CommitTask extends TaskBase, ModuleBase {
+  kind: "commit";
 }
 
 interface LoadTask extends TaskBase {
@@ -22,7 +25,11 @@ interface LoadTask extends TaskBase {
   version: string;
 }
 
-type TaskDescriptor = LoadTask | CommitTask;
+interface AlgoliaTask extends TaskBase, ModuleBase {
+  kind: "algolia";
+}
+
+type TaskDescriptor = LoadTask | CommitTask | AlgoliaTask;
 
 let uid = 1;
 
@@ -78,12 +85,49 @@ async function taskLoadModule(
   }
 }
 
+function taskAlgolia(
+  id: number,
+  { module, version, docNodes }: AlgoliaTask,
+) {
+  const index = algolia.initIndex("deno_modules");
+  console.log(
+    `[${id}]: %Indexing%c module %c"${module}@${version}"%c...`,
+    "color:green",
+    "color:none",
+    "color:cyan",
+    "color:none",
+  );
+  // deno-lint-ignore no-explicit-any
+  const docNodesWithIDs: Record<string, any>[] = [];
+  docNodes.map((node) => {
+    if (node.kind !== "null") {
+      const location = node.location;
+      const fullPath = `${location.filename}:${location.line}:${location.col}`;
+      const objectID = `${fullPath}_${node.kind}_${node.name}`;
+      docNodesWithIDs.push({
+        objectID,
+        ...node,
+      });
+    }
+  });
+  index.saveObjects(docNodesWithIDs).wait();
+  console.log(
+    `[${id}]: %cIndexed%c module %c${module}@${version}%c.`,
+    "color:green",
+    "color:none",
+    "color:yellow",
+    "color:none",
+  );
+}
+
 function process(id: number, task: TaskDescriptor): Promise<void> {
   switch (task.kind) {
     case "commit":
       return taskCommitDocNodes(id, task);
     case "load":
       return taskLoadModule(id, task);
+    case "algolia":
+      return Promise.resolve(taskAlgolia(id, task));
     default:
       console.error(
         `%cERROR%c: [${id}]: unexpected task kind: %c${

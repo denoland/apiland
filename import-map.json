@@ -8,6 +8,8 @@
     "google_datastore/query": "https://deno.land/x/google_datastore@0.0.14/query.ts",
     "google_datastore/types": "https://deno.land/x/google_datastore@0.0.14/types.d.ts",
     "oak_commons/": "https://deno.land/x/oak_commons@0.3.1/",
-    "std/": "https://deno.land/std@0.142.0/"
+    "std/": "https://deno.land/std@0.142.0/",
+    "algoliasearch": "https://esm.sh/algoliasearch@4.13.1",
+    "xhr": "https://deno.land/x/xhr@0.1.0/mod.ts"
   }
 }

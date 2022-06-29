@@ -44,10 +44,6 @@ interface PackageMetaListing {
 const S3_BUCKET =
   "http://deno-registry2-prod-storagebucket-b3a31d16.s3-website-us-east-1.amazonaws.com/";
 const DENO_API = "https://api.deno.land/modules/";
-const EXT = [".ts", ".tsx", ".mts", ".cts", ".js", ".jsx", ".mjs", ".cjs"];
-const INDEX_MODULES = ["mod", "lib", "main", "index"].flatMap((idx) =>
-  EXT.map((ext) => `${idx}${ext}`)
-);
 const RE_IGNORED_MODULE =
   /(\/[_.].|(test|.+_test)\.(js|jsx|mjs|cjs|ts|tsx|mts|cts)$)/i;
 const RE_MODULE_EXT = /\.(?:js|jsx|mjs|cjs|ts|tsx|mts|cts)$/i;
