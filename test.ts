@@ -39,6 +39,7 @@ function teardown() {
 
 Deno.test({
   name: "GET /",
+  sanitizeResources: false,
   async fn() {
     const hostname = await setup();
 
