@@ -3,7 +3,7 @@
 import { entityToObject, objectSetKey, objectToEntity } from "google_datastore";
 import type { Mutation } from "google_datastore/types";
 
-import { datastore } from "./store.ts";
+import { getDatastore } from "./store.ts";
 import type { Module, ModuleVersion } from "./types.d.ts";
 import { assert } from "./util.ts";
 
@@ -114,6 +114,7 @@ export async function loadModule(
   assert(moduleMetaVersion, "Module version data missing");
 
   const mutations: Mutation[] = [];
+  const datastore = await getDatastore();
   const moduleKey = datastore.key(["module", module]);
 
   let moduleItem: Module;

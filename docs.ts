@@ -31,7 +31,7 @@ import * as JSONC from "jsonc-parser";
 import { errors } from "oak_commons/http_errors.ts";
 
 import { enqueue } from "./process.ts";
-import { datastore } from "./store.ts";
+import { getDatastore } from "./store.ts";
 import { assert } from "./util.ts";
 
 /** Used only in APIland to represent a module without any exported symbols in
@@ -305,6 +305,7 @@ export async function commitDocNodes(
     ["module_version", version],
     ["module_entry", `/${path}`],
   ] as KeyInit[];
+  const datastore = await getDatastore();
   addNodes(datastore, mutations, docNodes, keyInit);
   try {
     for await (
@@ -489,6 +490,7 @@ export async function getDocNodes(
   version: string,
   entry: string,
 ): Promise<[entry: string, nodes: DenoDocNode[]] | undefined> {
+  const datastore = await getDatastore();
   const ancestor = datastore.key(
     ["module", module],
     ["module_version", version],

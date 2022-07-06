@@ -23,7 +23,7 @@ import {
 } from "./docs.ts";
 import { loadModule } from "./modules.ts";
 import { enqueue } from "./process.ts";
-import { datastore } from "./store.ts";
+import { getDatastore } from "./store.ts";
 import { ModuleEntry } from "./types.d.ts";
 import { assert } from "./util.ts";
 
@@ -32,6 +32,8 @@ interface PagedItems<T> {
   next?: string;
   previous?: string;
 }
+
+performance.mark("startup");
 
 function pagedResults<T>(
   items: T[],
@@ -101,6 +103,7 @@ router.get("/ping", () => ({ pong: true }));
 // ## Metrics related APIs ##
 
 router.get("/v2/metrics/modules", async (ctx) => {
+  const datastore = await getDatastore();
   const query = datastore.createQuery("module_metrics");
   let limit = 100;
   let page = 1;
@@ -142,6 +145,7 @@ router.get("/v2/metrics/modules", async (ctx) => {
   }
 });
 router.get("/v2/metrics/modules/:module", async (ctx) => {
+  const datastore = await getDatastore();
   const response = await datastore.lookup(
     datastore.key(["module_metrics", ctx.params.module]),
   );
@@ -154,6 +158,7 @@ router.get("/v2/metrics/modules/:module", async (ctx) => {
 // ## Registry related APIs ##
 
 router.get("/v2/modules", async (ctx) => {
+  const datastore = await getDatastore();
   const query = datastore.createQuery("module");
   let limit = 100;
   let page = 1;
@@ -197,6 +202,7 @@ router.get("/v2/modules", async (ctx) => {
 router.get(
   "/v2/modules/:module",
   async (ctx) => {
+    const datastore = await getDatastore();
     const response = await datastore.lookup(
       datastore.key(["module", ctx.params.module]),
     );
@@ -208,6 +214,7 @@ router.get(
 router.get(
   "/v2/modules/:module/:version",
   async (ctx) => {
+    const datastore = await getDatastore();
     const response = await datastore.lookup(
       datastore.key([
         "module",
@@ -252,6 +259,7 @@ async function checkMaybeLoad(
   version: string,
   path?: string,
 ): Promise<boolean> {
+  const datastore = await getDatastore();
   const moduleVersionKey = datastore.key(
     ["module", module],
     ["module_version", version],
@@ -291,6 +299,7 @@ async function checkMaybeLoad(
 
 router.get("/v2/modules/:module/:version/doc/:path*", async (ctx) => {
   const { module, version, path } = ctx.params;
+  const datastore = await getDatastore();
   const moduleEntryKey = datastore.key(
     ["module", module],
     ["module_version", version],
@@ -332,6 +341,7 @@ async function appendQuery(
   path: string,
 ): Promise<boolean> {
   let any = false;
+  const datastore = await getDatastore();
   for await (const entity of datastore.streamQuery(query)) {
     any = true;
     const obj: ModuleEntry = entityToObject(entity);
@@ -344,6 +354,7 @@ async function appendQuery(
 
 router.get("/v2/modules/:module/:version/index/:path*{/}?", async (ctx) => {
   const { module, version, path: paramPath } = ctx.params;
+  const datastore = await getDatastore();
   const moduleKey = datastore.key(
     ["module", module],
     ["module_version", version],
@@ -414,6 +425,14 @@ router.addEventListener("listen", (evt) => {
     }${evt.hostname}:${evt.port}`,
     "color:green;font-weight:bold;",
     "color:yellow",
+  );
+  const measure = performance.measure("listen", "startup");
+  console.log(
+    `%cTime to listen%c in %c${measure.duration.toFixed(2)}ms%c.`,
+    "color:green",
+    "color:none",
+    "color:cyan",
+    "color:none",
   );
 });
 
