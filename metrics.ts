@@ -14,9 +14,10 @@ import {
 import type { Mutation } from "google_datastore/types";
 import { AnalyticsReporting, GoogleAuth } from "google_analytics_reporting";
 
-import { keys } from "./auth.ts";
+import { keys, readyPromise } from "./auth.ts";
 import type { Module, ModuleMetrics } from "./types.d.ts";
 
+await readyPromise;
 const auth = new GoogleAuth().fromJSON(keys);
 const reporter = new AnalyticsReporting(auth);
 

@@ -2,7 +2,7 @@
 
 import { commitDocNodes, type DocNode, type DocNodeNull } from "./docs.ts";
 import { loadModule } from "./modules.ts";
-import { algolia, datastore } from "./store.ts";
+import { getAlgolia, getDatastore } from "./store.ts";
 
 interface TaskBase {
   kind: string;
@@ -70,6 +70,7 @@ async function taskLoadModule(
     "color:yellow",
     "color:none",
   );
+  const datastore = await getDatastore();
   for await (
     const res of datastore.commit(mutations, { transactional: false })
   ) {
@@ -85,10 +86,11 @@ async function taskLoadModule(
   }
 }
 
-function taskAlgolia(
+async function taskAlgolia(
   id: number,
   { module, version, docNodes }: AlgoliaTask,
 ) {
+  const algolia = await getAlgolia();
   const index = algolia.initIndex("deno_modules");
   console.log(
     `[${id}]: %Indexing%c module %c"${module}@${version}"%c...`,
