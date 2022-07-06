@@ -48,7 +48,7 @@ Deno.test({
       response.headers.get("content-type"),
       "text/html; charset=UTF-8",
     );
-    assertStringIncludes(await response.text(), "<h1>api.deno.land</h1>");
+    assertStringIncludes(await response.text(), "<h1>apiland.deno.dev</h1>");
 
     teardown();
   },
