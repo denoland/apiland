@@ -9,23 +9,19 @@
 import { auth, type Context, Router } from "acorn";
 import { errors, isHttpError } from "oak_commons/http_errors.ts";
 import { entityToObject } from "google_datastore";
-import { type Query } from "google_datastore/query";
 
 import { endpointAuth } from "./auth.ts";
 import {
+  checkMaybeLoad,
   type DocNode,
-  type DocNodeModuleDoc,
   generateDocNodes,
+  generateModuleIndex,
   getDocNodes,
   getImportMapSpecifier,
-  type JsDoc,
   queryDocNodes,
 } from "./docs.ts";
-import { loadModule } from "./modules.ts";
 import { enqueue } from "./process.ts";
 import { getDatastore } from "./store.ts";
-import { ModuleEntry } from "./types.d.ts";
-import { assert } from "./util.ts";
 
 interface PagedItems<T> {
   items: T[];
@@ -254,49 +250,6 @@ router.post(
   },
 );
 
-async function checkMaybeLoad(
-  module: string,
-  version: string,
-  path?: string,
-): Promise<boolean> {
-  const datastore = await getDatastore();
-  const moduleVersionKey = datastore.key(
-    ["module", module],
-    ["module_version", version],
-  );
-  const result = await datastore.lookup(moduleVersionKey);
-  const moduleVersionExists = !!result.found;
-  if (!moduleVersionExists) {
-    try {
-      const mutations = await loadModule(module, version);
-      if (mutations.length <= 1) {
-        return false;
-      }
-      console.log(
-        `  adding ${module}@${version}. Committing ${mutations.length} changes...`,
-      );
-      for await (
-        const batch of datastore.commit(mutations, { transactional: false })
-      ) {
-        console.log(`  committed ${batch.mutationResults.length} changes.`);
-      }
-    } catch {
-      return false;
-    }
-  }
-  if (path) {
-    const pathKey = datastore.key(
-      ["module", module],
-      ["module_version", version],
-      ["module_entry", `/${path}`],
-    );
-    const result = await datastore.lookup(pathKey);
-    return !!result.found;
-  } else {
-    return true;
-  }
-}
-
 router.get("/v2/modules/:module/:version/doc/:path*", async (ctx) => {
   const { module, version, path } = ctx.params;
   const datastore = await getDatastore();
@@ -315,7 +268,7 @@ router.get("/v2/modules/:module/:version/doc/:path*", async (ctx) => {
     return results;
   }
   // attempt to load the module
-  if (!await checkMaybeLoad(module, version, path)) {
+  if (!await checkMaybeLoad(datastore, module, version, path)) {
     return undefined;
   }
   try {
@@ -335,64 +288,24 @@ router.get("/v2/modules/:module/:version/doc/:path*", async (ctx) => {
   }
 });
 
-async function appendQuery(
-  results: Record<string, string[]>,
-  query: Query,
-  path: string,
-): Promise<boolean> {
-  let any = false;
-  const datastore = await getDatastore();
-  for await (const entity of datastore.streamQuery(query)) {
-    any = true;
-    const obj: ModuleEntry = entityToObject(entity);
-    if (obj.path.startsWith(path) && obj.index) {
-      results[obj.path] = obj.index;
-    }
-  }
-  return any;
-}
-
 router.get("/v2/modules/:module/:version/index/:path*{/}?", async (ctx) => {
   const { module, version, path: paramPath } = ctx.params;
+  const path = `/${paramPath}`;
   const datastore = await getDatastore();
-  const moduleKey = datastore.key(
+  const indexKey = datastore.key(
     ["module", module],
     ["module_version", version],
+    ["module_index", path],
   );
-  const query = datastore
-    .createQuery("module_entry")
-    .filter("type", "dir")
-    .hasAncestor(moduleKey);
-  const results: Record<string, string[]> = {};
-  const path = `/${paramPath}`;
-  const any = await appendQuery(results, query, path);
-  if (!any) {
-    if (await checkMaybeLoad(module, version)) {
-      await appendQuery(results, query, path);
-    }
+  const response = await datastore.lookup(indexKey);
+  if (response.found) {
+    return entityToObject(response.found[0].entity);
   }
-  if (Object.keys(results).length) {
-    const docNodeQuery = datastore
-      .createQuery("doc_node")
-      .filter("kind", "moduleDoc")
-      .hasAncestor(moduleKey);
-    const docs: Record<string, JsDoc> = {};
-    for await (const entity of datastore.streamQuery(docNodeQuery)) {
-      assert(entity.key);
-      // this ensure we only find moduleDoc for the module, not from a re-exported
-      // namespace which might have module doc as well.
-      if (entity.key.path.length !== 4) {
-        continue;
-      }
-      const key = entity.key.path[2]?.name;
-      assert(key);
-      if (key.startsWith(path)) {
-        const obj: DocNodeModuleDoc = entityToObject(entity);
-        docs[key] = obj.jsDoc;
-      }
-    }
-    return { index: results, docs };
+  const index = await generateModuleIndex(datastore, module, version, path);
+  if (index) {
+    enqueue({ kind: "commitIndex", module, version, path, index });
   }
+  return index;
 });
 
 // webhooks

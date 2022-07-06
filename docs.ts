@@ -4,7 +4,9 @@ import { doc, type LoadResponse } from "deno_doc";
 import type {
   DocNode as DenoDocNode,
   DocNodeInterface,
+  DocNodeModuleDoc,
   DocNodeNamespace,
+  JsDoc,
 } from "deno_doc/types";
 export type {
   DocNode,
@@ -20,6 +22,7 @@ import {
   objectSetKey,
   objectToEntity,
 } from "google_datastore";
+import { type Query } from "google_datastore/query";
 import type {
   Entity,
   Key,
@@ -30,8 +33,10 @@ import type {
 import * as JSONC from "jsonc-parser";
 import { errors } from "oak_commons/http_errors.ts";
 
+import { loadModule } from "./modules.ts";
 import { enqueue } from "./process.ts";
 import { getDatastore } from "./store.ts";
+import { ModuleEntry } from "./types.d.ts";
 import { assert } from "./util.ts";
 
 /** Used only in APIland to represent a module without any exported symbols in
@@ -39,6 +44,11 @@ import { assert } from "./util.ts";
  */
 export interface DocNodeNull {
   kind: "null";
+}
+
+export interface ModuleIndex {
+  index: Record<string, string[]>;
+  docs: Record<string, JsDoc>;
 }
 
 type DocNode = DenoDocNode | DocNodeNull;
@@ -178,6 +188,111 @@ export async function generateDocNodes(
   }
 }
 
+async function appendQuery(
+  datastore: Datastore,
+  results: Record<string, string[]>,
+  query: Query,
+  path: string,
+): Promise<boolean> {
+  let any = false;
+  for await (const entity of datastore.streamQuery(query)) {
+    any = true;
+    const obj: ModuleEntry = entityToObject(entity);
+    if (obj.path.startsWith(path) && obj.index) {
+      results[obj.path] = obj.index;
+    }
+  }
+  return any;
+}
+
+export async function checkMaybeLoad(
+  datastore: Datastore,
+  module: string,
+  version: string,
+  path?: string,
+): Promise<boolean> {
+  const moduleVersionKey = datastore.key(
+    ["module", module],
+    ["module_version", version],
+  );
+  const result = await datastore.lookup(moduleVersionKey);
+  const moduleVersionExists = !!result.found;
+  if (!moduleVersionExists) {
+    try {
+      const mutations = await loadModule(module, version);
+      if (mutations.length <= 1) {
+        return false;
+      }
+      console.log(
+        `  adding ${module}@${version}. Committing ${mutations.length} changes...`,
+      );
+      for await (
+        const batch of datastore.commit(mutations, { transactional: false })
+      ) {
+        console.log(`  committed ${batch.mutationResults.length} changes.`);
+      }
+    } catch {
+      return false;
+    }
+  }
+  if (path) {
+    const pathKey = datastore.key(
+      ["module", module],
+      ["module_version", version],
+      ["module_entry", `/${path}`],
+    );
+    const result = await datastore.lookup(pathKey);
+    return !!result.found;
+  } else {
+    return true;
+  }
+}
+
+export async function generateModuleIndex(
+  datastore: Datastore,
+  module: string,
+  version: string,
+  path: string,
+): Promise<ModuleIndex | undefined> {
+  const moduleKey = datastore.key(
+    ["module", module],
+    ["module_version", version],
+  );
+  const query = datastore
+    .createQuery("module_entry")
+    .filter("type", "dir")
+    .hasAncestor(moduleKey);
+  const results: Record<string, string[]> = {};
+  const any = await appendQuery(datastore, results, query, path);
+  if (!any) {
+    if (await checkMaybeLoad(datastore, module, version)) {
+      await appendQuery(datastore, results, query, path);
+    }
+  }
+  if (Object.keys(results).length) {
+    const docNodeQuery = datastore
+      .createQuery("doc_node")
+      .filter("kind", "moduleDoc")
+      .hasAncestor(moduleKey);
+    const docs: Record<string, JsDoc> = {};
+    for await (const entity of datastore.streamQuery(docNodeQuery)) {
+      assert(entity.key);
+      // this ensure we only find moduleDoc for the module, not from a re-exported
+      // namespace which might have module doc as well.
+      if (entity.key.path.length !== 4) {
+        continue;
+      }
+      const key = entity.key.path[2]?.name;
+      assert(key);
+      if (key.startsWith(path)) {
+        const obj: DocNodeModuleDoc = entityToObject(entity);
+        docs[key] = obj.jsDoc;
+      }
+    }
+    return { index: results, docs };
+  }
+}
+
 /** Namespaces and interfaces are open ended. This function will merge these
  * together, so that you have single entries per symbol. */
 function mergeEntries(entries: DenoDocNode[]): DenoDocNode[] {
@@ -307,6 +422,46 @@ export async function commitDocNodes(
   ] as KeyInit[];
   const datastore = await getDatastore();
   addNodes(datastore, mutations, docNodes, keyInit);
+  try {
+    for await (
+      const _result of datastore.commit(mutations, { transactional: false })
+    ) {
+      console.log(
+        `[${id}]: %cCommitted %cbatch for %c${module}@${version}/${path}%c.`,
+        "color:green",
+        "color:none",
+        "color:yellow",
+        "color:none",
+      );
+    }
+  } catch (error) {
+    if (error instanceof DatastoreError) {
+      console.log(`[${id}] Datastore Error:`);
+      console.log(`${error.status} ${error.message}`);
+      console.log(error.statusInfo);
+    } else {
+      console.log("Unexpected Error:");
+      console.log(error);
+    }
+    return;
+  }
+}
+
+export async function commitModuleIndex(
+  id: number,
+  module: string,
+  version: string,
+  path: string,
+  index: ModuleIndex,
+) {
+  const datastore = await getDatastore();
+  const key = datastore.key(
+    ["module", module],
+    ["module_version", version],
+    ["module_index", path],
+  );
+  objectSetKey(index, key);
+  const mutations = [{ upsert: objectToEntity(index) }];
   try {
     for await (
       const _result of datastore.commit(mutations, { transactional: false })
