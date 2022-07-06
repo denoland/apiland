@@ -1,6 +1,12 @@
 // Copyright 2018-2022 the Deno authors. All rights reserved. MIT license.
 
-import { commitDocNodes, type DocNode, type DocNodeNull } from "./docs.ts";
+import {
+  commitDocNodes,
+  commitModuleIndex,
+  type DocNode,
+  type DocNodeNull,
+  type ModuleIndex,
+} from "./docs.ts";
 import { loadModule } from "./modules.ts";
 import { getAlgolia, getDatastore } from "./store.ts";
 
@@ -19,6 +25,17 @@ interface CommitTask extends TaskBase, ModuleBase {
   kind: "commit";
 }
 
+interface ModuleIndexBase {
+  module: string;
+  version: string;
+  path: string;
+  index: ModuleIndex;
+}
+
+interface CommitIndexTask extends TaskBase, ModuleIndexBase {
+  kind: "commitIndex";
+}
+
 interface LoadTask extends TaskBase {
   kind: "load";
   module: string;
@@ -29,7 +46,7 @@ interface AlgoliaTask extends TaskBase, ModuleBase {
   kind: "algolia";
 }
 
-type TaskDescriptor = LoadTask | CommitTask | AlgoliaTask;
+type TaskDescriptor = LoadTask | CommitTask | AlgoliaTask | CommitIndexTask;
 
 let uid = 1;
 
@@ -49,6 +66,20 @@ function taskCommitDocNodes(
     "color:none",
   );
   return commitDocNodes(id, module, version, path, docNodes);
+}
+
+function taskCommitModuleIndex(
+  id: number,
+  { module, version, path, index }: CommitIndexTask,
+) {
+  console.log(
+    `[${id}]: %cCommitting%c module index for %c"${module}@${version}/${path}"%c...`,
+    "color:green",
+    "color:none",
+    "color:cyan",
+    "color:none",
+  );
+  return commitModuleIndex(id, module, version, path, index);
 }
 
 async function taskLoadModule(
@@ -126,6 +157,8 @@ function process(id: number, task: TaskDescriptor): Promise<void> {
   switch (task.kind) {
     case "commit":
       return taskCommitDocNodes(id, task);
+    case "commitIndex":
+      return taskCommitModuleIndex(id, task);
     case "load":
       return taskLoadModule(id, task);
     case "algolia":
