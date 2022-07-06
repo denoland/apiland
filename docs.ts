@@ -27,6 +27,7 @@ import type {
   PartitionId,
   PathElement,
 } from "google_datastore/types";
+import * as JSONC from "jsonc-parser";
 import { errors } from "oak_commons/http_errors.ts";
 
 import { enqueue } from "./process.ts";
@@ -41,6 +42,10 @@ export interface DocNodeNull {
 }
 
 type DocNode = DenoDocNode | DocNodeNull;
+
+interface ConfigFileJson {
+  importMap?: string;
+}
 
 const MAX_CACHE_SIZE = parseInt(Deno.env.get("MAX_CACHE_SIZE") ?? "", 10) ||
   25_000_000;
@@ -59,7 +64,7 @@ async function load(specifier: string): Promise<LoadResponse | undefined> {
   try {
     const url = new URL(specifier);
     if (url.protocol === "http:" || url.protocol === "https:") {
-      const response = await fetch(specifier, { redirect: "follow" });
+      const response = await fetch(url, { redirect: "follow" });
       if (response.status !== 200) {
         cachedResources.set(specifier, undefined);
         cachedSpecifiers.add(specifier);
@@ -67,10 +72,14 @@ async function load(specifier: string): Promise<LoadResponse | undefined> {
         return undefined;
       }
       const content = await response.text();
+      const headers: Record<string, string> = {};
+      for (const [key, value] of response.headers) {
+        headers[key.toLowerCase()] = value;
+      }
       const loadResponse: LoadResponse = {
         kind: "module",
         specifier: response.url,
-        headers: { ...response.headers },
+        headers,
         content,
       };
       cachedResources.set(specifier, loadResponse);
@@ -119,17 +128,43 @@ function enqueueCheck() {
   }
 }
 
+const CONFIG_FILES = ["deno.jsonc", "deno.json"] as const;
+
+/** Given a module and version, attempt to resolve an import map specifier from
+ * a Deno configuration file. If none can be resolved, `undefined` is
+ * resolved. */
+export async function getImportMapSpecifier(
+  module: string,
+  version: string,
+): Promise<string | undefined> {
+  let result;
+  for (const configFile of CONFIG_FILES) {
+    result = await load(
+      `https://deno.land/x/${module}@${version}/${configFile}`,
+    );
+    if (result) {
+      break;
+    }
+  }
+  if (result?.kind === "module") {
+    const { specifier, content } = result;
+    const configFileJson: ConfigFileJson = JSONC.parse(content);
+    if (configFileJson.importMap) {
+      return new URL(configFileJson.importMap, specifier).toString();
+    }
+    return undefined;
+  }
+}
+
 export async function generateDocNodes(
   module: string,
   version: string,
   path: string,
+  importMap?: string,
 ): Promise<DenoDocNode[]> {
   const url = `https://deno.land/x/${module}@${version}/${path}`;
   try {
-    const entries = mergeEntries(
-      await doc(url, { load }),
-    );
-    return entries;
+    return mergeEntries(await doc(url, { load, importMap }));
   } catch (error) {
     if (error instanceof Error) {
       if (error.message.includes("Unable to load specifier")) {
@@ -470,10 +505,16 @@ export async function getDocNodes(
     return [entry, entitiesToDocNodes(ancestor, entities)];
   } else {
     try {
+      const importMap = await getImportMapSpecifier(module, version);
       const response = await datastore.lookup(ancestor);
       if (response.found && response.found.length) {
         const path = entry.slice(1);
-        const docNodes = await generateDocNodes(module, version, path);
+        const docNodes = await generateDocNodes(
+          module,
+          version,
+          path,
+          importMap,
+        );
         // Upload docNodes to algolia.
         if (docNodes.length) {
           enqueue({ kind: "algolia", module, version, path, docNodes });
