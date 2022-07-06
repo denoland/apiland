@@ -2,8 +2,13 @@
 
 import { assertEquals, assertStringIncludes } from "std/testing/asserts.ts";
 import { type RouterListenEvent } from "acorn";
+import { getDatastore } from "./store.ts";
 
 import { router } from "./main.ts";
+
+// required to ensure that all bootstrapping is completed before attempting to
+// test
+await getDatastore();
 
 let serverPromise: Promise<string> | undefined;
 let controller: AbortController | undefined;
