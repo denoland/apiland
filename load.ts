@@ -15,7 +15,9 @@
 import { parse } from "std/flags/mod.ts";
 
 import { loadModule } from "./modules.ts";
-import { datastore } from "./store.ts";
+import { getDatastore } from "./store.ts";
+
+const datastore = await getDatastore();
 
 const args = parse(Deno.args, { boolean: ["doc", "dry-run"] });
 
@@ -36,7 +38,7 @@ console.log(
   "color:none",
 );
 
-const mutations = await loadModule(module, version);
+const [mutations] = await loadModule(module, version);
 
 if (args["dry-run"]) {
   console.log(

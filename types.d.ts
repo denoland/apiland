@@ -14,6 +14,7 @@ export interface Module {
   description: string;
   versions: string[];
   latest_version: string;
+  star_count?: number;
   maintenance_score?: number;
   popularity_score?: number;
   quality_score?: number;

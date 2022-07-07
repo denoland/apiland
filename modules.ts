@@ -107,7 +107,13 @@ export async function loadModule(
   module: string,
   version?: string,
   quiet = false,
-): Promise<Mutation[]> {
+): Promise<
+  [
+    mutations: Mutation[],
+    module: Module,
+    moduleVersion: ModuleVersion | undefined,
+  ]
+> {
   const moduleData = await getModuleData(module);
   assert(moduleData, "Module data missing");
   const moduleMetaVersion = await getModuleMetaVersions(module);
@@ -125,6 +131,7 @@ export async function loadModule(
     moduleItem.description = moduleData.data.description;
     moduleItem.versions = moduleMetaVersion.versions;
     moduleItem.latest_version = moduleMetaVersion.latest;
+    moduleItem.star_count = moduleData.data.star_count;
   } else {
     moduleItem = {
       name: module,
@@ -136,6 +143,7 @@ export async function loadModule(
   }
   mutations.push({ upsert: objectToEntity(moduleItem) });
 
+  let moduleVersion: ModuleVersion | undefined;
   if (version) {
     let versions: string[] = [];
     if (version === "all") {
@@ -156,7 +164,7 @@ export async function loadModule(
       }
       const versionMeta = await getVersionMeta(module, version);
       assert(versionMeta, `Unable to load meta data for ${module}@${version}.`);
-      const moduleVersion: ModuleVersion = {
+      moduleVersion = {
         name: module,
         description: moduleItem.description,
         version,
@@ -190,5 +198,5 @@ export async function loadModule(
     }
   }
 
-  return mutations;
+  return [mutations, moduleItem, moduleVersion];
 }

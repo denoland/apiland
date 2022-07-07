@@ -36,7 +36,7 @@ import { errors } from "oak_commons/http_errors.ts";
 import { loadModule } from "./modules.ts";
 import { enqueue } from "./process.ts";
 import { getDatastore } from "./store.ts";
-import { ModuleEntry } from "./types.d.ts";
+import { Module, ModuleEntry, ModuleVersion } from "./types.d.ts";
 import { assert } from "./util.ts";
 
 /** Used only in APIland to represent a module without any exported symbols in
@@ -44,6 +44,20 @@ import { assert } from "./util.ts";
  */
 export interface DocNodeNull {
   kind: "null";
+}
+
+export interface LegacyIndex {
+  name: string;
+  description: string;
+  version: string;
+  star_count?: number;
+  uploaded_at: string;
+  upload_options: {
+    type: string;
+    repository: string;
+    ref: string;
+  };
+  files: ModuleEntry[];
 }
 
 export interface ModuleIndex {
@@ -219,7 +233,7 @@ export async function checkMaybeLoad(
   const moduleVersionExists = !!result.found;
   if (!moduleVersionExists) {
     try {
-      const mutations = await loadModule(module, version);
+      const [mutations] = await loadModule(module, version);
       if (mutations.length <= 1) {
         return false;
       }
@@ -245,6 +259,61 @@ export async function checkMaybeLoad(
     return !!result.found;
   } else {
     return true;
+  }
+}
+
+export async function generateLegacyIndex(
+  datastore: Datastore,
+  module: string,
+  version: string,
+  path: string,
+): Promise<LegacyIndex | undefined> {
+  const moduleKey = datastore.key(["module", module]);
+  const moduleVersionKey = datastore.key(
+    ["module", module],
+    ["module_version", version],
+  );
+  const moduleResult = await datastore.lookup([moduleKey, moduleVersionKey]);
+  let moduleItem: Module | undefined;
+  let moduleVersion: ModuleVersion | undefined;
+  if (!(moduleResult.found && moduleResult.found.length == 2)) {
+    let mutations: Mutation[];
+    [mutations, moduleItem, moduleVersion] = await loadModule(module, version);
+    enqueue({ kind: "commitMutations", mutations });
+  } else {
+    const [
+      { entity: moduleEntity },
+      { entity: moduleVersionEntity },
+    ] = moduleResult.found;
+    moduleItem = entityToObject(moduleEntity);
+    moduleVersion = entityToObject(moduleVersionEntity);
+  }
+  if (moduleItem && moduleVersion) {
+    const query = datastore
+      .createQuery("module_entry")
+      .hasAncestor(moduleVersionKey);
+    const files: ModuleEntry[] = [];
+    for await (const entity of datastore.streamQuery(query)) {
+      const moduleEntry = entityToObject<ModuleEntry>(entity);
+      if (
+        moduleEntry.path.startsWith(path) &&
+        moduleEntry.path.slice(path.length).lastIndexOf("/") <= 0
+      ) {
+        files.push(moduleEntry);
+      }
+    }
+    if (files.length) {
+      const index: LegacyIndex = {
+        name: moduleItem.name,
+        description: moduleItem.description,
+        version: moduleVersion.version,
+        star_count: moduleItem.star_count,
+        uploaded_at: moduleVersion.uploaded_at.toISOString(),
+        upload_options: moduleVersion.upload_options,
+        files,
+      };
+      return index;
+    }
   }
 }
 

@@ -1,10 +1,14 @@
 // Copyright 2018-2022 the Deno authors. All rights reserved. MIT license.
 
+import { DatastoreError, objectSetKey, objectToEntity } from "google_datastore";
+import type { Mutation } from "google_datastore/types";
+
 import {
   commitDocNodes,
   commitModuleIndex,
   type DocNode,
   type DocNodeNull,
+  type LegacyIndex,
   type ModuleIndex,
 } from "./docs.ts";
 import { loadModule } from "./modules.ts";
@@ -25,6 +29,18 @@ interface CommitTask extends TaskBase, ModuleBase {
   kind: "commit";
 }
 
+interface LegacyIndexBase {
+  module: string;
+  version: string;
+  path: string;
+  index: LegacyIndex;
+}
+
+interface CommitLegacyIndex extends TaskBase, LegacyIndexBase {
+  kind: "commitLegacyIndex";
+  index: LegacyIndex;
+}
+
 interface ModuleIndexBase {
   module: string;
   version: string;
@@ -34,6 +50,11 @@ interface ModuleIndexBase {
 
 interface CommitIndexTask extends TaskBase, ModuleIndexBase {
   kind: "commitIndex";
+}
+
+interface CommitMutations extends TaskBase {
+  kind: "commitMutations";
+  mutations: Mutation[];
 }
 
 interface LoadTask extends TaskBase {
@@ -46,7 +67,13 @@ interface AlgoliaTask extends TaskBase, ModuleBase {
   kind: "algolia";
 }
 
-type TaskDescriptor = LoadTask | CommitTask | AlgoliaTask | CommitIndexTask;
+type TaskDescriptor =
+  | LoadTask
+  | CommitTask
+  | AlgoliaTask
+  | CommitIndexTask
+  | CommitLegacyIndex
+  | CommitMutations;
 
 let uid = 1;
 
@@ -68,6 +95,50 @@ function taskCommitDocNodes(
   return commitDocNodes(id, module, version, path, docNodes);
 }
 
+async function taskCommitLegacyIndex(
+  id: number,
+  { module, version, path, index }: CommitLegacyIndex,
+) {
+  console.log(
+    `[${id}]: %cCommitting%c legacy module index for %c"${module}@${version}${path}"%c...`,
+    "color:green",
+    "color:none",
+    "color:cyan",
+    "color:none",
+  );
+  const datastore = await getDatastore();
+  const key = datastore.key(
+    ["module", module],
+    ["module_version", version],
+    ["legacy_index", path],
+  );
+  objectSetKey(index, key);
+  const mutations = [{ upsert: objectToEntity(index) }];
+  try {
+    for await (
+      const _result of datastore.commit(mutations, { transactional: false })
+    ) {
+      console.log(
+        `[${id}]: %cCommitted %cbatch for %c${module}@${version}/${path}%c.`,
+        "color:green",
+        "color:none",
+        "color:yellow",
+        "color:none",
+      );
+    }
+  } catch (error) {
+    if (error instanceof DatastoreError) {
+      console.log(`[${id}] Datastore Error:`);
+      console.log(`${error.status} ${error.message}`);
+      console.log(error.statusInfo);
+    } else {
+      console.log("Unexpected Error:");
+      console.log(error);
+    }
+    return;
+  }
+}
+
 function taskCommitModuleIndex(
   id: number,
   { module, version, path, index }: CommitIndexTask,
@@ -82,6 +153,26 @@ function taskCommitModuleIndex(
   return commitModuleIndex(id, module, version, path, index);
 }
 
+async function taskCommitMutations(id: number, { mutations }: CommitMutations) {
+  console.log(
+    `[${id}]: %cCommitting %c${mutations.length}%c mutations...`,
+    "color:green",
+    "color:cyan",
+    "color:none",
+  );
+  const datastore = await getDatastore();
+  for await (
+    const batch of datastore.commit(mutations, { transactional: false })
+  ) {
+    console.log(
+      `[${id}]: %cCommitted $c${batch.mutationResults.length}$c mutations.`,
+      "color:green",
+      "color:cyan",
+      "color:none",
+    );
+  }
+}
+
 async function taskLoadModule(
   id: number,
   { module, version }: LoadTask,
@@ -93,7 +184,7 @@ async function taskLoadModule(
     "color:cyan",
     "color:none",
   );
-  const mutations = await loadModule(module, version, true);
+  const [mutations] = await loadModule(module, version, true);
   let remaining = mutations.length;
   console.log(
     `[${id}]: %cCommitting %c${remaining}%c changes...`,
@@ -159,6 +250,10 @@ function process(id: number, task: TaskDescriptor): Promise<void> {
       return taskCommitDocNodes(id, task);
     case "commitIndex":
       return taskCommitModuleIndex(id, task);
+    case "commitLegacyIndex":
+      return taskCommitLegacyIndex(id, task);
+    case "commitMutations":
+      return taskCommitMutations(id, task);
     case "load":
       return taskLoadModule(id, task);
     case "algolia":
