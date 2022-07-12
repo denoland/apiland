@@ -17,6 +17,7 @@ import {
   generateDocNodes,
   generateLegacyIndex,
   generateModuleIndex,
+  generateSymbolIndex,
   getDocNodes,
   getImportMapSpecifier,
   isDocable,
@@ -335,6 +336,26 @@ router.get(
     return index;
   },
 );
+
+router.get("/v2/modules/:module/:version/symbols/:path*{/}?", async (ctx) => {
+  const { module, version, path: paramPath } = ctx.params;
+  const path = `/${paramPath}`;
+  const datastore = await getDatastore();
+  const indexKey = datastore.key(
+    ["module", module],
+    ["module_version", version],
+    ["symbol_index", path],
+  );
+  const response = await datastore.lookup(indexKey);
+  if (response.found) {
+    return entityToObject(response.found[0].entity);
+  }
+  const index = await generateSymbolIndex(datastore, module, version, path);
+  if (index) {
+    enqueue({ kind: "commitSymbolIndex", module, version, path, index });
+  }
+  return index;
+});
 
 // webhooks
 

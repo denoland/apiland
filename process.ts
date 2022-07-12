@@ -6,10 +6,12 @@ import type { Mutation } from "google_datastore/types";
 import {
   commitDocNodes,
   commitModuleIndex,
+  commitSymbolIndex,
   type DocNode,
   type DocNodeNull,
   type LegacyIndex,
   type ModuleIndex,
+  type SymbolIndex,
 } from "./docs.ts";
 import { loadModule } from "./modules.ts";
 import { getAlgolia, getDatastore } from "./store.ts";
@@ -57,6 +59,17 @@ interface CommitMutations extends TaskBase {
   mutations: Mutation[];
 }
 
+interface SymbolIndexBase {
+  module: string;
+  version: string;
+  path: string;
+  index: SymbolIndex;
+}
+
+interface CommitSymbolIndexTask extends TaskBase, SymbolIndexBase {
+  kind: "commitSymbolIndex";
+}
+
 interface LoadTask extends TaskBase {
   kind: "load";
   module: string;
@@ -73,7 +86,8 @@ type TaskDescriptor =
   | AlgoliaTask
   | CommitIndexTask
   | CommitLegacyIndex
-  | CommitMutations;
+  | CommitMutations
+  | CommitSymbolIndexTask;
 
 let uid = 1;
 
@@ -173,6 +187,20 @@ async function taskCommitMutations(id: number, { mutations }: CommitMutations) {
   }
 }
 
+function taskCommitSymbolIndex(
+  id: number,
+  { module, version, path, index }: CommitSymbolIndexTask,
+) {
+  console.log(
+    `[${id}]: %cCommitting%c symbol index for %c"${module}@${version}${path}"%c...`,
+    "color:green",
+    "color:none",
+    "color:cyan",
+    "color:none",
+  );
+  return commitSymbolIndex(id, module, version, path, index);
+}
+
 async function taskLoadModule(
   id: number,
   { module, version }: LoadTask,
@@ -254,6 +282,8 @@ function process(id: number, task: TaskDescriptor): Promise<void> {
       return taskCommitLegacyIndex(id, task);
     case "commitMutations":
       return taskCommitMutations(id, task);
+    case "commitSymbolIndex":
+      return taskCommitSymbolIndex(id, task);
     case "load":
       return taskLoadModule(id, task);
     case "algolia":

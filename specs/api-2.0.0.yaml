@@ -528,6 +528,86 @@ paths:
             text/html:
               schema:
                 type: string
+  /v2/modules/{module}/{version}/symbols:
+    get:
+      tags:
+        - registry
+      summary: Get a map of symbols by module.
+      description: >
+        Responds with an array which contains code modules and exported symbol
+        information for each code module in the root path.
+      operationId: getModuleSymbols
+      parameters:
+        - name: module
+          in: path
+          required: true
+          schema:
+            $ref: "#/components/schemas/ModuleName"
+        - name: version
+          in: path
+          required: true
+          schema:
+            type: string
+            example: v10.0.1
+      responses:
+        "200":
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SymbolIndex"
+        "404":
+          description: Not found - the requested resource was not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HttpError"
+            text/html:
+              schema:
+                type: string
+  /v2/modules/{module}/{version}/symbols/{path}:
+    get:
+      tags:
+        - registry
+      summary: Get a map of symbols by module for a subpath.
+      description: >
+        Responds with an array which contains code modules and exported symbol
+        information for each code module in the specified sub-path.
+      operationId: getModuleSymbolsPath
+      parameters:
+        - name: module
+          in: path
+          required: true
+          schema:
+            $ref: "#/components/schemas/ModuleName"
+        - name: version
+          in: path
+          required: true
+          schema:
+            type: string
+            example: v10.0.1
+        - name: path
+          in: path
+          required: true
+          schema:
+            type: string
+            example: src
+      responses:
+        "200":
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SymbolIndex"
+        "404":
+          description: Not found - the requested resource was not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HttpError"
+            text/html:
+              schema:
+                type: string
   /webhook/publish:
     post:
       tags:
@@ -860,6 +940,41 @@ components:
         previous:
           type: string
           example: /modules?limit=100&page=1
+    SymbolIndex:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/SymbolIndexItem"
+      required:
+        - "items"
+    SymbolIndexItem:
+      type: object
+      properties:
+        path:
+          type: string
+          example: /mod.ts
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/SymbolItem"
+      required:
+        - "path"
+        - "items"
+    SymbolItem:
+      type: object
+      properties:
+        name:
+          type: string
+          example: Example
+        kind:
+          $ref: "#/components/schemas/DocNodeKind"
+        jsDoc:
+          $ref: "#/components/schemas/JsDoc"
+      required:
+        - "name"
+        - "kind"
     UploadOptions:
       type: object
       properties:
