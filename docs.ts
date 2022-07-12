@@ -679,33 +679,49 @@ export function entitiesToDocNodes(
         break;
       }
       case "class":
-        docNode.classDef = JSON.parse(docNode.classDef as unknown as string);
+        if (typeof docNode.classDef === "string") {
+          docNode.classDef = JSON.parse(docNode.classDef);
+        }
         break;
       case "enum":
-        docNode.enumDef = JSON.parse(docNode.enumDef as unknown as string);
+        if (typeof docNode.enumDef === "string") {
+          docNode.enumDef = JSON.parse(docNode.enumDef);
+        }
         break;
       case "function":
-        docNode.functionDef = JSON.parse(
-          docNode.functionDef as unknown as string,
-        );
+        if (typeof docNode.functionDef === "string") {
+          docNode.functionDef = JSON.parse(
+            docNode.functionDef as unknown as string,
+          );
+        }
         break;
       case "import":
-        docNode.importDef = JSON.parse(docNode.importDef as unknown as string);
+        if (typeof docNode.importDef === "string") {
+          docNode.importDef = JSON.parse(
+            docNode.importDef as unknown as string,
+          );
+        }
         break;
       case "interface":
-        docNode.interfaceDef = JSON.parse(
-          docNode.interfaceDef as unknown as string,
-        );
+        if (typeof docNode.interfaceDef === "string") {
+          docNode.interfaceDef = JSON.parse(
+            docNode.interfaceDef as unknown as string,
+          );
+        }
         break;
       case "typeAlias":
-        docNode.typeAliasDef = JSON.parse(
-          docNode.typeAliasDef as unknown as string,
-        );
+        if (typeof docNode.typeAliasDef === "string") {
+          docNode.typeAliasDef = JSON.parse(
+            docNode.typeAliasDef as unknown as string,
+          );
+        }
         break;
       case "variable":
-        docNode.variableDef = JSON.parse(
-          docNode.variableDef as unknown as string,
-        );
+        if (typeof docNode.variableDef === "string") {
+          docNode.variableDef = JSON.parse(
+            docNode.variableDef as unknown as string,
+          );
+        }
     }
   }
   for (const [key, namespace] of namespaces) {
