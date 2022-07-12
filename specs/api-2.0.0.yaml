@@ -409,6 +409,80 @@ paths:
             text/html:
               schema:
                 type: string
+  /v2/modules/{module}/{version}/legacy_index:
+    get:
+      tags:
+        - registry
+      summary: Get an index of the module in the legacy format.
+      operationId: getModuleVersionLegacyIndex
+      parameters:
+        - name: module
+          in: path
+          required: true
+          schema:
+            $ref: "#/components/schemas/ModuleName"
+        - name: version
+          in: path
+          required: true
+          schema:
+            type: string
+            example: v10.0.1
+      responses:
+        "200":
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LegacyIndex"
+        "404":
+          description: Not found - the requested resource was not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HttpError"
+            text/html:
+              schema:
+                type: string
+  /v2/modules/{module}/{version}/legacy_index/{path}:
+    get:
+      tags:
+        - registry
+      summary: Get a sub index of the module in the legacy format.
+      operationId: getModuleVersionLegacyIndexByPath
+      parameters:
+        - name: module
+          in: path
+          required: true
+          schema:
+            $ref: "#/components/schemas/ModuleName"
+        - name: version
+          in: path
+          required: true
+          schema:
+            type: string
+            example: v10.0.1
+        - name: path
+          in: path
+          required: true
+          schema:
+            type: string
+            example: src
+      responses:
+        "200":
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LegacyIndex"
+        "404":
+          description: Not found - the requested resource was not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HttpError"
+            text/html:
+              schema:
+                type: string
   /v2/modules/{module}/{version}/raw/{path}:
     get:
       tags:
@@ -616,6 +690,38 @@ components:
             - typedef
             - type
             - unsupported
+    LegacyIndex:
+      type: object
+      properties:
+        name:
+          $ref: "#/components/schemas/ModuleName"
+        description:
+          type: string
+          nullable: true
+          example: A middleware framework for Deno
+        star_count:
+          type: number
+          example: 4567
+        version:
+          type: string
+          example: v10.0.1
+        uploaded_at:
+          type: string
+          format: date-time
+          example: 2022-05-06T01:03:14.774Z
+        upload_options:
+          $ref: "#/components/schemas/UploadOptions"
+        files:
+          type: array
+          items:
+            $ref: "#/components/schemas/File"
+      required:
+        - "name"
+        - "description"
+        - "version"
+        - "uploaded_at"
+        - "upload_options"
+        - "files"
     Module:
       type: object
       properties:
@@ -629,6 +735,9 @@ components:
           type: string
           nullable: true
           example: v10.0.1
+        star_count:
+          type: number
+          example: 4567
         versions:
           type: array
           items:
@@ -707,10 +816,6 @@ components:
           example: 2022-05-06T01:03:14.774Z
         upload_options:
           $ref: "#/components/schemas/UploadOptions"
-        files:
-          type: array
-          items:
-            $ref: "#/components/schemas/File"
     PublishEvent:
       type: object
       properties:

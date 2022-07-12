@@ -15,6 +15,7 @@ import {
   checkMaybeLoad,
   type DocNode,
   generateDocNodes,
+  generateLegacyIndex,
   generateModuleIndex,
   getDocNodes,
   getImportMapSpecifier,
@@ -311,6 +312,29 @@ router.get("/v2/modules/:module/:version/index/:path*{/}?", async (ctx) => {
   }
   return index;
 });
+
+router.get(
+  "/v2/modules/:module/:version/legacy_index/:path*{/}?",
+  async (ctx) => {
+    const { module, version, path: paramPath } = ctx.params;
+    const path = `/${paramPath}`;
+    const datastore = await getDatastore();
+    const indexKey = datastore.key(
+      ["module", module],
+      ["module_version", version],
+      ["legacy_index", path],
+    );
+    const response = await datastore.lookup(indexKey);
+    if (response.found) {
+      return entityToObject(response.found[0].entity);
+    }
+    const index = await generateLegacyIndex(datastore, module, version, path);
+    if (index) {
+      enqueue({ kind: "commitLegacyIndex", module, version, path, index });
+    }
+    return index;
+  },
+);
 
 // webhooks
 
