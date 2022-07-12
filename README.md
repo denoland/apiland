@@ -1,6 +1,6 @@
 # apiland
 
-The API server for deno.land
+The API server for deno.land.
 
 ## Local development
 

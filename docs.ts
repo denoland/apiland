@@ -4,6 +4,7 @@ import { doc, type LoadResponse } from "deno_doc";
 import type {
   DocNode as DenoDocNode,
   DocNodeInterface,
+  DocNodeKind,
   DocNodeModuleDoc,
   DocNodeNamespace,
   JsDoc,
@@ -15,10 +16,11 @@ export type {
   JsDoc,
 } from "deno_doc/types";
 import {
-  type Datastore,
+  Datastore,
   DatastoreError,
   entityToObject,
   type KeyInit,
+  objectGetKey,
   objectSetKey,
   objectToEntity,
 } from "google_datastore";
@@ -63,6 +65,23 @@ export interface LegacyIndex {
 export interface ModuleIndex {
   index: Record<string, string[]>;
   docs: Record<string, JsDoc>;
+}
+
+interface SymbolIndexItem {
+  path: string;
+  items: SymbolItem[];
+}
+
+interface SymbolItem {
+  name: string;
+  kind: DocNodeKind;
+  jsDoc?: JsDoc;
+}
+
+type NullableSymbolItem = SymbolItem | { kind: "null" };
+
+export interface SymbolIndex {
+  items: SymbolIndexItem[];
 }
 
 type DocNode = DenoDocNode | DocNodeNull;
@@ -362,6 +381,146 @@ export async function generateModuleIndex(
   }
 }
 
+function entitiesToSymbolItems(
+  ancestor: Key,
+  entities: Entity[],
+): SymbolItem[] {
+  const results: SymbolItem[] = [];
+  for (const entity of entities) {
+    const item = entityToObject<NullableSymbolItem>(entity);
+    if (item.kind === "null") {
+      continue;
+    }
+    assert(entity.key);
+    if (!descendentNotChild(ancestor, entity.key)) {
+      const { name, kind, jsDoc } = item;
+      results.push({ name, kind, jsDoc });
+    }
+  }
+  return results;
+}
+
+function docNodesToSymbolItems(
+  ancestor: Key,
+  docNodes: DenoDocNode[],
+): SymbolItem[] {
+  const results: SymbolItem[] = [];
+  for (const docNode of docNodes) {
+    const key = objectGetKey(docNode);
+    assert(key);
+    if (!descendentNotChild(ancestor, key)) {
+      results.push({
+        name: docNode.name,
+        kind: docNode.kind,
+        jsDoc: docNode.jsDoc,
+      });
+    }
+  }
+  return results;
+}
+
+export async function generateSymbolIndex(
+  datastore: Datastore,
+  module: string,
+  version: string,
+  path: string,
+): Promise<SymbolIndex | undefined> {
+  const moduleKey = datastore.key(
+    ["module", module],
+    ["module_version", version],
+    ["module_entry", path],
+  );
+  let result = await datastore.lookup(moduleKey);
+  if (!result.found) {
+    if (!await checkMaybeLoad(datastore, module, version, path)) {
+      return undefined;
+    }
+    result = await datastore.lookup(moduleKey);
+    if (!result.found) {
+      return undefined;
+    }
+  }
+  if (result.found.length !== 1) {
+    throw new errors.InternalServerError(
+      "Unexpected length of results when looking up module entry.",
+    );
+  }
+  const entry = entityToObject<ModuleEntry>(result.found[0].entity);
+  if (!entry.index) {
+    return;
+  }
+  const missing: string[] = [];
+  const items: SymbolIndexItem[] = [];
+  for (const path of entry.index) {
+    const ancestor = datastore.key(
+      ["module", module],
+      ["module_version", version],
+      ["module_entry", path],
+    );
+    const query = datastore
+      .createQuery("doc_node")
+      .hasAncestor(ancestor);
+    const entities: Entity[] = [];
+    try {
+      for await (const entity of datastore.streamQuery(query)) {
+        entities.push(entity);
+      }
+    } catch (e) {
+      if (e instanceof DatastoreError) {
+        console.log(JSON.stringify(e.statusInfo, undefined, "  "));
+      }
+      throw e;
+    }
+    if (entities.length) {
+      items.push({ path, items: entitiesToSymbolItems(ancestor, entities) });
+    } else {
+      missing.push(path);
+    }
+  }
+  if (missing.length) {
+    const importMap = await getImportMapSpecifier(module, version);
+    for (const path of missing) {
+      try {
+        const docNodes = await generateDocNodes(
+          module,
+          version,
+          path,
+          importMap,
+        );
+        // Upload docNodes to algolia.
+        if (docNodes.length) {
+          enqueue({ kind: "algolia", module, version, path, docNodes });
+        }
+        // if a module doesn't generate any doc nodes, we need to commit a null
+        // node to the datastore, see we don't continue to try to generate doc
+        // nodes for a module that doesn't export anything.
+        enqueue({
+          kind: "commit",
+          module,
+          version,
+          path,
+          docNodes: docNodes.length ? docNodes : [{ kind: "null" }],
+        });
+        const ancestor = datastore.key(
+          ["module", module],
+          ["module_version", version],
+          ["module_entry", path],
+        );
+        items.push({ path, items: docNodesToSymbolItems(ancestor, docNodes) });
+      } catch {
+        // just swallow errors here
+      }
+    }
+  }
+  if (items.length) {
+    console.log("has items");
+    return { items };
+  } else {
+    console.log("no items");
+    return undefined;
+  }
+}
+
 /** Namespaces and interfaces are open ended. This function will merge these
  * together, so that you have single entries per symbol. */
 function mergeEntries(entries: DenoDocNode[]): DenoDocNode[] {
@@ -528,6 +687,46 @@ export async function commitModuleIndex(
     ["module", module],
     ["module_version", version],
     ["module_index", path],
+  );
+  objectSetKey(index, key);
+  const mutations = [{ upsert: objectToEntity(index) }];
+  try {
+    for await (
+      const _result of datastore.commit(mutations, { transactional: false })
+    ) {
+      console.log(
+        `[${id}]: %cCommitted %cbatch for %c${module}@${version}/${path}%c.`,
+        "color:green",
+        "color:none",
+        "color:yellow",
+        "color:none",
+      );
+    }
+  } catch (error) {
+    if (error instanceof DatastoreError) {
+      console.log(`[${id}] Datastore Error:`);
+      console.log(`${error.status} ${error.message}`);
+      console.log(error.statusInfo);
+    } else {
+      console.log("Unexpected Error:");
+      console.log(error);
+    }
+    return;
+  }
+}
+
+export async function commitSymbolIndex(
+  id: number,
+  module: string,
+  version: string,
+  path: string,
+  index: SymbolIndex,
+) {
+  const datastore = await getDatastore();
+  const key = datastore.key(
+    ["module", module],
+    ["module_version", version],
+    ["symbol_index", path],
   );
   objectSetKey(index, key);
   const mutations = [{ upsert: objectToEntity(index) }];
