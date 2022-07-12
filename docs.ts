@@ -570,6 +570,11 @@ class KeyMap<V> extends Map<Key, V> {
   }
 }
 
+/** Determines if a file path can be doc'ed or not. */
+export function isDocable(path: string): boolean {
+  return /\.(ts|tsx|js|jsx|mjs|cjs|mts|cts)$/i.test(path);
+}
+
 function isDocNodeNull(node: DocNode): node is DocNodeNull {
   return node.kind === "null";
 }

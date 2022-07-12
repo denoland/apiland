@@ -18,6 +18,7 @@ import {
   generateModuleIndex,
   getDocNodes,
   getImportMapSpecifier,
+  isDocable,
   queryDocNodes,
 } from "./docs.ts";
 import { enqueue } from "./process.ts";
@@ -252,6 +253,9 @@ router.post(
 
 router.get("/v2/modules/:module/:version/doc/:path*", async (ctx) => {
   const { module, version, path } = ctx.params;
+  if (!isDocable(path)) {
+    return;
+  }
   const datastore = await getDatastore();
   const moduleEntryKey = datastore.key(
     ["module", module],
