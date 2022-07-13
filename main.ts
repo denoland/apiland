@@ -281,10 +281,6 @@ router.get("/v2/modules/:module/:version/doc/:path*", async (ctx) => {
     const importMap = await getImportMapSpecifier(module, version);
     const docNodes = await generateDocNodes(module, version, path, importMap);
     enqueue({ kind: "commit", module, version, path, docNodes });
-    // Upload docNodes to algolia.
-    if (docNodes.length) {
-      enqueue({ kind: "algolia", module, version, path, docNodes });
-    }
     return docNodes;
   } catch (e) {
     if (isHttpError(e)) {
