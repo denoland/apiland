@@ -12,6 +12,7 @@
     "load": "deno run --allow-net --allow-env --allow-read=.env,.env.defaults load.ts",
     "indexes": "deno run --allow-net --allow-env --allow-read=.env,.env.defaults indexes.ts",
     "metrics": "deno run --allow-net --allow-env --allow-read=.env,.env.defaults metrics.ts",
-    "test": "deno test --allow-net --allow-hrtime --allow-env --allow-read=."
+    "test": "deno test --allow-net --allow-hrtime --allow-env --allow-read=.",
+    "algolia": "deno run --allow-net --allow-env --allow-write algolia.ts"
   }
 }
