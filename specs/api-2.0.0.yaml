@@ -955,13 +955,18 @@ components:
         path:
           type: string
           example: /mod.ts
+        kind:
+          type: string
+          enum:
+            - "dir"
+            - "module"
         items:
           type: array
           items:
             $ref: "#/components/schemas/SymbolItem"
       required:
         - "path"
-        - "items"
+        - "kind"
     SymbolItem:
       type: object
       properties:

@@ -31,6 +31,7 @@ interface ModuleVersionMetaJson {
     path: string;
     size: number;
     type: "file" | "dir";
+    dirs?: string[];
     index?: string[];
   }[];
 }
@@ -84,6 +85,20 @@ async function getModuleMetaVersions(
     return undefined;
   }
   return res.json();
+}
+
+function getSubdirs(path: string, list: PackageMetaListing[]): string[] {
+  const dirs: string[] = [];
+  for (const { path: p, type } of list) {
+    const slice = path !== "/" ? p.slice(path.length) : p;
+    if (
+      p.startsWith(path) && p !== path && type === "dir" &&
+      slice.lastIndexOf("/") === 0 && !slice.match(RE_PRIVATE_PATH)
+    ) {
+      dirs.push(p);
+    }
+  }
+  return dirs;
 }
 
 async function getVersionMeta(
@@ -181,6 +196,9 @@ export async function loadModule(
       for (const moduleEntry of versionMeta.directory_listing) {
         if (moduleEntry.path === "") {
           moduleEntry.path = "/";
+        }
+        if (moduleEntry.type === "dir") {
+          moduleEntry.dirs = getSubdirs(moduleEntry.path, listing);
         }
         if (isIndexedDir(moduleEntry)) {
           moduleEntry.index = getIndexedModules(moduleEntry.path, listing);

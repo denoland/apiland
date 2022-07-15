@@ -50,6 +50,7 @@ export interface ModuleEntry {
   path: string;
   type: "file" | "dir";
   size: number;
+  dirs?: string[];
   index?: string[];
 }
 
