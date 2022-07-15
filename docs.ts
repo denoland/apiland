@@ -67,10 +67,18 @@ export interface ModuleIndex {
   docs: Record<string, JsDoc>;
 }
 
-interface SymbolIndexItem {
+interface SymbolIndexDir {
   path: string;
+  kind: "dir";
+}
+
+interface SymbolIndexModule {
+  path: string;
+  kind: "module";
   items: SymbolItem[];
 }
+
+type SymbolIndexItem = SymbolIndexDir | SymbolIndexModule;
 
 interface SymbolItem {
   name: string;
@@ -446,11 +454,17 @@ export async function generateSymbolIndex(
     );
   }
   const entry = entityToObject<ModuleEntry>(result.found[0].entity);
-  if (!entry.index) {
+  if (!entry.index || !entry.dirs) {
     return;
   }
   const missing: string[] = [];
   const items: SymbolIndexItem[] = [];
+  for (const path of entry.dirs) {
+    items.push({
+      path,
+      kind: "dir",
+    });
+  }
   for (const path of entry.index) {
     const ancestor = datastore.key(
       ["module", module],
@@ -472,7 +486,11 @@ export async function generateSymbolIndex(
       throw e;
     }
     if (entities.length) {
-      items.push({ path, items: entitiesToSymbolItems(ancestor, entities) });
+      items.push({
+        path,
+        kind: "module",
+        items: entitiesToSymbolItems(ancestor, entities),
+      });
     } else {
       missing.push(path);
     }
@@ -502,7 +520,11 @@ export async function generateSymbolIndex(
           ["module_version", version],
           ["module_entry", path],
         );
-        items.push({ path, items: docNodesToSymbolItems(ancestor, docNodes) });
+        items.push({
+          path,
+          kind: "module",
+          items: docNodesToSymbolItems(ancestor, docNodes),
+        });
       } catch {
         // just swallow errors here
       }
