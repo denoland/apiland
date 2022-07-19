@@ -11,12 +11,21 @@
  * 4. Get the publish date of the module from Google Datastore.
  * 5. Append publishDate and popularityScore to the doc nodes.
  * 6. Upload the doc nodes to algolia.
+ *
+ * Usage:
+ * ```
+ * # Upload 1000 most popular modules to algolia.
+ * $ deno task algolia
+ *
+ * # Upload the lastest version of a specific module to algolia.
+ * $ deno task algolia <module>
+ * ```
  */
 
 import { algoliaKeys } from "./auth.ts";
-// import { sleep } from "https://deno.land/x/sleep/mod.ts";
 
 const ALGOLIA_INDEX = "deno_modules";
+const NUMBER_OF_MODULES_TO_SCRAPE = 1000;
 const ALLOWED_DOCNODES = [
   "function",
   "variable",
@@ -27,59 +36,81 @@ const ALLOWED_DOCNODES = [
 ];
 
 async function main() {
-  let batchRequests = [];
-  const modules = await getModules(100, 3);
-  for await (const [index, module] of modules.entries()) {
-    if (module.popularity_score === 0) {
-      continue;
-    }
+  const moduleName = Deno.args[0];
+  if (moduleName) {
+    const module =
+      await (await fetch("https://apiland.deno.dev/v2/modules/" + moduleName))
+        .json();
+    return await scrapeModule(module, 1, 1);
+  }
 
-    const logPrefix = `[${index + 201}/${
-      modules.length + 200
-    } ${module.name}@${module.latest_version}]`;
-    const log = (msg: string) => console.log(`${logPrefix} ${msg}`);
-
-    log("started scraping doc nodes");
-    console.time(logPrefix);
-    const batchRecordsGenerators = [];
-    try {
-      const [publishedAt, moduleIndex] = await Promise.all([
-        getPublishDate(module.name, module.latest_version),
-        getModuleIndex(module.name, module.latest_version),
-      ]);
-      for (const path of moduleIndex) {
-        batchRecordsGenerators.push(
-          getAlgoliaBatchRecords(module, path, publishedAt),
-        );
-      }
-      const algoliaBatchRequests = (await Promise.all(batchRecordsGenerators))
-        .flat();
-      log(`scraped ${algoliaBatchRequests.length} doc nodes`);
-      // Back up doc nodes to the disk.
-      await Deno.mkdir("docnodes").catch((err) => {
-        if (err.name !== "AlreadyExists") {
-          throw err;
-        }
-      });
-      const backupPath = `docnodes/${index + 201}_${module.name}.json`;
-      await Deno.writeTextFile(
-        backupPath,
-        JSON.stringify(algoliaBatchRequests),
-      );
-      batchRequests.push(...algoliaBatchRequests);
-      if (index === modules.length - 1 || batchRequests.length > 100) {
-        await uploadToAlgolia(batchRequests, algoliaKeys, ALGOLIA_INDEX);
-        batchRequests = [];
-      }
-    } catch (error) {
-      log(`failed to scrape module: ${error.message}`);
+  const limitPerRequest = 100;
+  const totalPages = NUMBER_OF_MODULES_TO_SCRAPE / limitPerRequest;
+  for (let currentPage = 1; currentPage <= totalPages; currentPage++) {
+    const modules = await getModules(limitPerRequest, currentPage);
+    for await (let [index, module] of modules.entries()) {
+      index = index + (currentPage - 1) * limitPerRequest;
+      await scrapeModule(module, index, NUMBER_OF_MODULES_TO_SCRAPE);
     }
-    console.timeEnd(logPrefix);
   }
 }
-
 main();
 
+async function scrapeModule(
+  module: Module,
+  currentIndex: number,
+  totalModules: number,
+) {
+  const logPrefix =
+    `[${currentIndex}/${totalModules} ${module.name}@${module.latest_version}]`;
+  const log = (msg: string) => console.log(`${logPrefix} ${msg}`);
+  log("started scraping doc nodes");
+  console.time(logPrefix);
+  const batchRecordsGenerators = [];
+  const [publishedAt, moduleIndex] = await Promise.all([
+    getPublishDate(module.name, module.latest_version),
+    getModuleIndex(module.name, module.latest_version),
+  ]);
+  console.log({ moduleIndex });
+
+  for (const path of moduleIndex) {
+    batchRecordsGenerators.push(
+      getAlgoliaBatchRecords(module, path, publishedAt),
+    );
+  }
+  const batchRequests = (await Promise.all(batchRecordsGenerators))
+    .flat();
+  log(`scraped ${batchRequests.length} doc nodes`);
+  // Back up doc nodes to the disk.
+  await Deno.mkdir("docnodes").catch((err) => {
+    if (err.name !== "AlreadyExists") {
+      throw err;
+    }
+  });
+  const backupPath =
+    `docnodes/${currentIndex}_${module.name}_${Date.now()}.json`;
+  await Deno.writeTextFile(
+    backupPath,
+    JSON.stringify(batchRequests),
+  );
+  try {
+    await uploadToAlgolia(batchRequests, algoliaKeys, ALGOLIA_INDEX);
+  } catch (error) {
+    console.error("failed to upload to algolia", error);
+    await Deno.writeTextFile(
+      `./failed_batch_requests_${Date.now()}.json`,
+      JSON.stringify({
+        error,
+        payload: {
+          requests: batchRequests,
+        },
+      }),
+    );
+  }
+  console.timeEnd(logPrefix);
+}
+
+/** Upload batch requests to Algolia. */
 async function uploadToAlgolia(
   batchRequests: AlgoliaBatchRecords[],
   keys: typeof algoliaKeys,
@@ -88,10 +119,6 @@ async function uploadToAlgolia(
   const payload = JSON.stringify({
     requests: batchRequests,
   });
-  const label =
-    `[upload] ${batchRequests.length} records of total size ${payload.length} bytes`;
-  console.time(label);
-
   const res = await fetch(
     `https://QFPCRZC6WX.algolia.net/1/indexes/${algoliaIndex}/batch`,
     {
@@ -103,19 +130,8 @@ async function uploadToAlgolia(
       body: payload,
     },
   );
-  console.timeEnd(label);
   if (!res.ok) {
-    const error = await res.text();
-    console.error("failed to upload to algolia", error);
-    await Deno.writeTextFile(
-      `./error_${Date.now()}.json`,
-      JSON.stringify({
-        error,
-        payload: {
-          requests: batchRequests,
-        },
-      }),
-    );
+    throw await res.text();
   }
 }
 
@@ -199,8 +215,7 @@ function filterDocNodes(modulePath: string, docNodes: DocNode[]): DocNode[] {
   for (const node of docNodes) {
     if (
       ALLOWED_DOCNODES.includes(node.kind) &&
-      node.location.filename.endsWith(modulePath) &&
-      node.jsDoc
+      node.location.filename.endsWith(modulePath)
     ) {
       filtered.push(node);
     }
