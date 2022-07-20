@@ -66,48 +66,38 @@ async function scrapeModule(
   const log = (msg: string) => console.log(`${logPrefix} ${msg}`);
   log("started scraping doc nodes");
   console.time(logPrefix);
-  const batchRecordsGenerators = [];
-  const [publishedAt, moduleIndex] = await Promise.all([
-    getPublishDate(module.name, module.latest_version),
-    getModuleIndex(module.name, module.latest_version),
-  ]);
-
-  for (const path of moduleIndex) {
-    // Ignore tests and examples.
-    if (!path.startsWith("/tests") && !path.startsWith("/examples")) {
-      batchRecordsGenerators.push(
-        getAlgoliaBatchRecords(module, path, publishedAt),
-      );
-    }
-  }
-  const batchRequests = (await Promise.all(batchRecordsGenerators))
-    .flat();
-  log(`scraped ${batchRequests.length} doc nodes`);
-  // Back up doc nodes to the disk.
-  await Deno.mkdir("docnodes").catch((err) => {
-    if (err.name !== "AlreadyExists") {
-      throw err;
-    }
-  });
-  const backupPath =
-    `docnodes/${currentIndex}_${module.name}_${Date.now()}.json`;
-  await Deno.writeTextFile(
-    backupPath,
-    JSON.stringify(batchRequests),
-  );
   try {
+    const batchRecordsGenerators = [];
+    const [publishedAt, moduleIndex] = await Promise.all([
+      getPublishDate(module.name, module.latest_version),
+      getModuleIndex(module.name, module.latest_version),
+    ]);
+    for (const path of moduleIndex) {
+      // Ignore tests and examples.
+      if (!path.startsWith("/tests") && !path.startsWith("/examples")) {
+        batchRecordsGenerators.push(
+          getAlgoliaBatchRecords(module, path, publishedAt),
+        );
+      }
+    }
+    const batchRequests = (await Promise.all(batchRecordsGenerators))
+      .flat();
+    log(`scraped ${batchRequests.length} doc nodes`);
+    // Back up doc nodes to the disk.
+    await Deno.mkdir("docnodes").catch((err) => {
+      if (err.name !== "AlreadyExists") {
+        throw err;
+      }
+    });
+    const backupPath =
+      `docnodes/${currentIndex}_${module.name}_${Date.now()}.json`;
+    await Deno.writeTextFile(
+      backupPath,
+      JSON.stringify(batchRequests),
+    );
     await uploadToAlgolia(batchRequests, algoliaKeys, ALGOLIA_INDEX);
   } catch (error) {
-    console.error("failed to upload to algolia", error);
-    await Deno.writeTextFile(
-      `./failed_batch_requests_${Date.now()}.json`,
-      JSON.stringify({
-        error,
-        payload: {
-          requests: batchRequests,
-        },
-      }),
-    );
+    log(`failed to scrape module ${error}`);
   }
   console.timeEnd(logPrefix);
 }
