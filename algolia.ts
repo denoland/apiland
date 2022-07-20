@@ -71,12 +71,14 @@ async function scrapeModule(
     getPublishDate(module.name, module.latest_version),
     getModuleIndex(module.name, module.latest_version),
   ]);
-  console.log({ moduleIndex });
 
   for (const path of moduleIndex) {
-    batchRecordsGenerators.push(
-      getAlgoliaBatchRecords(module, path, publishedAt),
-    );
+    // Ignore tests and examples.
+    if (!path.startsWith("/tests") && !path.startsWith("/examples")) {
+      batchRecordsGenerators.push(
+        getAlgoliaBatchRecords(module, path, publishedAt),
+      );
+    }
   }
   const batchRequests = (await Promise.all(batchRecordsGenerators))
     .flat();
