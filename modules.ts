@@ -4,7 +4,7 @@ import { entityToObject, objectSetKey, objectToEntity } from "google_datastore";
 import type { Mutation } from "google_datastore/types";
 
 import { getDatastore } from "./store.ts";
-import type { Module, ModuleVersion } from "./types.d.ts";
+import type { Module, ModuleEntry, ModuleVersion } from "./types.d.ts";
 import { assert } from "./util.ts";
 
 interface ApiModuleData {
@@ -45,10 +45,14 @@ interface PackageMetaListing {
 const S3_BUCKET =
   "http://deno-registry2-prod-storagebucket-b3a31d16.s3-website-us-east-1.amazonaws.com/";
 const DENO_API = "https://api.deno.land/modules/";
-const RE_IGNORED_MODULE =
+export const RE_IGNORED_MODULE =
   /(\/[_.].|(test|.+_test)\.(js|jsx|mjs|cjs|ts|tsx|mts|cts)$)/i;
 const RE_MODULE_EXT = /\.(?:js|jsx|mjs|cjs|ts|tsx|mts|cts)$/i;
-const RE_PRIVATE_PATH = /\/([_.][^/]+|testdata)/;
+export const RE_PRIVATE_PATH = /\/([_.][^/]+|testdata)/;
+const EXT = [".ts", ".tsx", ".mts", ".cts", ".js", ".jsx", ".mjs", ".cjs"];
+const INDEX_MODULES = ["mod", "lib", "main", "index"].flatMap((idx) =>
+  EXT.map((ext) => `${idx}${ext}`)
+);
 
 function getIndexedModules(
   path: string,
@@ -59,12 +63,27 @@ function getIndexedModules(
     const slice = path !== "/" ? p.slice(path.length) : p;
     if (
       p.startsWith(path) && type === "file" && slice.lastIndexOf("/") === 0 &&
-      p.match(RE_MODULE_EXT) && !slice.match(RE_IGNORED_MODULE)
+      p.match(RE_MODULE_EXT) && !RE_IGNORED_MODULE.test(slice)
     ) {
       modules.push(p);
     }
   }
   return modules;
+}
+
+/** Given a set of paths which are expected to be siblings within a folder/dir
+ * return what appears to be the "index" module. If none can be identified,
+ * `undefined` is returned. */
+export function getIndexModule(paths?: string[]): string | undefined {
+  if (!paths) {
+    return undefined;
+  }
+  for (const index of INDEX_MODULES) {
+    const item = paths.find((file) => file.toLowerCase().endsWith(`/${index}`));
+    if (item) {
+      return item;
+    }
+  }
 }
 
 async function getModuleData(
@@ -121,12 +140,14 @@ function isIndexedDir(item: PackageMetaListing): boolean {
 export async function loadModule(
   module: string,
   version?: string,
+  path?: string,
   quiet = false,
 ): Promise<
   [
     mutations: Mutation[],
     module: Module,
     moduleVersion: ModuleVersion | undefined,
+    moduleEntry: ModuleEntry | undefined,
   ]
 > {
   const moduleData = await getModuleData(module);
@@ -159,6 +180,7 @@ export async function loadModule(
   mutations.push({ upsert: objectToEntity(moduleItem) });
 
   let moduleVersion: ModuleVersion | undefined;
+  let foundModuleEntry: ModuleEntry | undefined;
   if (version) {
     let versions: string[] = [];
     if (version === "all") {
@@ -211,10 +233,13 @@ export async function loadModule(
             ["module_entry", moduleEntry.path],
           ),
         );
+        if (moduleEntry.path === path) {
+          foundModuleEntry = moduleEntry;
+        }
         mutations.push({ upsert: objectToEntity(moduleEntry) });
       }
     }
   }
 
-  return [mutations, moduleItem, moduleVersion];
+  return [mutations, moduleItem, moduleVersion, foundModuleEntry];
 }

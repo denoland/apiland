@@ -528,6 +528,114 @@ paths:
             text/html:
               schema:
                 type: string
+  /v2/modules/{module}/{version}/page:
+    get:
+      tags:
+        - registry
+      summary: Get information about a module to render the root page.
+      description: >
+        Responds with all the information needed to render a root page of a
+        module.
+      operationId: getPageInfo
+      parameters:
+        - name: module
+          in: path
+          required: true
+          schema:
+            $ref: "#/components/schemas/ModuleName"
+        - name: version
+          in: path
+          required: true
+          schema:
+            type: string
+            example: "0.148.0"
+      responses:
+        "200":
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DocPageIndex"
+        "400":
+          description: Bad Request - the request was malformed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HttpError"
+            text/html:
+              schema:
+                type: string
+        "404":
+          description: Not found - the requested resource was not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HttpError"
+            text/html:
+              schema:
+                type: string
+  /v2/modules/{module}/{version}/page/{path}:
+    get:
+      tags:
+        - registry
+      summary: Get information about a module to render the root page.
+      description: >
+        Responds with all the information needed to render a root page of a
+        module.
+      operationId: getPagePathInfo
+      parameters:
+        - name: module
+          in: path
+          required: true
+          schema:
+            $ref: "#/components/schemas/ModuleName"
+        - name: version
+          in: path
+          required: true
+          schema:
+            type: string
+            example: "0.148.0"
+        - name: path
+          in: path
+          required: true
+          schema:
+            type: string
+            example: "mod.ts"
+        - name: symbol
+          in: query
+          description: >
+            The specific symbol to search for. If searching for a symbol on non-
+            module path, a Bad Request will be returned. To search for a
+            namespaced symbol, deliminate using the `.` (e.g.
+            `namespace.Value`).
+          schema:
+            type: string
+            example: "AClass"
+      responses:
+        "200":
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DocPage"
+        "400":
+          description: Bad Request - the request was malformed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HttpError"
+            text/html:
+              schema:
+                type: string
+        "404":
+          description: Not found - the requested resource was not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HttpError"
+            text/html:
+              schema:
+                type: string
   /v2/modules/{module}/{version}/symbols:
     get:
       tags:
@@ -691,6 +799,146 @@ components:
         - namespace
         - interface
         - import
+    DocPage:
+      oneOf:
+        - $ref: "#/components/schemas/DocPageSymbol"
+        - $ref: "#/components/schemas/DocPageModule"
+        - $ref: "#/components/schemas/DocPageIndex"
+        - $ref: "#/components/schemas/DocPageFile"
+      discriminator:
+        propertyName: kind
+        mapping:
+          symbol: "#/components/schemas/DocPageSymbol"
+          module: "#/components/schemas/DocPageModule"
+          index: "#/components/schemas/DocPageIndex"
+          file: "#/components/schemas/DocPageFile"
+    DocPageBase:
+      type: object
+      properties:
+        kind:
+          type: string
+          example: index
+        module:
+          $ref: "#/components/schemas/ModuleName"
+        description:
+          type: string
+          example: A module for Deno
+        version:
+          type: string
+          example: "0.148.0"
+        path:
+          type: string
+          example: "/mod.ts"
+        versions:
+          type: array
+          items:
+            type: string
+          example: ["0.146.0", "0.147.0", "0.148.0"]
+        latest_version:
+          type: string
+          example: "0.148.0"
+        uploaded_at:
+          type: string
+          format: date-time
+          example: 2022-05-06T01:03:14.774Z
+        upload_options:
+          $ref: "#/components/schemas/UploadOptions"
+        star_count:
+          type: number
+          example: 2406
+      required:
+        - "kind"
+        - "module"
+        - "version"
+        - "path"
+        - "versions"
+        - "latest_version"
+        - "uploaded_at"
+        - "upload_options"
+    DocPageDirItem:
+      type: object
+      properties:
+        kind:
+          type: string
+          example: dir
+        path:
+          type: string
+          example: "/"
+      required:
+        - "kind"
+        - "path"
+    DocPageFile:
+      allOf:
+        - $ref: "#/components/schemas/DocPageBase"
+    DocPageIndex:
+      allOf:
+        - $ref: "#/components/schemas/DocPageBase"
+        - type: object
+          properties:
+            items:
+              type: array
+              items:
+                $ref: "#/components/schemas/IndexItem"
+          required:
+            - "items"
+    DocPageModule:
+      allOf:
+        - $ref: "#/components/schemas/DocPageBase"
+        - type: object
+          properties:
+            nav:
+              type: array
+              items:
+                $ref: "#/components/schemas/DocPageNavItem"
+            docNodes:
+              $ref: "#/components/schemas/DocNodeArray"
+          required:
+            - "nav"
+            - "docNodes"
+    DocPageModuleItem:
+      type: object
+      properties:
+        kind:
+          type: string
+          example: module
+        path:
+          type: string
+          example: "/mod.ts"
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/SymbolItem"
+      required:
+        - "kind"
+        - "path"
+        - "items"
+    DocPageNavItem:
+      oneOf:
+        - $ref: "#/components/schemas/DocPageDirItem"
+        - $ref: "#/components/schemas/DocPageModuleItem"
+      discriminator:
+        propertyName: kind
+        mapping:
+          dir: "#/components/schemas/DocPageDirItem"
+          module: "#/components/schemas/DocPageModuleItem"
+    DocPageSymbol:
+      allOf:
+        - $ref: "#/components/schemas/DocPageBase"
+        - type: object
+          properties:
+            nav:
+              type: array
+              items:
+                $ref: "#/components/schemas/DocPageNavItem"
+            name:
+              type: string
+              example: "AClass"
+            docNodes:
+              $ref: "#/components/schemas/DocNodeArray"
+          required:
+            - "nav"
+            - "name"
+            - "docNodes"
     File:
       type: object
       properties:
@@ -732,6 +980,31 @@ components:
         - status
         - statusText
         - message
+    IndexItem:
+      type: object
+      properties:
+        kind:
+          type: string
+          enum:
+            - dir
+            - module
+            - file
+        path:
+          type: string
+          example: "/mod.ts"
+        size:
+          type: number
+          example: 563245
+        ignored:
+          type: boolean
+        doc:
+          type: string
+          example: "Some documentation for item"
+      required:
+        - "kind"
+        - "path"
+        - "size"
+        - "ignored"
     JsDoc:
       type: object
       properties:
