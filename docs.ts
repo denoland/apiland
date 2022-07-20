@@ -49,6 +49,7 @@ import type {
   DocPageBase,
   DocPageFile,
   DocPageIndex,
+  DocPageInvalidVersion,
   DocPageModule,
   DocPageNavItem,
   DocPageSymbol,
@@ -586,6 +587,18 @@ async function getDocPageIndex(
   return docPage;
 }
 
+function getDocPageInvalidVersion(
+  { name: module, description, versions, latest_version }: Module,
+): DocPageInvalidVersion {
+  return {
+    kind: "invalid-version",
+    module,
+    description,
+    versions,
+    latest_version,
+  };
+}
+
 function getDocPageFile(
   module: Module,
   version: ModuleVersion,
@@ -621,12 +634,21 @@ export async function generateDocPage(
   let moduleEntry: ModuleEntry | undefined;
   if (!(result.found && result.found.length === 3)) {
     let mutations: Mutation[];
-    [mutations, moduleItem, moduleVersion, moduleEntry] = await loadModule(
-      module,
-      version,
-      path,
-    );
-    enqueue({ kind: "commitMutations", mutations });
+    try {
+      [mutations, moduleItem, moduleVersion, moduleEntry] = await loadModule(
+        module,
+        version,
+        path,
+      );
+      enqueue({ kind: "commitMutations", mutations });
+    } catch {
+      if (result.found && result.found.length === 1) {
+        moduleItem = entityToObject(result.found[0].entity);
+        assert(moduleItem);
+        return getDocPageInvalidVersion(moduleItem);
+      }
+      return undefined;
+    }
   } else {
     const [
       { entity: moduleEntity },

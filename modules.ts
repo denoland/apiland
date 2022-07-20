@@ -190,6 +190,7 @@ export async function loadModule(
     } else {
       versions = moduleItem.versions.filter((v) => v.includes(version!));
     }
+    assert(versions.length, "No valid version specified.");
     for (const version of versions) {
       if (!quiet) {
         console.log(

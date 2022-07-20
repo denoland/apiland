@@ -555,7 +555,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/DocPageIndex"
+                $ref: "#/components/schemas/DocPage"
         "400":
           description: Bad Request - the request was malformed.
           content:
@@ -805,6 +805,7 @@ components:
         - $ref: "#/components/schemas/DocPageModule"
         - $ref: "#/components/schemas/DocPageIndex"
         - $ref: "#/components/schemas/DocPageFile"
+        - $ref: "#/components/schemas/DocPageInvalidVersion"
       discriminator:
         propertyName: kind
         mapping:
@@ -812,6 +813,7 @@ components:
           module: "#/components/schemas/DocPageModule"
           index: "#/components/schemas/DocPageIndex"
           file: "#/components/schemas/DocPageFile"
+          invalid-version: "#/components/schemas/DocPageInvalidVersion"
     DocPageBase:
       type: object
       properties:
@@ -881,6 +883,25 @@ components:
                 $ref: "#/components/schemas/IndexItem"
           required:
             - "items"
+    DocPageInvalidVersion:
+      type: object
+      properties:
+        kind:
+          type: string
+          example: "invalid-version"
+        module:
+          $ref: "#/components/schemas/ModuleName"
+        description:
+          type: string
+          example: A module for Deno
+        versions:
+          type: array
+          items:
+            type: string
+          example: ["0.146.0", "0.147.0", "0.148.0"]
+        latest_version:
+          type: string
+          example: "0.148.0"
     DocPageModule:
       allOf:
         - $ref: "#/components/schemas/DocPageBase"

@@ -200,7 +200,7 @@ async function taskCommitMutations(id: number, { mutations }: CommitMutations) {
     const batch of datastore.commit(mutations, { transactional: false })
   ) {
     console.log(
-      `[${id}]: %cCommitted $c${batch.mutationResults.length}$c mutations.`,
+      `[${id}]: %cCommitted %c${batch.mutationResults.length}%c mutations.`,
       "color:green",
       "color:cyan",
       "color:none",
