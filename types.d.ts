@@ -52,7 +52,16 @@ export interface ModuleEntry {
   path: string;
   type: "file" | "dir";
   size: number;
+  /** For `"dir"` entries, indicates if there is a _default_ module that should
+   * be used within the directory. */
+  default?: string;
+  /** For `"dir"` entries, an array of child sub-directory paths. */
   dirs?: string[];
+  /** For `"file`" entries, indicates if the entry id can be queried for doc
+   * nodes. */
+  docable?: boolean;
+  /** For `"dir"` entries, an array of docable child paths that are not
+   * "ignored". */
   index?: string[];
 }
 
@@ -103,6 +112,7 @@ interface DocPageModuleItem {
   kind: "module";
   path: string;
   items: SymbolItem[];
+  default?: true;
 }
 
 export type DocPageNavItem = DocPageModuleItem | DocPageDirItem;

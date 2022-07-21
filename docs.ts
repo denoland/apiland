@@ -435,6 +435,17 @@ async function getNav(
       }
     }
   }
+  const indexModule = getIndexModule(
+    nav.filter(({ kind }) => kind === "module").map(({ path }) => path),
+  );
+  if (indexModule) {
+    for (const item of nav) {
+      if (item.path === indexModule) {
+        assert(item.kind === "module");
+        item.default = true;
+      }
+    }
+  }
   enqueue({ kind: "commitNav", module, version, path, nav });
   return nav;
 }

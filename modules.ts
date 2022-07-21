@@ -2,6 +2,7 @@
 
 import { entityToObject, objectSetKey, objectToEntity } from "google_datastore";
 import type { Mutation } from "google_datastore/types";
+import { isDocable } from "./docs.ts";
 
 import { getDatastore } from "./store.ts";
 import type { Module, ModuleEntry, ModuleVersion } from "./types.d.ts";
@@ -31,6 +32,8 @@ interface ModuleVersionMetaJson {
     path: string;
     size: number;
     type: "file" | "dir";
+    default?: string;
+    docable?: boolean;
     dirs?: string[];
     index?: string[];
   }[];
@@ -57,7 +60,7 @@ const INDEX_MODULES = ["mod", "lib", "main", "index"].flatMap((idx) =>
 function getIndexedModules(
   path: string,
   list: PackageMetaListing[],
-): string[] {
+): [string[], string | undefined] {
   const modules: string[] = [];
   for (const { path: p, type } of list) {
     const slice = path !== "/" ? p.slice(path.length) : p;
@@ -68,7 +71,7 @@ function getIndexedModules(
       modules.push(p);
     }
   }
-  return modules;
+  return [modules, getIndexModule(modules)];
 }
 
 /** Given a set of paths which are expected to be siblings within a folder/dir
@@ -222,9 +225,14 @@ export async function loadModule(
         }
         if (moduleEntry.type === "dir") {
           moduleEntry.dirs = getSubdirs(moduleEntry.path, listing);
+        } else if (isDocable(moduleEntry.path)) {
+          moduleEntry.docable = true;
         }
         if (isIndexedDir(moduleEntry)) {
-          moduleEntry.index = getIndexedModules(moduleEntry.path, listing);
+          [moduleEntry.index, moduleEntry.default] = getIndexedModules(
+            moduleEntry.path,
+            listing,
+          );
         }
         objectSetKey(
           moduleEntry,
