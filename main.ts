@@ -28,6 +28,7 @@ import {
 } from "./docs.ts";
 import { enqueue } from "./process.ts";
 import { getDatastore } from "./store.ts";
+import type { DocPage } from "./types.d.ts";
 
 interface PagedItems<T> {
   items: T[];
@@ -369,20 +370,39 @@ router.get("/v2/modules/:module/:version/page/:path*{/}?", async (ctx) => {
     ["doc_page", symbol],
   );
   const response = await datastore.lookup(indexKey);
+  let docPage: DocPage | undefined;
   if (response.found) {
-    return entityToObject(response.found[0].entity);
+    docPage = entityToObject<DocPage>(response.found[0].entity);
+  } else {
+    docPage = await generateDocPage(
+      datastore,
+      module,
+      version,
+      path,
+      symbol,
+    );
+    if (docPage) {
+      enqueue({
+        kind: "commitDocPage",
+        module,
+        version,
+        path,
+        symbol,
+        docPage,
+      });
+    }
   }
-  const docPage = await generateDocPage(
-    datastore,
-    module,
-    version,
-    path,
-    symbol,
-  );
-  if (docPage) {
-    enqueue({ kind: "commitDocPage", module, version, path, symbol, docPage });
+  if (docPage?.kind === "redirect") {
+    return new Response(null, {
+      status: 301,
+      statusText: "Moved Permanently",
+      headers: {
+        location: `/v2/modules/${module}/${version}/page${docPage.path}`,
+      },
+    });
+  } else {
+    return docPage;
   }
-  return docPage;
 });
 
 // webhooks

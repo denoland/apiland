@@ -630,7 +630,7 @@ export async function generateDocPage(
     ["module", module],
     ["module_version", version],
   );
-  const moduleEntryKey = datastore.key(
+  let moduleEntryKey = datastore.key(
     ["module", module],
     ["module_version", version],
     ["module_entry", path],
@@ -669,6 +669,18 @@ export async function generateDocPage(
     moduleItem = entityToObject(moduleEntity);
     moduleVersion = entityToObject(moduleVersionEntity);
     moduleEntry = entityToObject(moduleEntryEntity);
+  }
+  if (moduleEntry && moduleEntry.default) {
+    const defaultKey = datastore.key(
+      ["module", module],
+      ["module_version", version],
+      ["module_entry", moduleEntry.default],
+    );
+    const result = await datastore.lookup(defaultKey);
+    if (result.found && result.found.length === 1) {
+      const { path } = entityToObject<ModuleEntry>(result.found[0].entity);
+      return { kind: "redirect", path };
+    }
   }
   if (moduleItem && moduleVersion && moduleEntry) {
     if (moduleEntry.type === "file" && isDocable(path)) {

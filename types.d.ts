@@ -139,6 +139,11 @@ export interface DocPageFile extends DocPageBase {
   kind: "file";
 }
 
+export interface DocPageRedirect {
+  kind: "redirect";
+  path: string;
+}
+
 export interface DocPageInvalidVersion {
   kind: "invalid-version";
   module: string;
@@ -153,4 +158,5 @@ export type DocPage =
   | DocPageModule
   | DocPageIndex
   | DocPageFile
-  | DocPageInvalidVersion;
+  | DocPageInvalidVersion
+  | DocPageRedirect;
