@@ -630,7 +630,7 @@ export async function generateDocPage(
     ["module", module],
     ["module_version", version],
   );
-  let moduleEntryKey = datastore.key(
+  const moduleEntryKey = datastore.key(
     ["module", module],
     ["module_version", version],
     ["module_entry", path],
