@@ -643,7 +643,7 @@ export async function generateDocPage(
   let moduleItem: Module | undefined;
   let moduleVersion: ModuleVersion | undefined;
   let moduleEntry: ModuleEntry | undefined;
-  if (!(result.found && result.found.length === 3)) {
+  if (!(result.found && result.found.length >= 2)) {
     let mutations: Mutation[];
     try {
       [mutations, moduleItem, moduleVersion, moduleEntry] = await loadModule(
@@ -660,6 +660,9 @@ export async function generateDocPage(
       }
       return undefined;
     }
+  } else if (result.found && result.found.length === 2) {
+    // module entry not found, but module loaded
+    return undefined;
   } else {
     const [
       { entity: moduleEntity },
