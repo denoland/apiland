@@ -191,7 +191,7 @@ export async function loadModule(
     } else if (version === "latest") {
       versions = [moduleItem.latest_version];
     } else {
-      versions = moduleItem.versions.filter((v) => v.includes(version!));
+      versions = moduleItem.versions.filter((v) => v === version);
     }
     assert(versions.length, "No valid version specified.");
     for (const version of versions) {
