@@ -14,7 +14,9 @@ import { endpointAuth } from "./auth.ts";
 import {
   checkMaybeLoad,
   type DocNode,
+  type DocNodeKind,
   generateDocNodes,
+  generateDocPage,
   generateLegacyIndex,
   generateModuleIndex,
   generateSymbolIndex,
@@ -22,9 +24,11 @@ import {
   getImportMapSpecifier,
   isDocable,
   queryDocNodes,
+  ROOT_SYMBOL,
 } from "./docs.ts";
 import { enqueue } from "./process.ts";
 import { getDatastore } from "./store.ts";
+import type { DocPage } from "./types.d.ts";
 
 interface PagedItems<T> {
   items: T[];
@@ -80,6 +84,7 @@ router.all("/", () =>
           <li><code>/v2/modules/:module</code> - Provide information about a specific module - [<a href="/v2/modules/std" target="_blank">example</a>]</li>
           <li><code>/v2/modules/:module/:version</code> - Provide information about a specific module version - [<a href="/v2/modules/std/0.139.0" target="_blank">example</a>]</li>
           <li><code>/v2/modules/:module/:version/doc/:path*</code> - Provide documentation nodes for a specific path of a specific module version -  [<a href="/v2/modules/std/0.139.0/doc/archive/tar.ts" target="_blank">example</a>]</li>
+          <li><code>/v2/modules/:module/:version/page/:path*</code> - Provide all the data needed to render a page - [<a href="/v2/modules/std/0.148.0/page/" target="_blank">example</a>]</li>
           <li><code>/ping</code> - A health endpoint for the server - [<a href="/ping" target="_blank">example</a>]</li>
         <ul>
       </div>
@@ -268,7 +273,7 @@ router.get("/v2/modules/:module/:version/doc/:path*", async (ctx) => {
   const results = await queryDocNodes(
     datastore,
     moduleEntryKey,
-    ctx.searchParams.kind,
+    ctx.searchParams.kind as DocNodeKind,
   );
   if (results.length) {
     return results;
@@ -351,6 +356,53 @@ router.get("/v2/modules/:module/:version/symbols/:path*{/}?", async (ctx) => {
     enqueue({ kind: "commitSymbolIndex", module, version, path, index });
   }
   return index;
+});
+
+router.get("/v2/modules/:module/:version/page/:path*{/}?", async (ctx) => {
+  const { module, version, path: paramPath } = ctx.params;
+  const path = `/${paramPath}`;
+  const symbol = ctx.searchParams.symbol ?? ROOT_SYMBOL;
+  const datastore = await getDatastore();
+  const indexKey = datastore.key(
+    ["module", module],
+    ["module_version", version],
+    ["module_entry", path],
+    ["doc_page", symbol],
+  );
+  const response = await datastore.lookup(indexKey);
+  let docPage: DocPage | undefined;
+  if (response.found) {
+    docPage = entityToObject<DocPage>(response.found[0].entity);
+  } else {
+    docPage = await generateDocPage(
+      datastore,
+      module,
+      version,
+      path,
+      symbol,
+    );
+    if (docPage && docPage.kind !== "invalid-version") {
+      enqueue({
+        kind: "commitDocPage",
+        module,
+        version,
+        path,
+        symbol,
+        docPage,
+      });
+    }
+  }
+  if (docPage?.kind === "redirect") {
+    return new Response(null, {
+      status: 301,
+      statusText: "Moved Permanently",
+      headers: {
+        location: `/v2/modules/${module}/${version}/page${docPage.path}`,
+      },
+    });
+  } else {
+    return docPage;
+  }
 });
 
 // webhooks

@@ -11,6 +11,7 @@ import type {
 } from "deno_doc/types";
 export type {
   DocNode,
+  DocNodeKind,
   DocNodeModuleDoc,
   DocNodeNamespace,
   JsDoc,
@@ -35,10 +36,28 @@ import type {
 import * as JSONC from "jsonc-parser";
 import { errors } from "oak_commons/http_errors.ts";
 
-import { loadModule } from "./modules.ts";
+import {
+  getIndexModule,
+  loadModule,
+  RE_IGNORED_MODULE,
+  RE_PRIVATE_PATH,
+} from "./modules.ts";
 import { enqueue } from "./process.ts";
 import { getDatastore } from "./store.ts";
-import { Module, ModuleEntry, ModuleVersion } from "./types.d.ts";
+import type {
+  DocPage,
+  DocPageBase,
+  DocPageFile,
+  DocPageIndex,
+  DocPageInvalidVersion,
+  DocPageModule,
+  DocPageNavItem,
+  DocPageSymbol,
+  IndexItem,
+  Module,
+  ModuleEntry,
+  ModuleVersion,
+} from "./types.d.ts";
 import { assert } from "./util.ts";
 
 /** Used only in APIland to represent a module without any exported symbols in
@@ -100,6 +119,7 @@ interface ConfigFileJson {
 
 const MAX_CACHE_SIZE = parseInt(Deno.env.get("MAX_CACHE_SIZE") ?? "", 10) ||
   25_000_000;
+export const ROOT_SYMBOL = "$$root$$";
 
 const cachedSpecifiers = new Set<string>();
 const cachedResources = new Map<string, LoadResponse | undefined>();
@@ -289,6 +309,412 @@ export async function checkMaybeLoad(
   }
 }
 
+function getDocPageBase<Kind extends DocPage["kind"]>(
+  kind: Kind,
+  { star_count, versions, latest_version }: Module,
+  { name: module, version, uploaded_at, upload_options, description }:
+    ModuleVersion,
+  path: string,
+): DocPageBase & { kind: Kind } {
+  return {
+    kind,
+    module,
+    description,
+    version,
+    path,
+    versions,
+    latest_version,
+    uploaded_at: uploaded_at.toISOString(),
+    upload_options,
+    star_count,
+  };
+}
+
+async function lookup<Value>(
+  datastore: Datastore,
+  key: Key,
+): Promise<Value | undefined> {
+  const result = await datastore.lookup(key);
+  if (!result.found || result.found.length !== 1) {
+    return undefined;
+  }
+  return entityToObject(result.found[0].entity);
+}
+
+async function getNav(
+  datastore: Datastore,
+  module: string,
+  version: string,
+  path: string,
+): Promise<DocPageNavItem[]> {
+  const navKey = datastore.key(
+    ["module", module],
+    ["module_version", version],
+    ["nav_index", path],
+  );
+  const navIndex: { nav: DocPageNavItem[] } | undefined = await lookup(
+    datastore,
+    navKey,
+  );
+  if (navIndex) {
+    return navIndex.nav;
+  }
+  const entryKey = datastore.key(
+    ["module", module],
+    ["module_version", version],
+    ["module_entry", path],
+  );
+  const entry: ModuleEntry | undefined = await lookup(datastore, entryKey);
+  if (!entry || !entry.index || !entry.dirs) {
+    throw new errors.InternalServerError(
+      `Unable to lookup nav dir module entry: ${path}`,
+    );
+  }
+  const missing: string[] = [];
+  const nav: DocPageNavItem[] = [];
+  for (const path of entry.dirs) {
+    nav.push({ path, kind: "dir" });
+  }
+  for (const path of entry.index) {
+    const ancestor = datastore.key(
+      ["module", module],
+      ["module_version", version],
+      ["module_entry", path],
+    );
+    const query = datastore.createQuery("doc_node").hasAncestor(ancestor);
+    const entities: Entity[] = [];
+    try {
+      for await (const entity of datastore.streamQuery(query)) {
+        entities.push(entity);
+      }
+    } catch (e) {
+      if (e instanceof DatastoreError) {
+        console.log(JSON.stringify(e.statusInfo, undefined, "  "));
+      }
+      throw e;
+    }
+    if (entities.length) {
+      nav.push({
+        path,
+        kind: "module",
+        items: entitiesToSymbolItems(ancestor, entities),
+      });
+    } else {
+      missing.push(path);
+    }
+  }
+  if (missing.length) {
+    const importMap = await getImportMapSpecifier(module, version);
+    for (const path of missing) {
+      try {
+        const docNodes = await generateDocNodes(
+          module,
+          version,
+          path,
+          importMap,
+        );
+        enqueue({
+          kind: "commit",
+          module,
+          version,
+          path,
+          docNodes: docNodes.length ? docNodes : [{ kind: "null" }],
+        });
+        const ancestor = datastore.key(
+          ["module", module],
+          ["module_version", version],
+          ["module_entry", path],
+        );
+        nav.push({
+          path,
+          kind: "module",
+          items: docNodesToSymbolItems(ancestor, docNodes),
+        });
+      } catch {
+        // just swallow errors here
+      }
+    }
+  }
+  const indexModule = getIndexModule(
+    nav.filter(({ kind }) => kind === "module").map(({ path }) => path),
+  );
+  if (indexModule) {
+    for (const item of nav) {
+      if (item.path === indexModule) {
+        assert(item.kind === "module");
+        item.default = true;
+      }
+    }
+  }
+  enqueue({ kind: "commitNav", module, version, path, nav });
+  return nav;
+}
+
+async function getDocPageSymbol(
+  datastore: Datastore,
+  module: Module,
+  version: ModuleVersion,
+  entry: ModuleEntry,
+  symbol: string,
+): Promise<DocPageSymbol | undefined> {
+  const docPage = getDocPageBase(
+    "symbol",
+    module,
+    version,
+    entry.path,
+  ) as DocPageSymbol;
+  docPage.name = symbol;
+  const dirPath = entry.path.slice(0, entry.path.lastIndexOf("/")) || "/";
+  docPage.nav = await getNav(datastore, version.name, version.version, dirPath);
+  docPage.docNodes = await queryDocNodesBySymbol(
+    datastore,
+    version.name,
+    version.version,
+    entry.path,
+    symbol,
+  );
+  if (docPage.docNodes.length) {
+    return docPage;
+  }
+}
+
+async function getDocPageModule(
+  datastore: Datastore,
+  module: Module,
+  version: ModuleVersion,
+  entry: ModuleEntry,
+  entryKey: Key,
+): Promise<DocPageModule> {
+  const docPage = getDocPageBase(
+    "module",
+    module,
+    version,
+    entry.path,
+  ) as DocPageModule;
+  const dirPath = entry.path.slice(0, entry.path.lastIndexOf("/")) || "/";
+  docPage.nav = await getNav(datastore, version.name, version.version, dirPath);
+  docPage.docNodes = await queryDocNodes(datastore, entryKey);
+  return docPage;
+}
+
+async function getDocPageIndex(
+  datastore: Datastore,
+  module: Module,
+  version: ModuleVersion,
+  entry: ModuleEntry,
+): Promise<DocPageIndex> {
+  const docPage = getDocPageBase(
+    "index",
+    module,
+    version,
+    entry.path,
+  ) as DocPageIndex;
+  const items: IndexItem[] = docPage.items = [];
+  const ancestor = datastore.key(
+    ["module", version.name],
+    ["module_version", version.version],
+  );
+  const query = datastore
+    .createQuery("module_entry")
+    .hasAncestor(ancestor);
+  const path = entry.path;
+  const docMap = new Map<string, IndexItem[]>();
+
+  function maybeDoc(entry: ModuleEntry, item: IndexItem): IndexItem {
+    if (item.kind === "module" && !item.ignored) {
+      if (!docMap.has(item.path)) {
+        docMap.set(item.path, []);
+      }
+      docMap.get(item.path)?.push(item);
+    } else if (item.kind === "dir" && !item.ignored) {
+      const indexModule = getIndexModule(entry.index);
+      if (indexModule) {
+        if (!docMap.has(indexModule)) {
+          docMap.set(indexModule, []);
+        }
+        docMap.get(indexModule)?.push(item);
+      }
+    }
+    return item;
+  }
+
+  for await (const entity of datastore.streamQuery(query)) {
+    const entry = entityToObject<ModuleEntry>(entity);
+    const slice = path === "/" ? entry.path : entry.path.slice(path.length);
+    if (
+      entry.path.startsWith(path) && entry.path !== path &&
+      slice.lastIndexOf("/") === 0
+    ) {
+      if (entry.type === "file") {
+        if (isDocable(entry.path)) {
+          items.push(maybeDoc(entry, {
+            kind: "module",
+            path: entry.path,
+            size: entry.size,
+            ignored: RE_IGNORED_MODULE.test(slice),
+          }));
+        } else {
+          items.push({
+            kind: "file",
+            path: entry.path,
+            size: entry.size,
+            ignored: true,
+          });
+        }
+      } else {
+        items.push(maybeDoc(entry, {
+          kind: "dir",
+          path: entry.path,
+          size: entry.size,
+          ignored: RE_PRIVATE_PATH.test(slice),
+        }));
+      }
+    }
+  }
+
+  if (docMap.size) {
+    const docNodes = await queryDocNodes(
+      datastore,
+      ancestor,
+      "moduleDoc",
+    ) as DocNodeModuleDoc[];
+    console.log(docNodes);
+    for (const moduleDoc of docNodes) {
+      if (moduleDoc.jsDoc.doc) {
+        const key = objectGetKey(moduleDoc);
+        const modDocPath = key?.path[2].name;
+        if (modDocPath) {
+          const items = docMap.get(modDocPath);
+          if (items) {
+            for (const item of items) {
+              item.doc = moduleDoc.jsDoc.doc;
+            }
+          }
+        }
+      }
+    }
+  }
+
+  return docPage;
+}
+
+function getDocPageInvalidVersion(
+  { name: module, description, versions, latest_version }: Module,
+): DocPageInvalidVersion {
+  return {
+    kind: "invalid-version",
+    module,
+    description,
+    versions,
+    latest_version,
+  };
+}
+
+function getDocPageFile(
+  module: Module,
+  version: ModuleVersion,
+  entry: ModuleEntry,
+): DocPageFile {
+  return getDocPageBase("file", module, version, entry.path);
+}
+
+export async function generateDocPage(
+  datastore: Datastore,
+  module: string,
+  version: string,
+  path: string,
+  symbol: string,
+): Promise<DocPage | undefined> {
+  const moduleKey = datastore.key(["module", module]);
+  const moduleVersionKey = datastore.key(
+    ["module", module],
+    ["module_version", version],
+  );
+  const moduleEntryKey = datastore.key(
+    ["module", module],
+    ["module_version", version],
+    ["module_entry", path],
+  );
+  const result = await datastore.lookup([
+    moduleKey,
+    moduleVersionKey,
+    moduleEntryKey,
+  ]);
+  let moduleItem: Module | undefined;
+  let moduleVersion: ModuleVersion | undefined;
+  let moduleEntry: ModuleEntry | undefined;
+  if (!(result.found && result.found.length >= 2)) {
+    let mutations: Mutation[];
+    try {
+      [mutations, moduleItem, moduleVersion, moduleEntry] = await loadModule(
+        module,
+        version,
+        path,
+      );
+      enqueue({ kind: "commitMutations", mutations });
+    } catch {
+      if (result.found && result.found.length === 1) {
+        moduleItem = entityToObject(result.found[0].entity);
+        assert(moduleItem);
+        return getDocPageInvalidVersion(moduleItem);
+      }
+      return undefined;
+    }
+  } else if (result.found && result.found.length === 2) {
+    // module entry not found, but module loaded
+    return undefined;
+  } else {
+    const [
+      { entity: moduleEntity },
+      { entity: moduleVersionEntity },
+      { entity: moduleEntryEntity },
+    ] = result.found;
+    moduleItem = entityToObject(moduleEntity);
+    moduleVersion = entityToObject(moduleVersionEntity);
+    moduleEntry = entityToObject(moduleEntryEntity);
+  }
+  if (moduleEntry && moduleEntry.default) {
+    const defaultKey = datastore.key(
+      ["module", module],
+      ["module_version", version],
+      ["module_entry", moduleEntry.default],
+    );
+    const result = await datastore.lookup(defaultKey);
+    if (result.found && result.found.length === 1) {
+      const { path } = entityToObject<ModuleEntry>(result.found[0].entity);
+      return { kind: "redirect", path };
+    }
+  }
+  if (moduleItem && moduleVersion && moduleEntry) {
+    if (moduleEntry.type === "file" && isDocable(path)) {
+      return symbol === ROOT_SYMBOL
+        ? getDocPageModule(
+          datastore,
+          moduleItem,
+          moduleVersion,
+          moduleEntry,
+          moduleEntryKey,
+        )
+        : getDocPageSymbol(
+          datastore,
+          moduleItem,
+          moduleVersion,
+          moduleEntry,
+          symbol,
+        );
+    } else {
+      if (symbol !== ROOT_SYMBOL) {
+        throw new errors.BadRequest(
+          `A symbol cannot be specified on a non-module path.`,
+        );
+      }
+      return moduleEntry.type === "dir"
+        ? getDocPageIndex(datastore, moduleItem, moduleVersion, moduleEntry)
+        : getDocPageFile(moduleItem, moduleVersion, moduleEntry);
+    }
+  }
+}
+
 export async function generateLegacyIndex(
   datastore: Datastore,
   module: string,
@@ -394,6 +820,7 @@ function entitiesToSymbolItems(
   entities: Entity[],
 ): SymbolItem[] {
   const results: SymbolItem[] = [];
+  const seen = new Set<string>();
   for (const entity of entities) {
     const item = entityToObject<NullableSymbolItem>(entity);
     if (item.kind === "null") {
@@ -402,7 +829,11 @@ function entitiesToSymbolItems(
     assert(entity.key);
     if (!descendentNotChild(ancestor, entity.key)) {
       const { name, kind, jsDoc } = item;
-      results.push({ name, kind, jsDoc });
+      const id = `${name}_${kind}`;
+      if (!seen.has(id)) {
+        seen.add(id);
+        results.push({ name, kind, jsDoc });
+      }
     }
   }
   return results;
@@ -413,15 +844,17 @@ function docNodesToSymbolItems(
   docNodes: DenoDocNode[],
 ): SymbolItem[] {
   const results: SymbolItem[] = [];
+  const seen = new Set<string>();
   for (const docNode of docNodes) {
     const key = objectGetKey(docNode);
     assert(key);
     if (!descendentNotChild(ancestor, key)) {
-      results.push({
-        name: docNode.name,
-        kind: docNode.kind,
-        jsDoc: docNode.jsDoc,
-      });
+      const { name, kind, jsDoc } = docNode;
+      const id = `${name}_${kind}`;
+      if (!seen.has(id)) {
+        seen.add(id);
+        results.push({ name, kind, jsDoc });
+      }
     }
   }
   return results;
@@ -733,6 +1166,89 @@ export async function commitModuleIndex(
   }
 }
 
+export async function commitDocPage(
+  id: number,
+  module: string,
+  version: string,
+  path: string,
+  symbol: string,
+  docPage: DocPage,
+) {
+  const datastore = await getDatastore();
+  const key = datastore.key(
+    ["module", module],
+    ["module_version", version],
+    ["module_entry", path],
+    ["doc_page", symbol],
+  );
+  objectSetKey(docPage, key);
+  const mutations = [{ upsert: objectToEntity(docPage) }];
+  try {
+    for await (
+      const _result of datastore.commit(mutations, { transactional: false })
+    ) {
+      console.log(
+        `[${id}]: %cCommitted %cbatch for %c${module}@${version}${path}#${symbol}%c.`,
+        "color:green",
+        "color:none",
+        "color:yellow",
+        "color:none",
+      );
+    }
+  } catch (error) {
+    if (error instanceof DatastoreError) {
+      console.log(`[${id}] Datastore Error:`);
+      console.log(`${error.status} ${error.message}`);
+      console.log(error.statusInfo);
+    } else {
+      console.log("Unexpected Error:");
+      console.log(error);
+    }
+    return;
+  }
+}
+
+export async function commitNav(
+  id: number,
+  module: string,
+  version: string,
+  path: string,
+  nav: DocPageNavItem[],
+) {
+  const datastore = await getDatastore();
+  const key = datastore.key(
+    ["module", module],
+    ["module_version", version],
+    ["nav_index", path],
+  );
+  const obj = { nav };
+  objectSetKey(obj, key);
+  const mutations = [{ upsert: objectToEntity(obj) }];
+  try {
+    for await (
+      const _result of datastore.commit(mutations, { transactional: false })
+    ) {
+      console.log(
+        `[${id}]: %cCommitted %cbatch for %c${module}@${version}/${path}%c.`,
+        "color:green",
+        "color:none",
+        "color:yellow",
+        "color:none",
+      );
+    }
+  } catch (error) {
+    if (error instanceof DatastoreError) {
+      console.log(`[${id}] Datastore Error:`);
+      console.log(`${error.status} ${error.message}`);
+      console.log(error.statusInfo);
+    } else {
+      console.log("Unexpected Error:");
+      console.log(error);
+    }
+    return;
+  }
+}
+
 export async function commitSymbolIndex(
   id: number,
   module: string,
@@ -835,6 +1351,10 @@ function descendentNotChild(parent: Key, descendent: Key): Key | undefined {
   };
 }
 
+function isKeyKind(key: Key, kind: string): boolean {
+  return key.path[key.path.length - 1]?.kind === kind;
+}
+
 /** An extension of {@linkcode Map} that handles comparison of
  * {@linkcode Key}s */
 class KeyMap<V> extends Map<Key, V> {
@@ -880,7 +1400,7 @@ export function entitiesToDocNodes(
     assert(entity.key);
     if (!isKeyEqual(ancestor, entity.key)) {
       const parentKey = descendentNotChild(ancestor, entity.key);
-      if (parentKey) {
+      if (parentKey && isKeyKind(parentKey, "doc_node")) {
         if (!namespaceElements.has(parentKey)) {
           namespaceElements.set(parentKey, []);
         }
@@ -997,13 +1517,82 @@ export async function getDocNodes(
   }
 }
 
+async function getNamespaceKeyInit(
+  datastore: Datastore,
+  keyInit: KeyInit[],
+  namespace: string,
+): Promise<KeyInit | undefined> {
+  const key = datastore.key(...keyInit);
+  const query = datastore
+    .createQuery("doc_node")
+    .hasAncestor(key)
+    .filter("name", namespace)
+    .filter("kind", "namespace");
+  const result = await datastore.runQuery(query);
+  if (!result.batch.entityResults || !result.batch.entityResults.length) {
+    return undefined;
+  }
+  for (const { entity: { key: entityKey } } of result.batch.entityResults) {
+    if (entityKey && !isKeyEqual(entityKey, key)) {
+      const pathElement = entityKey.path.pop();
+      if (pathElement && pathElement.id) {
+        return [pathElement.kind, parseInt(pathElement.id, 10)];
+      }
+    }
+  }
+}
+
+async function queryDocNodesBySymbol(
+  datastore: Datastore,
+  module: string,
+  version: string,
+  entry: string,
+  symbol: string,
+): Promise<DenoDocNode[]> {
+  const keyInit: KeyInit[] = [
+    ["module", module],
+    ["module_version", version],
+    ["module_entry", entry],
+  ];
+  let name = symbol;
+  if (symbol.includes(".")) {
+    const parts = symbol.split(".");
+    name = parts.pop()!;
+    while (parts.length) {
+      const namespace = parts.shift();
+      if (!namespace) {
+        return [];
+      }
+      const namespaceKeyInit = await getNamespaceKeyInit(
+        datastore,
+        keyInit,
+        namespace,
+      );
+      if (!namespaceKeyInit) {
+        return [];
+      }
+      keyInit.push(namespaceKeyInit);
+    }
+  }
+  const ancestor = datastore.key(...keyInit);
+  const query = datastore
+    .createQuery("doc_node")
+    .hasAncestor(ancestor)
+    .filter("name", name);
+  const entities: Entity[] = [];
+  for await (const entity of datastore.streamQuery(query)) {
+    entities.push(entity);
+  }
+  return entitiesToDocNodes(ancestor, entities);
+}
+
 /** Query the datastore for doc nodes, deserializing the definitions and
  * recursively querying namespaces. */
 export async function queryDocNodes(
   datastore: Datastore,
   ancestor: Key,
-  kind?: string,
-): Promise<DocNode[]> {
+  kind?: DocNodeKind,
+): Promise<DenoDocNode[]> {
   const query = datastore.createQuery("doc_node").hasAncestor(ancestor);
   if (kind) {
     query.filter("kind", kind);

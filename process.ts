@@ -5,7 +5,9 @@ import type { Mutation } from "google_datastore/types";
 
 import {
   commitDocNodes,
+  commitDocPage,
   commitModuleIndex,
+  commitNav,
   commitSymbolIndex,
   type DocNode,
   type DocNodeNull,
@@ -15,6 +17,7 @@ import {
 } from "./docs.ts";
 import { loadModule } from "./modules.ts";
 import { getAlgolia, getDatastore } from "./store.ts";
+import type { DocPage, DocPageNavItem } from "./types.d.ts";
 
 interface TaskBase {
   kind: string;
@@ -40,7 +43,6 @@ interface LegacyIndexBase {
 
 interface CommitLegacyIndex extends TaskBase, LegacyIndexBase {
   kind: "commitLegacyIndex";
-  index: LegacyIndex;
 }
 
 interface ModuleIndexBase {
@@ -52,6 +54,15 @@ interface ModuleIndexBase {
 
 interface CommitIndexTask extends TaskBase, ModuleIndexBase {
   kind: "commitIndex";
+}
+
+interface CommitDocPageTask extends TaskBase {
+  kind: "commitDocPage";
+  module: string;
+  version: string;
+  path: string;
+  symbol: string;
+  docPage: DocPage;
 }
 
 interface CommitMutations extends TaskBase {
@@ -70,6 +81,14 @@ interface CommitSymbolIndexTask extends TaskBase, SymbolIndexBase {
   kind: "commitSymbolIndex";
 }
 
+interface CommitNavTask extends TaskBase {
+  kind: "commitNav";
+  module: string;
+  version: string;
+  path: string;
+  nav: DocPageNavItem[];
+}
+
 interface LoadTask extends TaskBase {
   kind: "load";
   module: string;
@@ -84,10 +103,12 @@ type TaskDescriptor =
   | LoadTask
   | CommitTask
   | AlgoliaTask
+  | CommitDocPageTask
   | CommitIndexTask
   | CommitLegacyIndex
   | CommitMutations
-  | CommitSymbolIndexTask;
+  | CommitSymbolIndexTask
+  | CommitNavTask;
 
 let uid = 1;
 
@@ -179,7 +200,7 @@ async function taskCommitMutations(id: number, { mutations }: CommitMutations) {
     const batch of datastore.commit(mutations, { transactional: false })
   ) {
     console.log(
-      `[${id}]: %cCommitted $c${batch.mutationResults.length}$c mutations.`,
+      `[${id}]: %cCommitted %c${batch.mutationResults.length}%c mutations.`,
       "color:green",
       "color:cyan",
       "color:none",
@@ -201,6 +222,34 @@ function taskCommitSymbolIndex(
   return commitSymbolIndex(id, module, version, path, index);
 }
 
+function taskCommitDocPage(
+  id: number,
+  { module, version, path, symbol, docPage }: CommitDocPageTask,
+) {
+  console.log(
+    `[${id}]: %cCommitting%c doc page for %c"${module}@${version}${path}"%c...`,
+    "color:green",
+    "color:none",
+    "color:cyan",
+    "color:none",
+  );
+  return commitDocPage(id, module, version, path, symbol, docPage);
+}
+
+function taskCommitNav(
+  id: number,
+  { module, version, path, nav }: CommitNavTask,
+) {
+  console.log(
+    `[${id}]: %cCommitting%c nav index for %c"${module}@${version}${path}"%c...`,
+    "color:green",
+    "color:none",
+    "color:cyan",
+    "color:none",
+  );
+  return commitNav(id, module, version, path, nav);
+}
+
 async function taskLoadModule(
   id: number,
   { module, version }: LoadTask,
@@ -212,7 +261,7 @@ async function taskLoadModule(
     "color:cyan",
     "color:none",
   );
-  const [mutations] = await loadModule(module, version, true);
+  const [mutations] = await loadModule(module, version, undefined, true);
   let remaining = mutations.length;
   console.log(
     `[${id}]: %cCommitting %c${remaining}%c changes...`,
@@ -284,6 +333,10 @@ function process(id: number, task: TaskDescriptor): Promise<void> {
       return taskCommitMutations(id, task);
     case "commitSymbolIndex":
       return taskCommitSymbolIndex(id, task);
+    case "commitDocPage":
+      return taskCommitDocPage(id, task);
+    case "commitNav":
+      return taskCommitNav(id, task);
     case "load":
       return taskLoadModule(id, task);
     case "algolia":
