@@ -78,12 +78,17 @@ async function updateManual() {
   // Why copy and move?
   // We cannot copy to an existing index, but move
   // a new index to an existing index's place.
-  accountCopyIndex(sourceIndex, destinationIndex).then(() => {
-    console.log("[update_manual] copy done");
-    denoLandApp.moveIndex("destination_index", "deno_manual").then((result) => {
-      console.log("[update_manual] move done", result);
-    }).catch((err) => console.error("move error", err));
-  }).catch((err) => console.error("copy error", err));
+  try {
+    accountCopyIndex(sourceIndex, destinationIndex).then(() => {
+      denoLandApp.moveIndex("destination_index", "deno_manual").then(
+        () => {
+          console.log("Successfully updated deno_manual index.");
+        },
+      );
+    });
+  } catch (error) {
+    console.error("failed to update deno_manual index", error);
+  }
 }
 
 async function scrapeModule(
