@@ -22,7 +22,10 @@
  * ```
  */
 
-import { algoliaKeys } from "./auth.ts";
+import "https://deno.land/x/xhr@0.1.2/mod.ts?code";
+import { algoliaKeys, denoManualAlgoliaKeys, readyPromise } from "./auth.ts";
+import { accountCopyIndex } from "https://esm.sh/@algolia/client-account@4.14.1?dts";
+import algoliasearch from "https://esm.sh/algoliasearch@4.14.1?dts";
 
 const ALGOLIA_INDEX = "deno_modules";
 const NUMBER_OF_MODULES_TO_SCRAPE = 1000;
@@ -36,10 +39,13 @@ const ALLOWED_DOCNODES = [
 ];
 
 async function main() {
-  const moduleName = Deno.args[0];
-  if (moduleName) {
+  const arg = Deno.args[0]?.trim();
+  if (arg === "--update-manual") {
+    return await updateManual();
+  }
+  if (arg) {
     const module =
-      await (await fetch("https://apiland.deno.dev/v2/modules/" + moduleName))
+      await (await fetch("https://apiland.deno.dev/v2/modules/" + arg))
         .json();
     return await scrapeModule(module, 1, 1);
   }
@@ -55,6 +61,30 @@ async function main() {
   }
 }
 main();
+
+async function updateManual() {
+  await readyPromise;
+  const denoManualApp = algoliasearch(
+    denoManualAlgoliaKeys.appId,
+    denoManualAlgoliaKeys.apiKey,
+  );
+  const denoLandApp = algoliasearch(
+    algoliaKeys.appId,
+    algoliaKeys.apiKey,
+  );
+  const sourceIndex = denoManualApp.initIndex("deno_manual");
+  const destinationIndex = denoLandApp.initIndex("destination_index");
+
+  // Why copy and move?
+  // We cannot copy to an existing index, but move
+  // a new index to an existing index's place.
+  accountCopyIndex(sourceIndex, destinationIndex).then(() => {
+    console.log("[update_manual] copy done");
+    denoLandApp.moveIndex("destination_index", "deno_manual").then((result) => {
+      console.log("[update_manual] move done", result);
+    }).catch((err) => console.error("move error", err));
+  }).catch((err) => console.error("copy error", err));
+}
 
 async function scrapeModule(
   module: Module,
