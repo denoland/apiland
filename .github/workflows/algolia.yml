@@ -2,7 +2,7 @@ name: algolia
 
 on:
   schedule:
-  - cron: "5 0 * * *"
+    - cron: "5 0 * * *"
   workflow_dispatch:
 
 jobs:
@@ -16,5 +16,5 @@ jobs:
           ALGOLIA_APP_ID: ${{ secrets.ALGOLIA_API_ID }}
           ALGOLIA_API_KEY: ${{ secrets.ALGOLIA_API_KEY }}
           MANUAL_ALGOLIA_APP_ID: ${{ secrets.MANUAL_ALGOLIA_APP_ID }}
-          MANUAL_ALGOLIA_API_KEY: ${{ secrets.MANUAL_ALGOLIA_APP_KEY }}
+          MANUAL_ALGOLIA_API_KEY: ${{ secrets.MANUAL_ALGOLIA_API_KEY }}
         run: deno task algolia --update-manual
