@@ -15,6 +15,7 @@ import {
   checkMaybeLoad,
   type DocNode,
   type DocNodeKind,
+  entityToDocPage,
   generateDocNodes,
   generateDocPage,
   generateLegacyIndex,
@@ -372,7 +373,7 @@ router.get("/v2/modules/:module/:version/page/:path*{/}?", async (ctx) => {
   const response = await datastore.lookup(indexKey);
   let docPage: DocPage | undefined;
   if (response.found) {
-    docPage = entityToObject<DocPage>(response.found[0].entity);
+    docPage = entityToDocPage(response.found[0].entity);
   } else {
     docPage = await generateDocPage(
       datastore,
