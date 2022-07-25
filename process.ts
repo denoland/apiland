@@ -1,9 +1,15 @@
 // Copyright 2018-2022 the Deno authors. All rights reserved. MIT license.
 
-import { DatastoreError, objectSetKey, objectToEntity } from "google_datastore";
+import {
+  DatastoreError,
+  entityToObject,
+  objectSetKey,
+  objectToEntity,
+} from "google_datastore";
 import type { Mutation } from "google_datastore/types";
 
 import {
+  addNodes,
   commitDocNodes,
   commitDocPage,
   commitModuleIndex,
@@ -11,13 +17,31 @@ import {
   commitSymbolIndex,
   type DocNode,
   type DocNodeNull,
+  generateDocNodes,
+  getImportMapSpecifier,
+  isDocable,
   type LegacyIndex,
   type ModuleIndex,
   type SymbolIndex,
 } from "./docs.ts";
-import { loadModule } from "./modules.ts";
+import {
+  getIndexedModules,
+  getModuleData,
+  getModuleMetaVersions,
+  getSubdirs,
+  getVersionMeta,
+  isIndexedDir,
+  RE_IGNORED_MODULE,
+  RE_PRIVATE_PATH,
+} from "./modules.ts";
 import { getAlgolia, getDatastore } from "./store.ts";
-import type { DocPage, DocPageNavItem } from "./types.d.ts";
+import type {
+  DocPage,
+  DocPageNavItem,
+  Module,
+  ModuleVersion,
+} from "./types.d.ts";
+import { assert } from "./util.ts";
 
 interface TaskBase {
   kind: string;
@@ -261,7 +285,139 @@ async function taskLoadModule(
     "color:cyan",
     "color:none",
   );
-  const [mutations] = await loadModule(module, version, undefined, true);
+  const moduleData = await getModuleData(module);
+  assert(moduleData, "module data missing");
+  const moduleMetaVersion = await getModuleMetaVersions(module);
+  assert(moduleMetaVersion, "module version data missing");
+
+  const mutations: Mutation[] = [];
+  const datastore = await getDatastore();
+
+  const moduleKey = datastore.key(
+    ["module", module],
+  );
+
+  let moduleItem: Module;
+  const lookupResult = await datastore.lookup(moduleKey);
+  if (lookupResult.found) {
+    assert(lookupResult.found.length === 1, "More than one item found.");
+    moduleItem = entityToObject(lookupResult.found[0].entity);
+    moduleItem.description = moduleData.data.description;
+    moduleItem.versions = moduleMetaVersion.versions;
+    moduleItem.latest_version = moduleMetaVersion.latest;
+    moduleItem.star_count = moduleData.data.star_count;
+  } else {
+    moduleItem = {
+      name: module,
+      description: moduleData.data.description,
+      versions: moduleMetaVersion.versions,
+      latest_version: moduleMetaVersion.latest,
+      star_count: moduleData.data.star_count,
+    };
+    objectSetKey(moduleItem, moduleKey);
+  }
+  mutations.push({ upsert: objectToEntity(moduleItem) });
+
+  const versionMeta = await getVersionMeta(module, version);
+  assert(versionMeta, `unable to load meta data for ${module}@${version}`);
+  const moduleVersion: ModuleVersion = {
+    name: module,
+    description: moduleItem.description,
+    version,
+    uploaded_at: new Date(versionMeta.uploaded_at),
+    upload_options: versionMeta.upload_options,
+  };
+  const versionKey = datastore.key(
+    ["module", moduleItem.name],
+    ["module_version", version],
+  );
+  objectSetKey(moduleVersion, versionKey);
+  mutations.push({ upsert: objectToEntity(moduleVersion) });
+  const { directory_listing: listing } = versionMeta;
+  const toDoc = new Set<string>();
+  for (const moduleEntry of listing) {
+    if (moduleEntry.path === "") {
+      moduleEntry.path = "/";
+    }
+    if (moduleEntry.type === "dir") {
+      moduleEntry.dirs = getSubdirs(moduleEntry.path, listing);
+    } else if (isDocable(moduleEntry.path)) {
+      moduleEntry.docable = true;
+      if (
+        !RE_IGNORED_MODULE.test(moduleEntry.path) &&
+        !RE_PRIVATE_PATH.test(moduleEntry.path)
+      ) {
+        toDoc.add(moduleEntry.path);
+      }
+    }
+    if (isIndexedDir(moduleEntry)) {
+      [moduleEntry.index, moduleEntry.default] = getIndexedModules(
+        moduleEntry.path,
+        listing,
+      );
+    }
+    const moduleEntryKey = datastore.key(
+      ["module", moduleItem.name],
+      ["module_version", moduleVersion.version],
+      ["module_entry", moduleEntry.path],
+    );
+    objectSetKey(moduleEntry, moduleEntryKey);
+    mutations.push({ upsert: objectToEntity(moduleEntry) });
+  }
+
+  // because we are upserting the previous keys, we need to clear out any
+  // doc_nodes that might be in the datastore to ensure we are starting with
+  // a clean slate, since we can't upsert doc_nodes, as they aren't keyed by
+  // a unique name.
+  const docNodeQuery = datastore
+    .createQuery("doc_node")
+    .hasAncestor(versionKey)
+    .select("__key__");
+
+  for await (const { key } of datastore.streamQuery(docNodeQuery)) {
+    if (key) {
+      mutations.push({ delete: key });
+    }
+  }
+
+  const importMap = await getImportMapSpecifier(
+    moduleItem.name,
+    moduleVersion.version,
+  );
+  for (const path of toDoc) {
+    console.log(
+      `[${id}]: %cGenerating%c doc nodes for: %c${path}%c...`,
+      "color:green",
+      "color:none",
+      "color:cyan",
+      "color:none",
+    );
+    let docNodes: (DocNode | DocNodeNull)[] = [];
+    try {
+      docNodes = await generateDocNodes(
+        moduleItem.name,
+        moduleVersion.version,
+        path.slice(1),
+        importMap,
+      );
+    } catch (e) {
+      const msg = e instanceof Error ? `${e.message}\n\n${e.stack}` : String(e);
+      console.error(
+        `[${id}]: Error generating doc nodes for "${path}":\n${msg}`,
+      );
+    }
+    addNodes(
+      datastore,
+      mutations,
+      docNodes.length ? docNodes : [{ kind: "null" }],
+      [
+        ["module", moduleItem.name],
+        ["module_version", moduleVersion.version],
+        ["module_entry", path],
+      ],
+    );
+  }
+
   let remaining = mutations.length;
   console.log(
     `[${id}]: %cCommitting %c${remaining}%c changes...`,
@@ -269,7 +425,6 @@ async function taskLoadModule(
     "color:yellow",
     "color:none",
   );
-  const datastore = await getDatastore();
   for await (
     const res of datastore.commit(mutations, { transactional: false })
   ) {
