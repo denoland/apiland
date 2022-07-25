@@ -55,7 +55,10 @@ const res = await reporter.reportsBatchGet({
   }],
 });
 
-const metrics: Record<string, { sessions: number; users: number }> = {};
+const metrics: Record<
+  string,
+  { sessions: number; users: number; score: number }
+> = {};
 
 if (res.reports?.[0].data?.rows) {
   for (const row of res.reports[0].data.rows) {
@@ -68,10 +71,50 @@ if (res.reports?.[0].data?.rows) {
         pkg = pkg.slice(0, pkg.length - 1);
       }
       if (!(pkg in metrics)) {
-        metrics[pkg] = { sessions: 0, users: 0 };
+        metrics[pkg] = { sessions: 0, users: 0, score: 0 };
       }
       metrics[pkg].sessions += parseInt(row.metrics[0].values[0], 10);
       metrics[pkg].users += parseInt(row.metrics[0].values[1], 10);
+    }
+  }
+}
+
+// calculate the popularity score.
+for (const metric of Object.values(metrics)) {
+  metric.score = Math.trunc((metric.sessions * 0.6) + (metric.users * 0.4));
+}
+
+/** An sorted array of tuples containing the module name and its popularity
+ * score. Sorted from highest score to lowest score, filtering out `0`
+ * scores. */
+const rankedPopularity = Object.entries(metrics).filter(([, { score }]) =>
+  score > 0
+).map(([key, { score }]) => [key, score] as [string, number]).sort((
+  [, scoreA],
+  [, scoreB],
+) => scoreB - scoreA);
+
+/** Return the percentile rank (from 0 to 99) of a module in relationship to
+ * all other modules. If a rank cannot be determined an `undefined` is
+ * returned. */
+function getPercentile(module: string) {
+  const rank = rankedPopularity.findIndex(([key]) => key === module);
+  if (rank >= 0) {
+    return Math.trunc(((rank + 1) / rankedPopularity.length) * 100);
+  }
+}
+
+/** For a given module, set or update tags based on module metrics. */
+function setModuleTags(module: Module) {
+  module.tags = module.tags?.filter(({ kind }) => kind !== "popularity") ?? [];
+  const rank = getPercentile(module.name);
+  if (rank != null) {
+    if (rank === 0) {
+      module.tags.push({ kind: "popularity", value: "Super Popular" });
+    } else if (rank < 5) {
+      module.tags.push({ kind: "popularity", value: "Very Popular" });
+    } else if (rank < 10) {
+      module.tags.push({ kind: "popularity", value: "Popular" });
     }
   }
 }
@@ -129,14 +172,9 @@ if (mutations.length) {
   const query = datastore.createQuery("module");
   for await (const moduleEntity of datastore.streamQuery(query)) {
     const module = entityToObject<Module>(moduleEntity);
-    const popularityScore = metrics[module.name];
-    if (popularityScore !== undefined) {
-      module.popularity_score = Math.trunc(
-        (popularityScore.sessions * 0.6) + (popularityScore.users * 0.4),
-      );
-    } else {
-      delete module.popularity_score;
-    }
+    const metric = metrics[module.name];
+    module.popularity_score = metric ? metric.score : 0;
+    setModuleTags(module);
     moduleMutations.push({ update: objectToEntity(module) });
   }
 

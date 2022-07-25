@@ -16,10 +16,21 @@ export interface Module {
   description: string;
   versions: string[];
   latest_version: string;
+  /** @deprecated Use `popularity_score` instead. */
   star_count?: number;
   maintenance_score?: number;
+  /** A weighted score of how popular a module is. */
   popularity_score?: number;
   quality_score?: number;
+  /** Tags which are associated with the module. */
+  tags?: ModuleTag[];
+}
+
+/** Defines a "tag" which can be displayed when rending a module or part of a
+ * module. */
+export interface ModuleTag {
+  kind: "popularity";
+  value: string;
 }
 
 /** Stores as kind `module_metrics` in the datastore. */
@@ -87,6 +98,7 @@ export interface DocPageBase {
   };
   /** @deprecated */
   star_count?: number;
+  tags?: ModuleTag[];
 }
 
 interface DocPageDirItem {

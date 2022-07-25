@@ -311,7 +311,7 @@ export async function checkMaybeLoad(
 
 function getDocPageBase<Kind extends DocPage["kind"]>(
   kind: Kind,
-  { star_count, versions, latest_version }: Module,
+  { star_count, versions, latest_version, tags }: Module,
   { name: module, version, uploaded_at, upload_options, description }:
     ModuleVersion,
   path: string,
@@ -327,6 +327,7 @@ function getDocPageBase<Kind extends DocPage["kind"]>(
     uploaded_at: uploaded_at.toISOString(),
     upload_options,
     star_count,
+    tags,
   };
 }
 
