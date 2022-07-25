@@ -29,6 +29,7 @@ import algoliasearch from "https://esm.sh/algoliasearch@4.14.1?dts";
 
 const ALGOLIA_INDEX = "deno_modules";
 const NUMBER_OF_MODULES_TO_SCRAPE = 1000;
+const STD_POPULARITY_SCORE = 1000000;
 const ALLOWED_DOCNODES = [
   "function",
   "variable",
@@ -228,7 +229,9 @@ async function getAlgoliaBatchRecords(
         location: node.location,
         objectID,
         publishedAt: publishedAt.getTime(),
-        popularityScore: module.popularity_score,
+        popularityScore: module.name == "std"
+          ? STD_POPULARITY_SCORE
+          : module.popularity_score,
       },
     });
   }
