@@ -57,7 +57,7 @@ const INDEX_MODULES = ["mod", "lib", "main", "index"].flatMap((idx) =>
   EXT.map((ext) => `${idx}${ext}`)
 );
 
-function getIndexedModules(
+export function getIndexedModules(
   path: string,
   list: PackageMetaListing[],
 ): [string[], string | undefined] {
@@ -89,7 +89,7 @@ export function getIndexModule(paths?: string[]): string | undefined {
   }
 }
 
-async function getModuleData(
+export async function getModuleData(
   module: string,
 ): Promise<ApiModuleData | undefined> {
   const res = await fetch(`${DENO_API}${module}`);
@@ -99,7 +99,7 @@ async function getModuleData(
   return res.json();
 }
 
-async function getModuleMetaVersions(
+export async function getModuleMetaVersions(
   module: string,
 ): Promise<ModuleMetaVersionsJson | undefined> {
   const res = await fetch(`${S3_BUCKET}${module}/meta/versions.json`);
@@ -109,7 +109,7 @@ async function getModuleMetaVersions(
   return res.json();
 }
 
-function getSubdirs(path: string, list: PackageMetaListing[]): string[] {
+export function getSubdirs(path: string, list: PackageMetaListing[]): string[] {
   const dirs: string[] = [];
   for (const { path: p, type } of list) {
     const slice = path !== "/" ? p.slice(path.length) : p;
@@ -123,7 +123,7 @@ function getSubdirs(path: string, list: PackageMetaListing[]): string[] {
   return dirs;
 }
 
-async function getVersionMeta(
+export async function getVersionMeta(
   module: string,
   version: string,
 ): Promise<ModuleVersionMetaJson | undefined> {
@@ -136,7 +136,7 @@ async function getVersionMeta(
   return res.json();
 }
 
-function isIndexedDir(item: PackageMetaListing): boolean {
+export function isIndexedDir(item: PackageMetaListing): boolean {
   return item.type === "dir" && !item.path.match(RE_PRIVATE_PATH);
 }
 

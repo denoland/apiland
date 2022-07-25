@@ -341,7 +341,7 @@ async function lookup<Value>(
   return entityToObject(result.found[0].entity);
 }
 
-async function getNav(
+export async function getNav(
   datastore: Datastore,
   module: string,
   version: string,
@@ -1021,7 +1021,7 @@ function mergeEntries(entries: DenoDocNode[]): DenoDocNode[] {
  * The definition fields are serialized, because Datastore only supports 20
  * nested entities, which can occur in doc nodes with complex types.
  */
-function addNodes(
+export function addNodes(
   datastore: Datastore,
   mutations: Mutation[],
   docNodes: DocNode[],

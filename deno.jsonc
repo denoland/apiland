@@ -13,6 +13,7 @@
     "indexes": "deno run --allow-net --allow-env --allow-read=.env,.env.defaults indexes.ts",
     "metrics": "deno run --allow-net --allow-env --allow-read=.env,.env.defaults metrics.ts",
     "test": "deno test --allow-net --allow-hrtime --allow-env --allow-read=.",
+    "tokens": "deno run --allow-net --allow-env --allow-read=.env,.env.defaults tokens.ts",
     "algolia": "deno run --allow-net --allow-env --allow-write algolia.ts"
   }
 }
