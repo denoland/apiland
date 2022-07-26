@@ -44,6 +44,9 @@ async function main() {
   if (arg === "--update-manual") {
     return await updateManual();
   }
+  if (arg === "--update-modules") {
+    return await updateModules();
+  }
   if (arg) {
     const module =
       await (await fetch("https://apiland.deno.dev/v2/modules/" + arg))
@@ -62,6 +65,28 @@ async function main() {
   }
 }
 main();
+
+async function updateModules() {
+  console.log("[update_modules] started updating modules");
+  const modules = await getAllModules();
+  console.log(`[update_modules] fetched ${modules.length} modules`);
+  const batchRequests = [];
+  for (const module of modules) {
+    batchRequests.push({
+      action: "addObject",
+      body: {
+        objectID: module.name,
+        popularity_score: module.name == "std"
+          ? STD_POPULARITY_SCORE
+          : module.popularity_score,
+        description: module.description,
+        name: module.name,
+      },
+    });
+  }
+  await uploadToAlgolia(batchRequests, algoliaKeys, "modules");
+  console.log(`[update_modules] uploaded ${modules.length} modules to algolia`);
+}
 
 async function updateManual() {
   await readyPromise;
@@ -259,6 +284,23 @@ async function getModules(limit: number, page: number) {
     `https://apiland.deno.dev/v2/modules?limit=${limit}&page=${page}`,
   );
   const modules: Module[] = (await listModules.json()).items;
+  return modules;
+}
+
+/** Get all modules from apiland.deno.dev */
+async function getAllModules() {
+  const modules: Module[] = [];
+  let next = "/v2/modules";
+  while (next) {
+    const response = await fetch("https://apiland.deno.dev" + next);
+    if (response.ok) {
+      const data = await response.json();
+      modules.push(...data.items);
+      next = data.next;
+    } else {
+      next = "";
+    }
+  }
   return modules;
 }
 
