@@ -806,6 +806,7 @@ components:
         - $ref: "#/components/schemas/DocPageIndex"
         - $ref: "#/components/schemas/DocPageFile"
         - $ref: "#/components/schemas/DocPageInvalidVersion"
+        - $ref: "#/components/schemas/DocPagePathNotFound"
       discriminator:
         propertyName: kind
         mapping:
@@ -814,6 +815,7 @@ components:
           index: "#/components/schemas/DocPageIndex"
           file: "#/components/schemas/DocPageFile"
           invalid-version: "#/components/schemas/DocPageInvalidVersion"
+          notfound: "#/components/schemas/DocPagePathNotFound"
     DocPageBase:
       type: object
       properties:
@@ -942,6 +944,9 @@ components:
         mapping:
           dir: "#/components/schemas/DocPageDirItem"
           module: "#/components/schemas/DocPageModuleItem"
+    DocPagePathNotFound:
+      allOf:
+        - $ref: "#/components/schemas/DocPageBase"
     DocPageSymbol:
       allOf:
         - $ref: "#/components/schemas/DocPageBase"

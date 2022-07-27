@@ -52,6 +52,7 @@ import type {
   DocPageInvalidVersion,
   DocPageModule,
   DocPageNavItem,
+  DocPagePathNotFound,
   DocPageSymbol,
   IndexItem,
   Module,
@@ -479,6 +480,14 @@ async function getDocPageSymbol(
   }
 }
 
+function getDocPagePathNotFound(
+  module: Module,
+  version: ModuleVersion,
+  path: string,
+): DocPagePathNotFound {
+  return getDocPageBase("notfound", module, version, path);
+}
+
 async function getDocPageModule(
   datastore: Datastore,
   module: Module,
@@ -662,8 +671,13 @@ export async function generateDocPage(
       return undefined;
     }
   } else if (result.found && result.found.length === 2) {
-    // module entry not found, but module loaded
-    return undefined;
+    const [
+      { entity: moduleEntity },
+      { entity: moduleVersionEntity },
+    ] = result.found;
+    moduleItem = entityToObject(moduleEntity);
+    moduleVersion = entityToObject(moduleVersionEntity);
+    return getDocPagePathNotFound(moduleItem, moduleVersion, path);
   } else {
     const [
       { entity: moduleEntity },
