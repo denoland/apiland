@@ -382,7 +382,10 @@ router.get("/v2/modules/:module/:version/page/:path*{/}?", async (ctx) => {
       path,
       symbol,
     );
-    if (docPage && docPage.kind !== "invalid-version") {
+    if (
+      docPage && docPage.kind !== "invalid-version" &&
+      docPage.kind !== "notfound"
+    ) {
       enqueue({
         kind: "commitDocPage",
         module,
