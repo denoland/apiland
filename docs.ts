@@ -52,6 +52,7 @@ import type {
   DocPageInvalidVersion,
   DocPageModule,
   DocPageNavItem,
+  DocPagePathNotFound,
   DocPageSymbol,
   IndexItem,
   Module,
@@ -479,6 +480,22 @@ async function getDocPageSymbol(
   }
 }
 
+async function getDocPagePathNotFound(
+  datastore: Datastore,
+  module: Module,
+  version: ModuleVersion,
+  path: string,
+): Promise<DocPagePathNotFound> {
+  const docPage = getDocPageBase(
+    "notfound",
+    module,
+    version,
+    path,
+  ) as DocPagePathNotFound;
+  docPage.nav = await getNav(datastore, version.name, version.version, "/");
+  return docPage;
+}
+
 async function getDocPageModule(
   datastore: Datastore,
   module: Module,
@@ -662,8 +679,13 @@ export async function generateDocPage(
       return undefined;
     }
   } else if (result.found && result.found.length === 2) {
-    // module entry not found, but module loaded
-    return undefined;
+    const [
+      { entity: moduleEntity },
+      { entity: moduleVersionEntity },
+    ] = result.found;
+    moduleItem = entityToObject(moduleEntity);
+    moduleVersion = entityToObject(moduleVersionEntity);
+    return getDocPagePathNotFound(datastore, moduleItem, moduleVersion, path);
   } else {
     const [
       { entity: moduleEntity },

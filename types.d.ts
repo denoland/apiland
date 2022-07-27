@@ -142,6 +142,11 @@ export interface DocPageModule extends DocPageBase {
   docNodes: DocNode[];
 }
 
+export interface DocPagePathNotFound extends DocPageBase {
+  kind: "notfound";
+  nav: DocPageNavItem[];
+}
+
 export interface DocPageIndex extends DocPageBase {
   kind: "index";
   items: IndexItem[];
@@ -171,4 +176,5 @@ export type DocPage =
   | DocPageIndex
   | DocPageFile
   | DocPageInvalidVersion
+  | DocPagePathNotFound
   | DocPageRedirect;
