@@ -13,7 +13,13 @@
  */
 
 import { parse } from "std/flags/mod.ts";
-
+import {
+  addNodes,
+  DocNode,
+  DocNodeNull,
+  generateDocNodes,
+  getImportMapSpecifier,
+} from "./docs.ts";
 import { loadModule } from "./modules.ts";
 import { getDatastore } from "./store.ts";
 
@@ -38,15 +44,53 @@ console.log(
   "color:none",
 );
 
-const [mutations] = await loadModule(module, version);
+const [mutations, , , , toDoc] = await loadModule(module, version);
 
 if (args["dry-run"]) {
+  console.log(toDoc);
   console.log(
-    `%cWould have committed ${mutations.length} changes.`,
+    `%cWould have committed ${mutations.length} changes and documented ${toDoc.length} module versions.`,
     "color:yellow",
   );
   console.log("%cDone.", "color:green");
   Deno.exit();
+}
+
+for (const [module, version, paths] of toDoc) {
+  const importMap = await getImportMapSpecifier(module, version);
+  for (const path of paths) {
+    console.log(
+      `%cGenerating%c doc nodes for: %c${module}@${version}${path}%c...`,
+      "color:green",
+      "color:none",
+      "color:cyan",
+      "color:none",
+    );
+    let docNodes: (DocNode | DocNodeNull)[] = [];
+    try {
+      docNodes = await generateDocNodes(
+        module,
+        version,
+        path.slice(1),
+        importMap,
+      );
+    } catch (e) {
+      const msg = e instanceof Error ? `${e.message}\n\n${e.stack}` : String(e);
+      console.error(
+        `Error generating doc nodes for "${module}@${version}${path}":\n${msg}`,
+      );
+    }
+    addNodes(
+      datastore,
+      mutations,
+      docNodes.length ? docNodes : [{ kind: "null" }],
+      [
+        ["module", module],
+        ["module_version", version],
+        ["module_entry", path],
+      ],
+    );
+  }
 }
 
 let remaining = mutations.length;
