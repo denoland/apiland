@@ -144,7 +144,6 @@ export interface DocPageModule extends DocPageBase {
 
 export interface DocPagePathNotFound extends DocPageBase {
   kind: "notfound";
-  nav: DocPageNavItem[];
 }
 
 export interface DocPageIndex extends DocPageBase {

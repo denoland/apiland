@@ -480,20 +480,12 @@ async function getDocPageSymbol(
   }
 }
 
-async function getDocPagePathNotFound(
-  datastore: Datastore,
+function getDocPagePathNotFound(
   module: Module,
   version: ModuleVersion,
   path: string,
-): Promise<DocPagePathNotFound> {
-  const docPage = getDocPageBase(
-    "notfound",
-    module,
-    version,
-    path,
-  ) as DocPagePathNotFound;
-  docPage.nav = await getNav(datastore, version.name, version.version, "/");
-  return docPage;
+): DocPagePathNotFound {
+  return getDocPageBase("notfound", module, version, path);
 }
 
 async function getDocPageModule(
@@ -685,7 +677,7 @@ export async function generateDocPage(
     ] = result.found;
     moduleItem = entityToObject(moduleEntity);
     moduleVersion = entityToObject(moduleVersionEntity);
-    return getDocPagePathNotFound(datastore, moduleItem, moduleVersion, path);
+    return getDocPagePathNotFound(moduleItem, moduleVersion, path);
   } else {
     const [
       { entity: moduleEntity },
