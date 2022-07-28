@@ -17,4 +17,6 @@ jobs:
           ALGOLIA_API_KEY: ${{ secrets.ALGOLIA_API_KEY }}
           MANUAL_ALGOLIA_APP_ID: ${{ secrets.MANUAL_ALGOLIA_APP_ID }}
           MANUAL_ALGOLIA_API_KEY: ${{ secrets.MANUAL_ALGOLIA_API_KEY }}
-        run: deno task algolia --update-manual
+        run: |
+          deno task algolia --update-modules
+          deno task algolia --update-manual

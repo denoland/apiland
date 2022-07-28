@@ -23,9 +23,12 @@
  */
 
 import "https://deno.land/x/xhr@0.1.2/mod.ts?code";
-import { algoliaKeys, denoManualAlgoliaKeys, readyPromise } from "./auth.ts";
 import { accountCopyIndex } from "https://esm.sh/@algolia/client-account@4.14.1?dts";
 import algoliasearch from "https://esm.sh/algoliasearch@4.14.1?dts";
+import { entityToObject } from "google_datastore";
+
+import { algoliaKeys, denoManualAlgoliaKeys, readyPromise } from "./auth.ts";
+import { getDatastore } from "./store.ts";
 
 const ALGOLIA_INDEX = "deno_modules";
 const NUMBER_OF_MODULES_TO_SCRAPE = 1000;
@@ -43,6 +46,9 @@ async function main() {
   const arg = Deno.args[0]?.trim();
   if (arg === "--update-manual") {
     return await updateManual();
+  }
+  if (arg === "--update-modules") {
+    return await updateModules();
   }
   if (arg) {
     const module =
@@ -62,6 +68,28 @@ async function main() {
   }
 }
 main();
+
+async function updateModules() {
+  console.log("[update_modules] started updating modules");
+  const modules = await getAllModules();
+  console.log(`[update_modules] fetched ${modules.length} modules`);
+  const batchRequests = [];
+  for (const module of modules) {
+    batchRequests.push({
+      action: "addObject",
+      body: {
+        objectID: module.name,
+        popularity_score: module.name == "std"
+          ? STD_POPULARITY_SCORE
+          : module.popularity_score,
+        description: module.description,
+        name: module.name,
+      },
+    });
+  }
+  await uploadToAlgolia(batchRequests, algoliaKeys, "modules");
+  console.log(`[update_modules] uploaded ${modules.length} modules to algolia`);
+}
 
 async function updateManual() {
   await readyPromise;
@@ -259,6 +287,17 @@ async function getModules(limit: number, page: number) {
     `https://apiland.deno.dev/v2/modules?limit=${limit}&page=${page}`,
   );
   const modules: Module[] = (await listModules.json()).items;
+  return modules;
+}
+
+/** Get all modules from Datastore. */
+async function getAllModules() {
+  const modules: Module[] = [];
+  const datastore = await getDatastore();
+  const query = datastore.createQuery("module");
+  for await (const entity of datastore.streamQuery(query)) {
+    modules.push(entityToObject(entity));
+  }
   return modules;
 }
 
