@@ -23,11 +23,12 @@
  */
 
 import "https://deno.land/x/xhr@0.1.2/mod.ts?code";
-import { algoliaKeys, denoManualAlgoliaKeys, readyPromise } from "./auth.ts";
 import { accountCopyIndex } from "https://esm.sh/@algolia/client-account@4.14.1?dts";
 import algoliasearch from "https://esm.sh/algoliasearch@4.14.1?dts";
+import { entityToObject } from "google_datastore";
+
+import { algoliaKeys, denoManualAlgoliaKeys, readyPromise } from "./auth.ts";
 import { getDatastore } from "./store.ts";
-import { entityToObject } from "https://deno.land/x/google_datastore@0.0.14/mod.ts";
 
 const ALGOLIA_INDEX = "deno_modules";
 const NUMBER_OF_MODULES_TO_SCRAPE = 1000;
