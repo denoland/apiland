@@ -164,7 +164,7 @@ export async function redirectToLatest(
     return undefined;
   }
   const location = `${
-    url.pathname.replace("/__latest__/", `/${latest}/`)
+    url.pathname.replace("/__latest__", `/${latest}`)
   }${url.search}`;
   return new Response(null, {
     status: 302,
