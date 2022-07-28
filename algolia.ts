@@ -290,7 +290,7 @@ async function getModules(limit: number, page: number) {
   return modules;
 }
 
-/** Get all modules from apiland.deno.dev */
+/** Get all modules from Datastore. */
 async function getAllModules() {
   const modules: Module[] = [];
   const datastore = await getDatastore();
