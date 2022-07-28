@@ -141,6 +141,38 @@ export async function getVersionMeta(
   return res.json();
 }
 
+async function getModuleLatestVersion(
+  module: string,
+): Promise<string | undefined> {
+  const datastore = await getDatastore();
+  const result = await datastore.lookup(datastore.key(["module", module]));
+  if (result.found && result.found.length) {
+    const moduleItem = entityToObject<Module>(result.found[0].entity);
+    return moduleItem.latest_version;
+  }
+}
+
+/** For a given module, lookup the latest version in the database and redirect
+ * the requested URL to the latest version (or return `undefined` if the module
+ * is not located). */
+export async function redirectToLatest(
+  url: URL,
+  module: string,
+): Promise<Response | undefined> {
+  const latest = await getModuleLatestVersion(module);
+  if (!latest) {
+    return undefined;
+  }
+  const location = `${
+    url.pathname.replace("/__latest__/", `/${latest}/`)
+  }${url.search}`;
+  return new Response(null, {
+    status: 302,
+    statusText: "Found",
+    headers: { location },
+  });
+}
+
 export function isIndexedDir(item: PackageMetaListing): boolean {
   return item.type === "dir" && !item.path.match(RE_PRIVATE_PATH);
 }
