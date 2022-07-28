@@ -26,6 +26,8 @@ import "https://deno.land/x/xhr@0.1.2/mod.ts?code";
 import { algoliaKeys, denoManualAlgoliaKeys, readyPromise } from "./auth.ts";
 import { accountCopyIndex } from "https://esm.sh/@algolia/client-account@4.14.1?dts";
 import algoliasearch from "https://esm.sh/algoliasearch@4.14.1?dts";
+import { getDatastore } from "./store.ts";
+import { entityToObject } from "https://deno.land/x/google_datastore@0.0.14/mod.ts";
 
 const ALGOLIA_INDEX = "deno_modules";
 const NUMBER_OF_MODULES_TO_SCRAPE = 1000;
@@ -290,16 +292,10 @@ async function getModules(limit: number, page: number) {
 /** Get all modules from apiland.deno.dev */
 async function getAllModules() {
   const modules: Module[] = [];
-  let next = "/v2/modules";
-  while (next) {
-    const response = await fetch("https://apiland.deno.dev" + next);
-    if (response.ok) {
-      const data = await response.json();
-      modules.push(...data.items);
-      next = data.next;
-    } else {
-      next = "";
-    }
+  const datastore = await getDatastore();
+  const query = datastore.createQuery("module");
+  for await (const entity of datastore.streamQuery(query)) {
+    modules.push(entityToObject(entity));
   }
   return modules;
 }
