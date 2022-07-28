@@ -27,6 +27,7 @@ import {
   queryDocNodes,
   ROOT_SYMBOL,
 } from "./docs.ts";
+import { redirectToLatest } from "./modules.ts";
 import { enqueue } from "./process.ts";
 import { getDatastore } from "./store.ts";
 import type { DocPage } from "./types.d.ts";
@@ -219,6 +220,9 @@ router.get(
 router.get(
   "/v2/modules/:module/:version",
   async (ctx) => {
+    if (ctx.params.version === "__latest__") {
+      return redirectToLatest(ctx.url(), ctx.params.module);
+    }
     const datastore = await getDatastore();
     const response = await datastore.lookup(
       datastore.key([
@@ -241,6 +245,9 @@ router.post(
   "/v2/modules/:module/:version/doc",
   async (ctx: Context<string[], { module: string; version: string }>) => {
     const { params: { module, version } } = ctx;
+    if (version === "__latest__") {
+      return redirectToLatest(ctx.url(), module);
+    }
     const entries = await ctx.body();
     if (!entries || !Array.isArray(entries)) {
       throw new errors.BadRequest("Body is missing or malformed");
@@ -263,6 +270,9 @@ router.get("/v2/modules/:module/:version/doc/:path*", async (ctx) => {
   const { module, version, path } = ctx.params;
   if (!isDocable(path)) {
     return;
+  }
+  if (version === "__latest__") {
+    return redirectToLatest(ctx.url(), module);
   }
   const datastore = await getDatastore();
   const moduleEntryKey = datastore.key(
@@ -298,6 +308,9 @@ router.get("/v2/modules/:module/:version/doc/:path*", async (ctx) => {
 
 router.get("/v2/modules/:module/:version/index/:path*{/}?", async (ctx) => {
   const { module, version, path: paramPath } = ctx.params;
+  if (version === "__latest__") {
+    return redirectToLatest(ctx.url(), module);
+  }
   const path = `/${paramPath}`;
   const datastore = await getDatastore();
   const indexKey = datastore.key(
@@ -320,6 +333,9 @@ router.get(
   "/v2/modules/:module/:version/legacy_index/:path*{/}?",
   async (ctx) => {
     const { module, version, path: paramPath } = ctx.params;
+    if (version === "__latest__") {
+      return redirectToLatest(ctx.url(), module);
+    }
     const path = `/${paramPath}`;
     const datastore = await getDatastore();
     const indexKey = datastore.key(
@@ -341,6 +357,9 @@ router.get(
 
 router.get("/v2/modules/:module/:version/symbols/:path*{/}?", async (ctx) => {
   const { module, version, path: paramPath } = ctx.params;
+  if (version === "__latest__") {
+    return redirectToLatest(ctx.url(), module);
+  }
   const path = `/${paramPath}`;
   const datastore = await getDatastore();
   const indexKey = datastore.key(
@@ -361,6 +380,9 @@ router.get("/v2/modules/:module/:version/symbols/:path*{/}?", async (ctx) => {
 
 router.get("/v2/modules/:module/:version/page/:path*{/}?", async (ctx) => {
   const { module, version, path: paramPath } = ctx.params;
+  if (version === "__latest__") {
+    return redirectToLatest(ctx.url(), module);
+  }
   const path = `/${paramPath}`;
   const symbol = ctx.searchParams.symbol ?? ROOT_SYMBOL;
   const datastore = await getDatastore();
@@ -401,7 +423,8 @@ router.get("/v2/modules/:module/:version/page/:path*{/}?", async (ctx) => {
       status: 301,
       statusText: "Moved Permanently",
       headers: {
-        location: `/v2/modules/${module}/${version}/page${docPage.path}`,
+        location:
+          `/v2/modules/${module}/${version}/page${docPage.path}${ctx.url().search}`,
       },
     });
   } else {
