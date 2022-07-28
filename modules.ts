@@ -1,6 +1,11 @@
 // Copyright 2018-2022 the Deno authors. All rights reserved. MIT license.
 
-import { entityToObject, objectSetKey, objectToEntity } from "google_datastore";
+import {
+  type Datastore,
+  entityToObject,
+  objectSetKey,
+  objectToEntity,
+} from "google_datastore";
 import type { Mutation } from "google_datastore/types";
 import { isDocable } from "./docs.ts";
 
@@ -140,6 +145,38 @@ export function isIndexedDir(item: PackageMetaListing): boolean {
   return item.type === "dir" && !item.path.match(RE_PRIVATE_PATH);
 }
 
+/** A function which */
+export async function clearModule(
+  datastore: Datastore,
+  mutations: Mutation[],
+  module: string,
+  version: string,
+): Promise<void> {
+  const kinds = [
+    "doc_node",
+    "module_index",
+    "symbol_index",
+    "doc_page",
+    "nav_index",
+  ];
+
+  for (const kind of kinds) {
+    const query = datastore
+      .createQuery(kind)
+      .hasAncestor(datastore.key(
+        ["module", module],
+        ["module_version", version],
+      ))
+      .select("__key__");
+
+    for await (const { key } of datastore.streamQuery(query)) {
+      if (key) {
+        mutations.push({ delete: key });
+      }
+    }
+  }
+}
+
 export async function loadModule(
   module: string,
   version?: string,
@@ -151,6 +188,7 @@ export async function loadModule(
     module: Module,
     moduleVersion: ModuleVersion | undefined,
     moduleEntry: ModuleEntry | undefined,
+    toDoc: [string, string, Set<string>][],
   ]
 > {
   const moduleData = await getModuleData(module);
@@ -184,6 +222,7 @@ export async function loadModule(
 
   let moduleVersion: ModuleVersion | undefined;
   let foundModuleEntry: ModuleEntry | undefined;
+  const toDoc: [string, string, Set<string>][] = [];
   if (version) {
     let versions: string[] = [];
     if (version === "all") {
@@ -218,7 +257,9 @@ export async function loadModule(
       );
       objectSetKey(moduleVersion, versionKey);
       mutations.push({ upsert: objectToEntity(moduleVersion) });
+      await clearModule(datastore, mutations, moduleItem.name, version);
       const { directory_listing: listing } = versionMeta;
+      const toDocPaths = new Set<string>();
       for (const moduleEntry of versionMeta.directory_listing) {
         if (moduleEntry.path === "") {
           moduleEntry.path = "/";
@@ -227,6 +268,12 @@ export async function loadModule(
           moduleEntry.dirs = getSubdirs(moduleEntry.path, listing);
         } else if (isDocable(moduleEntry.path)) {
           moduleEntry.docable = true;
+          if (
+            !RE_IGNORED_MODULE.test(moduleEntry.path) &&
+            !RE_PRIVATE_PATH.test(moduleEntry.path)
+          ) {
+            toDocPaths.add(moduleEntry.path);
+          }
         }
         if (isIndexedDir(moduleEntry)) {
           [moduleEntry.index, moduleEntry.default] = getIndexedModules(
@@ -247,8 +294,11 @@ export async function loadModule(
         }
         mutations.push({ upsert: objectToEntity(moduleEntry) });
       }
+      if (toDocPaths.size) {
+        toDoc.push([moduleItem.name, version, toDocPaths]);
+      }
     }
   }
 
-  return [mutations, moduleItem, moduleVersion, foundModuleEntry];
+  return [mutations, moduleItem, moduleVersion, foundModuleEntry, toDoc];
 }

@@ -25,6 +25,7 @@ import {
   type SymbolIndex,
 } from "./docs.ts";
 import {
+  clearModule,
   getIndexedModules,
   getModuleData,
   getModuleMetaVersions,
@@ -365,20 +366,12 @@ async function taskLoadModule(
     mutations.push({ upsert: objectToEntity(moduleEntry) });
   }
 
-  // because we are upserting the previous keys, we need to clear out any
-  // doc_nodes that might be in the datastore to ensure we are starting with
-  // a clean slate, since we can't upsert doc_nodes, as they aren't keyed by
-  // a unique name.
-  const docNodeQuery = datastore
-    .createQuery("doc_node")
-    .hasAncestor(versionKey)
-    .select("__key__");
-
-  for await (const { key } of datastore.streamQuery(docNodeQuery)) {
-    if (key) {
-      mutations.push({ delete: key });
-    }
-  }
+  await clearModule(
+    datastore,
+    mutations,
+    moduleItem.name,
+    moduleVersion.version,
+  );
 
   const importMap = await getImportMapSpecifier(
     moduleItem.name,
