@@ -373,13 +373,36 @@ async function taskLoadModule(
     moduleVersion.version,
   );
 
+  let remaining = mutations.length;
+  console.log(
+    `[${id}]: %cCommitting %c${remaining}%c changes...`,
+    "color:green",
+    "color:yellow",
+    "color:none",
+  );
+  for await (
+    const res of datastore.commit(mutations, { transactional: false })
+  ) {
+    remaining -= res.mutationResults.length;
+    console.log(
+      `[${id}]: %cCommitted %c${res.mutationResults.length}%c changes. %c${remaining}%c to go.`,
+      "color:green",
+      "color:yellow",
+      "color:none",
+      "color:yellow",
+      "color:none",
+    );
+  }
+
+  const docMutations: Mutation[] = [];
+
   const importMap = await getImportMapSpecifier(
     moduleItem.name,
     moduleVersion.version,
   );
   for (const path of toDoc) {
     console.log(
-      `[${id}]: %cGenerating%c doc nodes for: %c${path}%c...`,
+      `[${id}]: %cGenerating%c doc nodes for: %c${moduleItem.name}@${moduleVersion.version}${path}%c...`,
       "color:green",
       "color:none",
       "color:cyan",
@@ -401,7 +424,7 @@ async function taskLoadModule(
     }
     addNodes(
       datastore,
-      mutations,
+      docMutations,
       docNodes.length ? docNodes : [{ kind: "null" }],
       [
         ["module", moduleItem.name],
@@ -411,19 +434,19 @@ async function taskLoadModule(
     );
   }
 
-  let remaining = mutations.length;
+  remaining = docMutations.length;
   console.log(
-    `[${id}]: %cCommitting %c${remaining}%c changes...`,
+    `[${id}]: %cCommitting %c${remaining}%c doc nodes...`,
     "color:green",
     "color:yellow",
     "color:none",
   );
   for await (
-    const res of datastore.commit(mutations, { transactional: false })
+    const res of datastore.commit(docMutations, { transactional: false })
   ) {
     remaining -= res.mutationResults.length;
     console.log(
-      `[${id}]: %cCommitted %c${res.mutationResults.length}%c changes. %c${remaining}%c to go.`,
+      `[${id}]: %cCommitted %c${res.mutationResults.length}%c doc nodes. %c${remaining}%c to go.`,
       "color:green",
       "color:yellow",
       "color:none",
