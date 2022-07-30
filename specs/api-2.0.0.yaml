@@ -1291,6 +1291,9 @@ components:
         ref:
           type: string
           example: v10.0.1
+        subdir:
+          type: string
+          example: /deno
       required:
         - type
         - repository

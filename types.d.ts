@@ -55,6 +55,7 @@ export interface ModuleVersion {
     type: string;
     repository: string;
     ref: string;
+    subdir?: string;
   };
 }
 
@@ -95,6 +96,7 @@ export interface DocPageBase {
     type: string;
     repository: string;
     ref: string;
+    subdir?: string;
   };
   /** @deprecated */
   star_count?: number;
