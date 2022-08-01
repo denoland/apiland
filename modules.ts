@@ -169,7 +169,11 @@ export async function redirectToLatest(
   return new Response(null, {
     status: 302,
     statusText: "Found",
-    headers: { location },
+    headers: {
+      location,
+      "X-Deno-Module": module,
+      "X-Deno-Latest-Version": latest,
+    },
   });
 }
 
