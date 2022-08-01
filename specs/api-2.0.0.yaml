@@ -217,6 +217,20 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ModuleVersion"
+        "302":
+          description: >
+            Found - The latest version has been found. This is sent when 
+            `__latest__` is used as the version.
+          headers:
+            Location:
+              schema:
+                type: string
+            X-Deno-Module:
+              schema:
+                $ref: "#/components/schemas/ModuleName"
+            X-Deno-Latest-Version:
+              schema:
+                type: string
         "404":
           description: Not found - the requested resource was not found
           content:
@@ -563,6 +577,35 @@ paths:
               schema:
                 $ref: "#/components/schemas/HttpError"
             text/html:
+              schema:
+                type: string
+        "301":
+          description: Moved - This page has a different location
+          headers:
+            Location:
+              schema:
+                type: string
+            X-Deno-Module:
+              schema:
+                $ref: "#/components/schemas/ModuleName"
+            X-Deno-Version:
+              schema:
+                type: string
+            X-Deno-Path:
+              schema:
+                type: string
+        "302":
+          description: >
+            Found - The latest version has been found. This is sent when 
+            `__latest__` is used as the version.
+          headers:
+            Location:
+              schema:
+                type: string
+            X-Deno-Module:
+              schema:
+                $ref: "#/components/schemas/ModuleName"
+            X-Deno-Latest-Version:
               schema:
                 type: string
         "404":

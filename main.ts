@@ -425,6 +425,9 @@ router.get("/v2/modules/:module/:version/page/:path*{/}?", async (ctx) => {
       headers: {
         location:
           `/v2/modules/${module}/${version}/page${docPage.path}${ctx.url().search}`,
+        "X-Deno-Module": module,
+        "X-Deno-Version": version,
+        "X-Deno-Module-Path": docPage.path,
       },
     });
   } else {
