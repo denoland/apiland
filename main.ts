@@ -11,11 +11,11 @@ import { errors, isHttpError } from "oak_commons/http_errors.ts";
 import { entityToObject } from "google_datastore";
 
 import { endpointAuth } from "./auth.ts";
+import { cacheDocPage, lookup } from "./cache.ts";
 import {
   checkMaybeLoad,
   type DocNode,
   type DocNodeKind,
-  entityToDocPage,
   generateDocNodes,
   generateDocPage,
   generateLegacyIndex,
@@ -30,7 +30,6 @@ import {
 import { redirectToLatest } from "./modules.ts";
 import { enqueue } from "./process.ts";
 import { getDatastore } from "./store.ts";
-import type { DocPage } from "./types.d.ts";
 
 interface PagedItems<T> {
   items: T[];
@@ -385,18 +384,9 @@ router.get("/v2/modules/:module/:version/page/:path*{/}?", async (ctx) => {
   }
   const path = `/${paramPath}`;
   const symbol = ctx.searchParams.symbol ?? ROOT_SYMBOL;
-  const datastore = await getDatastore();
-  const indexKey = datastore.key(
-    ["module", module],
-    ["module_version", version],
-    ["module_entry", path],
-    ["doc_page", symbol],
-  );
-  const response = await datastore.lookup(indexKey);
-  let docPage: DocPage | undefined;
-  if (response.found) {
-    docPage = entityToDocPage(response.found[0].entity);
-  } else {
+  let [, , , docPage] = await lookup(module, version, path, symbol);
+  if (!docPage) {
+    const datastore = await getDatastore();
     docPage = await generateDocPage(
       datastore,
       module,
@@ -404,6 +394,9 @@ router.get("/v2/modules/:module/:version/page/:path*{/}?", async (ctx) => {
       path,
       symbol,
     );
+    if (docPage) {
+      cacheDocPage(module, version, path, symbol, docPage);
+    }
     if (
       docPage && docPage.kind !== "invalid-version" &&
       docPage.kind !== "notfound"

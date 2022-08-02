@@ -7,6 +7,12 @@ import {
   objectToEntity,
 } from "google_datastore";
 import type { Mutation } from "google_datastore/types";
+import {
+  cacheModule,
+  cacheModuleEntry,
+  cacheModuleVersion,
+  lookup,
+} from "./cache.ts";
 import { isDocable } from "./docs.ts";
 
 import { getDatastore } from "./store.ts";
@@ -232,11 +238,8 @@ export async function loadModule(
   const datastore = await getDatastore();
   const moduleKey = datastore.key(["module", module]);
 
-  let moduleItem: Module;
-  const lookupResult = await datastore.lookup(moduleKey);
-  if (lookupResult.found) {
-    assert(lookupResult.found.length === 1, "More than one item found.");
-    moduleItem = entityToObject<Module>(lookupResult.found[0].entity);
+  let [moduleItem] = await lookup(module);
+  if (moduleItem) {
     moduleItem.description = moduleData.data.description;
     moduleItem.versions = moduleMetaVersion.versions;
     moduleItem.latest_version = moduleMetaVersion.latest;
@@ -249,6 +252,7 @@ export async function loadModule(
       latest_version: moduleMetaVersion.latest,
     };
     objectSetKey(moduleItem, moduleKey);
+    cacheModule(module, moduleItem);
   }
   mutations.push({ upsert: objectToEntity(moduleItem) });
 
@@ -288,6 +292,7 @@ export async function loadModule(
         ["module_version", version],
       );
       objectSetKey(moduleVersion, versionKey);
+      cacheModuleVersion(module, version, moduleVersion);
       mutations.push({ upsert: objectToEntity(moduleVersion) });
       await clearModule(datastore, mutations, moduleItem.name, version);
       const { directory_listing: listing } = versionMeta;
@@ -321,6 +326,7 @@ export async function loadModule(
             ["module_entry", moduleEntry.path],
           ),
         );
+        cacheModuleEntry(module, version, moduleEntry.path, moduleEntry);
         if (moduleEntry.path === path) {
           foundModuleEntry = moduleEntry;
         }

@@ -36,6 +36,7 @@ import type {
 import * as JSONC from "jsonc-parser";
 import { errors } from "oak_commons/http_errors.ts";
 
+import { lookup } from "./cache.ts";
 import {
   getIndexModule,
   loadModule,
@@ -332,7 +333,7 @@ function getDocPageBase<Kind extends DocPage["kind"]>(
   };
 }
 
-async function lookup<Value>(
+async function dbLookup<Value>(
   datastore: Datastore,
   key: Key,
 ): Promise<Value | undefined> {
@@ -354,7 +355,7 @@ export async function getNav(
     ["module_version", version],
     ["nav_index", path],
   );
-  const navIndex: { nav: DocPageNavItem[] } | undefined = await lookup(
+  const navIndex: { nav: DocPageNavItem[] } | undefined = await dbLookup(
     datastore,
     navKey,
   );
@@ -366,7 +367,7 @@ export async function getNav(
     ["module_version", version],
     ["module_entry", path],
   );
-  const entry: ModuleEntry | undefined = await lookup(datastore, entryKey);
+  const entry: ModuleEntry | undefined = await dbLookup(datastore, entryKey);
   if (!entry || !entry.index || !entry.dirs) {
     throw new errors.InternalServerError(
       `Unable to lookup nav dir module entry: ${path}`,
@@ -635,25 +636,12 @@ export async function generateDocPage(
   path: string,
   symbol: string,
 ): Promise<DocPage | undefined> {
-  const moduleKey = datastore.key(["module", module]);
-  const moduleVersionKey = datastore.key(
-    ["module", module],
-    ["module_version", version],
-  );
-  const moduleEntryKey = datastore.key(
-    ["module", module],
-    ["module_version", version],
-    ["module_entry", path],
-  );
-  const result = await datastore.lookup([
-    moduleKey,
-    moduleVersionKey,
-    moduleEntryKey,
-  ]);
-  let moduleItem: Module | undefined;
-  let moduleVersion: ModuleVersion | undefined;
-  let moduleEntry: ModuleEntry | undefined;
-  if (!(result.found && result.found.length >= 2)) {
+  let [
+    moduleItem,
+    moduleVersion,
+    moduleEntry,
+  ] = await lookup(module, version, path);
+  if (!moduleItem && !moduleVersion) {
     let mutations: Mutation[];
     try {
       [mutations, moduleItem, moduleVersion, moduleEntry] = await loadModule(
@@ -663,30 +651,16 @@ export async function generateDocPage(
       );
       enqueue({ kind: "commitMutations", mutations });
     } catch {
-      if (result.found && result.found.length === 1) {
-        moduleItem = entityToObject(result.found[0].entity);
+      if (!moduleVersion) {
         assert(moduleItem);
         return getDocPageInvalidVersion(moduleItem);
       }
       return undefined;
     }
-  } else if (result.found && result.found.length === 2) {
-    const [
-      { entity: moduleEntity },
-      { entity: moduleVersionEntity },
-    ] = result.found;
-    moduleItem = entityToObject(moduleEntity);
-    moduleVersion = entityToObject(moduleVersionEntity);
+  } else if (!moduleEntry) {
+    assert(moduleItem);
+    assert(moduleVersion);
     return getDocPagePathNotFound(moduleItem, moduleVersion, path);
-  } else {
-    const [
-      { entity: moduleEntity },
-      { entity: moduleVersionEntity },
-      { entity: moduleEntryEntity },
-    ] = result.found;
-    moduleItem = entityToObject(moduleEntity);
-    moduleVersion = entityToObject(moduleVersionEntity);
-    moduleEntry = entityToObject(moduleEntryEntity);
   }
   if (moduleEntry && moduleEntry.default) {
     const defaultKey = datastore.key(
@@ -708,7 +682,11 @@ export async function generateDocPage(
           moduleItem,
           moduleVersion,
           moduleEntry,
-          moduleEntryKey,
+          datastore.key(
+            ["module", module],
+            ["module_version", version],
+            ["module_entry", path],
+          ),
         )
         : getDocPageSymbol(
           datastore,
