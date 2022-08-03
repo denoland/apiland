@@ -2,7 +2,7 @@
 
 import { assert, assertStrictEquals } from "std/testing/asserts.ts";
 import { readyPromise } from "./auth.ts";
-import { clear, lookup } from "./cache.ts";
+import { clear, lookup, lookupDocPage } from "./cache.ts";
 
 await readyPromise;
 
@@ -59,14 +59,14 @@ Deno.test({
 });
 
 Deno.test({
-  name: "cache - lookup(module, version, path, symbol)",
+  name: "cache - lookupDocPage(module, version, path, symbol)",
   async fn() {
     clear();
     performance.mark("dp-gm1");
-    const [, , , dp1] = await lookup("std", "0.150.0", "/", "$$root$$");
+    const dp1 = await lookupDocPage("std", "0.150.0", "/", "$$root$$");
     assert(dp1);
     performance.mark("dp-dp1");
-    const [, , , dp2] = await lookup("std", "0.150.0", "/", "$$root$$");
+    const dp2 = await lookupDocPage("std", "0.150.0", "/", "$$root$$");
     performance.mark("dp-dp2");
     assertStrictEquals(dp1, dp2);
     const pass1 = performance.measure("dp-pass1", "dp-gm1", "dp-dp1");

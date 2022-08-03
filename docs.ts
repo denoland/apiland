@@ -46,19 +46,22 @@ import {
 import { enqueue } from "./process.ts";
 import { getDatastore } from "./store.ts";
 import type {
+  CodePage,
+  CodePageDir,
+  CodePageFile,
   DocPage,
-  DocPageBase,
   DocPageFile,
   DocPageIndex,
-  DocPageInvalidVersion,
   DocPageModule,
   DocPageNavItem,
-  DocPagePathNotFound,
   DocPageSymbol,
   IndexItem,
   Module,
   ModuleEntry,
   ModuleVersion,
+  PageBase,
+  PageInvalidVersion,
+  PagePathNotFound,
 } from "./types.d.ts";
 import { assert } from "./util.ts";
 
@@ -311,13 +314,13 @@ export async function checkMaybeLoad(
   }
 }
 
-function getDocPageBase<Kind extends DocPage["kind"]>(
+function getPageBase<Kind extends DocPage["kind"] | CodePage["kind"]>(
   kind: Kind,
   { star_count, versions, latest_version, tags }: Module,
   { name: module, version, uploaded_at, upload_options, description }:
     ModuleVersion,
   path: string,
-): DocPageBase & { kind: Kind } {
+): PageBase & { kind: Kind } {
   return {
     kind,
     module,
@@ -453,40 +456,117 @@ export async function getNav(
   return nav;
 }
 
-async function getDocPageSymbol(
+function getPagePathNotFound(
+  module: Module,
+  version: ModuleVersion,
+  path: string,
+): PagePathNotFound {
+  return getPageBase("notfound", module, version, path);
+}
+
+function getPageInvalidVersion(
+  { name: module, description, versions, latest_version }: Module,
+): PageInvalidVersion {
+  return {
+    kind: "invalid-version",
+    module,
+    description,
+    versions,
+    latest_version,
+  };
+}
+
+function getCodePageFile(
+  module: Module,
+  version: ModuleVersion,
+  entry: ModuleEntry,
+): CodePageFile {
+  const codePage = getPageBase(
+    "file",
+    module,
+    version,
+    entry.path,
+  ) as CodePageFile;
+  codePage.size = entry.size;
+  codePage.docable = entry.docable;
+  return codePage;
+}
+
+async function getCodePageDir(
   datastore: Datastore,
   module: Module,
   version: ModuleVersion,
   entry: ModuleEntry,
-  symbol: string,
-): Promise<DocPageSymbol | undefined> {
-  const docPage = getDocPageBase(
-    "symbol",
-    module,
-    version,
-    entry.path,
-  ) as DocPageSymbol;
-  docPage.name = symbol;
-  const dirPath = entry.path.slice(0, entry.path.lastIndexOf("/")) || "/";
-  docPage.nav = await getNav(datastore, version.name, version.version, dirPath);
-  docPage.docNodes = await queryDocNodesBySymbol(
-    datastore,
-    version.name,
-    version.version,
-    entry.path,
-    symbol,
-  );
-  if (docPage.docNodes.length) {
-    return docPage;
+): Promise<CodePageDir> {
+  const path = entry.path;
+  const codePage = getPageBase("dir", module, version, path) as CodePageDir;
+  const query = datastore
+    .createQuery("module_entry")
+    .hasAncestor(datastore.key(
+      ["module", module.name],
+      ["module_version", version.version],
+    ));
+  const entries: ModuleEntry[] = [];
+  for await (const entity of datastore.streamQuery(query)) {
+    const moduleEntry = entityToObject<ModuleEntry>(entity);
+    console.log(path, moduleEntry.path);
+    if (
+      moduleEntry.path.startsWith(path) &&
+      moduleEntry.path.slice(path.length).lastIndexOf("/") <= 0
+    ) {
+      entries.push(moduleEntry);
+    }
+  }
+  codePage.entries = entries;
+  return codePage;
+}
+
+export async function generateCodePage(
+  datastore: Datastore,
+  module: string,
+  version: string,
+  path: string,
+): Promise<CodePage | undefined> {
+  let [
+    moduleItem,
+    moduleVersion,
+    moduleEntry,
+  ] = await lookup(module, version, path);
+  if (!moduleItem && !moduleVersion) {
+    let mutations: Mutation[];
+    try {
+      [
+        mutations,
+        moduleItem,
+        moduleVersion,
+        moduleEntry,
+      ] = await loadModule(module, version, path);
+      enqueue({ kind: "commitMutations", mutations });
+    } catch {
+      if (!moduleVersion) {
+        assert(moduleItem);
+        return getPageInvalidVersion(moduleItem);
+      }
+      return undefined;
+    }
+  } else if (!moduleEntry) {
+    assert(moduleItem);
+    assert(moduleVersion);
+    return getPagePathNotFound(moduleItem, moduleVersion, path);
+  }
+  if (moduleItem && moduleVersion && moduleEntry) {
+    return moduleEntry.type === "file"
+      ? getCodePageFile(moduleItem, moduleVersion, moduleEntry)
+      : getCodePageDir(datastore, moduleItem, moduleVersion, moduleEntry);
   }
 }
 
-function getDocPagePathNotFound(
+function getDocPageFile(
   module: Module,
   version: ModuleVersion,
-  path: string,
-): DocPagePathNotFound {
-  return getDocPageBase("notfound", module, version, path);
+  entry: ModuleEntry,
+): DocPageFile {
+  return getPageBase("file", module, version, entry.path);
 }
 
 async function getDocPageModule(
@@ -496,7 +576,7 @@ async function getDocPageModule(
   entry: ModuleEntry,
   entryKey: Key,
 ): Promise<DocPageModule> {
-  const docPage = getDocPageBase(
+  const docPage = getPageBase(
     "module",
     module,
     version,
@@ -514,7 +594,7 @@ async function getDocPageIndex(
   version: ModuleVersion,
   entry: ModuleEntry,
 ): Promise<DocPageIndex> {
-  const docPage = getDocPageBase(
+  const docPage = getPageBase(
     "index",
     module,
     version,
@@ -609,24 +689,32 @@ async function getDocPageIndex(
   return docPage;
 }
 
-function getDocPageInvalidVersion(
-  { name: module, description, versions, latest_version }: Module,
-): DocPageInvalidVersion {
-  return {
-    kind: "invalid-version",
-    module,
-    description,
-    versions,
-    latest_version,
-  };
-}
-
-function getDocPageFile(
+async function getDocPageSymbol(
+  datastore: Datastore,
   module: Module,
   version: ModuleVersion,
   entry: ModuleEntry,
-): DocPageFile {
-  return getDocPageBase("file", module, version, entry.path);
+  symbol: string,
+): Promise<DocPageSymbol | undefined> {
+  const docPage = getPageBase(
+    "symbol",
+    module,
+    version,
+    entry.path,
+  ) as DocPageSymbol;
+  docPage.name = symbol;
+  const dirPath = entry.path.slice(0, entry.path.lastIndexOf("/")) || "/";
+  docPage.nav = await getNav(datastore, version.name, version.version, dirPath);
+  docPage.docNodes = await queryDocNodesBySymbol(
+    datastore,
+    version.name,
+    version.version,
+    entry.path,
+    symbol,
+  );
+  if (docPage.docNodes.length) {
+    return docPage;
+  }
 }
 
 export async function generateDocPage(
@@ -644,23 +732,24 @@ export async function generateDocPage(
   if (!moduleItem && !moduleVersion) {
     let mutations: Mutation[];
     try {
-      [mutations, moduleItem, moduleVersion, moduleEntry] = await loadModule(
-        module,
-        version,
-        path,
-      );
+      [
+        mutations,
+        moduleItem,
+        moduleVersion,
+        moduleEntry,
+      ] = await loadModule(module, version, path);
       enqueue({ kind: "commitMutations", mutations });
     } catch {
       if (!moduleVersion) {
         assert(moduleItem);
-        return getDocPageInvalidVersion(moduleItem);
+        return getPageInvalidVersion(moduleItem);
       }
       return undefined;
     }
   } else if (!moduleEntry) {
     assert(moduleItem);
     assert(moduleVersion);
-    return getDocPagePathNotFound(moduleItem, moduleVersion, path);
+    return getPagePathNotFound(moduleItem, moduleVersion, path);
   }
   if (moduleEntry && moduleEntry.default) {
     const defaultKey = datastore.key(
@@ -704,61 +793,6 @@ export async function generateDocPage(
       return moduleEntry.type === "dir"
         ? getDocPageIndex(datastore, moduleItem, moduleVersion, moduleEntry)
         : getDocPageFile(moduleItem, moduleVersion, moduleEntry);
-    }
-  }
-}
-
-export async function generateLegacyIndex(
-  datastore: Datastore,
-  module: string,
-  version: string,
-  path: string,
-): Promise<LegacyIndex | undefined> {
-  const moduleKey = datastore.key(["module", module]);
-  const moduleVersionKey = datastore.key(
-    ["module", module],
-    ["module_version", version],
-  );
-  const moduleResult = await datastore.lookup([moduleKey, moduleVersionKey]);
-  let moduleItem: Module | undefined;
-  let moduleVersion: ModuleVersion | undefined;
-  if (!(moduleResult.found && moduleResult.found.length == 2)) {
-    let mutations: Mutation[];
-    [mutations, moduleItem, moduleVersion] = await loadModule(module, version);
-    enqueue({ kind: "commitMutations", mutations });
-  } else {
-    const [
-      { entity: moduleEntity },
-      { entity: moduleVersionEntity },
-    ] = moduleResult.found;
-    moduleItem = entityToObject(moduleEntity);
-    moduleVersion = entityToObject(moduleVersionEntity);
-  }
-  if (moduleItem && moduleVersion) {
-    const query = datastore
-      .createQuery("module_entry")
-      .hasAncestor(moduleVersionKey);
-    const files: ModuleEntry[] = [];
-    for await (const entity of datastore.streamQuery(query)) {
-      const moduleEntry = entityToObject<ModuleEntry>(entity);
-      if (
-        moduleEntry.path.startsWith(path) &&
-        moduleEntry.path.slice(path.length).lastIndexOf("/") <= 0
-      ) {
-        files.push(moduleEntry);
-      }
-    }
-    if (files.length) {
-      const index: LegacyIndex = {
-        name: moduleItem.name,
-        description: moduleItem.description,
-        version: moduleVersion.version,
-        star_count: moduleItem.star_count,
-        uploaded_at: moduleVersion.uploaded_at.toISOString(),
-        upload_options: moduleVersion.upload_options,
-        files,
-      };
-      return index;
     }
   }
 }
@@ -1264,6 +1298,46 @@ export async function commitModuleIndex(
     ) {
       console.log(
         `[${id}]: %cCommitted %cbatch for %c${module}@${version}/${path}%c.`,
+        "color:green",
+        "color:none",
+        "color:yellow",
+        "color:none",
+      );
+    }
+  } catch (error) {
+    if (error instanceof DatastoreError) {
+      console.log(`[${id}] Datastore Error:`);
+      console.log(`${error.status} ${error.message}`);
+      console.log(error.statusInfo);
+    } else {
+      console.log("Unexpected Error:");
+      console.log(error);
+    }
+    return;
+  }
+}
+
+export async function commitCodePage(
+  id: number,
+  module: string,
+  version: string,
+  path: string,
+  codePage: CodePage,
+) {
+  const datastore = await getDatastore();
+  const key = datastore.key(
+    ["module", module],
+    ["module_version", version],
+    ["code_page", path],
+  );
+  objectSetKey(codePage, key);
+  const mutations = [{ upsert: objectToEntity(codePage) }];
+  try {
+    for await (
+      const _result of datastore.commit(mutations, { transactional: false })
+    ) {
+      console.log(
+        `[${id}]: %cCommitted %cbatch for %c${module}@${version}${path}%c.`,
         "color:green",
         "color:none",
         "color:yellow",

@@ -83,7 +83,7 @@ export interface DocStructureItem {
   items: string[];
 }
 
-export interface DocPageBase {
+export interface PageBase {
   kind: string;
   module: string;
   description?: string;
@@ -131,29 +131,25 @@ interface DocPageModuleItem {
 
 export type DocPageNavItem = DocPageModuleItem | DocPageDirItem;
 
-export interface DocPageSymbol extends DocPageBase {
+export interface DocPageSymbol extends PageBase {
   kind: "symbol";
   nav: DocPageNavItem[];
   name: string;
   docNodes: DocNode[];
 }
 
-export interface DocPageModule extends DocPageBase {
+export interface DocPageModule extends PageBase {
   kind: "module";
   nav: DocPageNavItem[];
   docNodes: DocNode[];
 }
 
-export interface DocPagePathNotFound extends DocPageBase {
-  kind: "notfound";
-}
-
-export interface DocPageIndex extends DocPageBase {
+export interface DocPageIndex extends PageBase {
   kind: "index";
   items: IndexItem[];
 }
 
-export interface DocPageFile extends DocPageBase {
+export interface DocPageFile extends PageBase {
   kind: "file";
 }
 
@@ -162,7 +158,11 @@ export interface DocPageRedirect {
   path: string;
 }
 
-export interface DocPageInvalidVersion {
+export interface PagePathNotFound extends PageBase {
+  kind: "notfound";
+}
+
+export interface PageInvalidVersion {
   kind: "invalid-version";
   module: string;
   description?: string;
@@ -176,6 +176,24 @@ export type DocPage =
   | DocPageModule
   | DocPageIndex
   | DocPageFile
-  | DocPageInvalidVersion
-  | DocPagePathNotFound
+  | PageInvalidVersion
+  | PagePathNotFound
   | DocPageRedirect;
+
+export interface CodePageFile extends PageBase {
+  kind: "file";
+  size: number;
+  /** Indicates if the page is docable or not. */
+  docable?: boolean;
+}
+
+export interface CodePageDir extends PageBase {
+  kind: "dir";
+  entries: ModuleEntry[];
+}
+
+export type CodePage =
+  | CodePageFile
+  | CodePageDir
+  | PageInvalidVersion
+  | PagePathNotFound;

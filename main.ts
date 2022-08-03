@@ -8,17 +8,22 @@
 
 import { auth, type Context, Router } from "acorn";
 import { errors, isHttpError } from "oak_commons/http_errors.ts";
-import { entityToObject } from "google_datastore";
+import { type Datastore, entityToObject } from "google_datastore";
 
 import { endpointAuth } from "./auth.ts";
-import { cacheDocPage, lookup } from "./cache.ts";
+import {
+  cacheCodePage,
+  cacheDocPage,
+  lookupCodePage,
+  lookupDocPage,
+} from "./cache.ts";
 import {
   checkMaybeLoad,
   type DocNode,
   type DocNodeKind,
+  generateCodePage,
   generateDocNodes,
   generateDocPage,
-  generateLegacyIndex,
   generateModuleIndex,
   generateSymbolIndex,
   getDocNodes,
@@ -38,6 +43,8 @@ interface PagedItems<T> {
 }
 
 performance.mark("startup");
+
+let datastore: Datastore | undefined;
 
 function pagedResults<T>(
   items: T[],
@@ -80,12 +87,13 @@ router.all("/", () =>
       <h2>Endpoints</h2>
       <div>
         <ul>
+          <li><code>/v2/pages/doc/:module/:version/:path*</code> - provides a structure to render a doc view page - [<a href="/v2/pages/doc/std/0.150.0/testing/asserts.ts">example</a>]</li>
+          <li><code>/v2/pages/code/:module/:version/:path*</code> - provides a structure to render a code view page - [<a href="/v2/pages/code/std/0.150.0/testing/asserts.ts">example</a>]</li>
           <li><code>/v2/modules</code> - Provide a list of modules in the registry - [<a href="/v2/modules" target="_blank">example</a>]</li>
           <li><code>/v2/metrics/modules/:module</code> - Provide metric information for a module -  [<a href="/v2/metrics/modules/oak" target="_blank">example</a>]</li>
           <li><code>/v2/modules/:module</code> - Provide information about a specific module - [<a href="/v2/modules/std" target="_blank">example</a>]</li>
           <li><code>/v2/modules/:module/:version</code> - Provide information about a specific module version - [<a href="/v2/modules/std/0.139.0" target="_blank">example</a>]</li>
           <li><code>/v2/modules/:module/:version/doc/:path*</code> - Provide documentation nodes for a specific path of a specific module version -  [<a href="/v2/modules/std/0.139.0/doc/archive/tar.ts" target="_blank">example</a>]</li>
-          <li><code>/v2/modules/:module/:version/page/:path*</code> - Provide all the data needed to render a page - [<a href="/v2/modules/std/0.148.0/page/" target="_blank">example</a>]</li>
           <li><code>/ping</code> - A health endpoint for the server - [<a href="/ping" target="_blank">example</a>]</li>
         <ul>
       </div>
@@ -108,7 +116,7 @@ router.get("/ping", () => ({ pong: true }));
 // ## Metrics related APIs ##
 
 router.get("/v2/metrics/modules", async (ctx) => {
-  const datastore = await getDatastore();
+  datastore = datastore ?? await getDatastore();
   const query = datastore.createQuery("module_metrics");
   let limit = 100;
   let page = 1;
@@ -150,7 +158,7 @@ router.get("/v2/metrics/modules", async (ctx) => {
   }
 });
 router.get("/v2/metrics/modules/:module", async (ctx) => {
-  const datastore = await getDatastore();
+  datastore = datastore ?? await getDatastore();
   const response = await datastore.lookup(
     datastore.key(["module_metrics", ctx.params.module]),
   );
@@ -163,7 +171,7 @@ router.get("/v2/metrics/modules/:module", async (ctx) => {
 // ## Registry related APIs ##
 
 router.get("/v2/modules", async (ctx) => {
-  const datastore = await getDatastore();
+  datastore = datastore ?? await getDatastore();
   const query = datastore.createQuery("module");
   let limit = 100;
   let page = 1;
@@ -207,7 +215,7 @@ router.get("/v2/modules", async (ctx) => {
 router.get(
   "/v2/modules/:module",
   async (ctx) => {
-    const datastore = await getDatastore();
+    datastore = datastore ?? await getDatastore();
     const response = await datastore.lookup(
       datastore.key(["module", ctx.params.module]),
     );
@@ -222,7 +230,7 @@ router.get(
     if (ctx.params.version === "__latest__") {
       return redirectToLatest(ctx.url(), ctx.params.module);
     }
-    const datastore = await getDatastore();
+    datastore = datastore ?? await getDatastore();
     const response = await datastore.lookup(
       datastore.key([
         "module",
@@ -273,7 +281,7 @@ router.get("/v2/modules/:module/:version/doc/:path*", async (ctx) => {
   if (version === "__latest__") {
     return redirectToLatest(ctx.url(), module);
   }
-  const datastore = await getDatastore();
+  datastore = datastore ?? await getDatastore();
   const moduleEntryKey = datastore.key(
     ["module", module],
     ["module_version", version],
@@ -311,7 +319,7 @@ router.get("/v2/modules/:module/:version/index/:path*{/}?", async (ctx) => {
     return redirectToLatest(ctx.url(), module);
   }
   const path = `/${paramPath}`;
-  const datastore = await getDatastore();
+  datastore = datastore ?? await getDatastore();
   const indexKey = datastore.key(
     ["module", module],
     ["module_version", version],
@@ -328,39 +336,13 @@ router.get("/v2/modules/:module/:version/index/:path*{/}?", async (ctx) => {
   return index;
 });
 
-router.get(
-  "/v2/modules/:module/:version/legacy_index/:path*{/}?",
-  async (ctx) => {
-    const { module, version, path: paramPath } = ctx.params;
-    if (version === "__latest__") {
-      return redirectToLatest(ctx.url(), module);
-    }
-    const path = `/${paramPath}`;
-    const datastore = await getDatastore();
-    const indexKey = datastore.key(
-      ["module", module],
-      ["module_version", version],
-      ["legacy_index", path],
-    );
-    const response = await datastore.lookup(indexKey);
-    if (response.found) {
-      return entityToObject(response.found[0].entity);
-    }
-    const index = await generateLegacyIndex(datastore, module, version, path);
-    if (index) {
-      enqueue({ kind: "commitLegacyIndex", module, version, path, index });
-    }
-    return index;
-  },
-);
-
 router.get("/v2/modules/:module/:version/symbols/:path*{/}?", async (ctx) => {
   const { module, version, path: paramPath } = ctx.params;
   if (version === "__latest__") {
     return redirectToLatest(ctx.url(), module);
   }
   const path = `/${paramPath}`;
-  const datastore = await getDatastore();
+  datastore = datastore ?? await getDatastore();
   const indexKey = datastore.key(
     ["module", module],
     ["module_version", version],
@@ -377,23 +359,46 @@ router.get("/v2/modules/:module/:version/symbols/:path*{/}?", async (ctx) => {
   return index;
 });
 
-router.get("/v2/modules/:module/:version/page/:path*{/}?", async (ctx) => {
+router.get("/v2/pages/code/:module/:version/:path*{/}?", async (ctx) => {
+  const { module, version, path: paramPath } = ctx.params;
+  if (version === "__latest__") {
+    return redirectToLatest(ctx.url(), module);
+  }
+  const path = `/${paramPath}`;
+  let codePage = await lookupCodePage(module, version, path);
+  if (!codePage) {
+    datastore = datastore ?? await getDatastore();
+    codePage = await generateCodePage(datastore, module, version, path);
+    if (codePage) {
+      cacheCodePage(module, version, path, codePage);
+    }
+    if (
+      codePage && codePage.kind !== "invalid-version" &&
+      codePage.kind !== "notfound"
+    ) {
+      enqueue({
+        kind: "commitCodePage",
+        module,
+        version,
+        path,
+        codePage,
+      });
+    }
+  }
+  return codePage;
+});
+
+router.get("/v2/pages/doc/:module/:version/:path*{/}?", async (ctx) => {
   const { module, version, path: paramPath } = ctx.params;
   if (version === "__latest__") {
     return redirectToLatest(ctx.url(), module);
   }
   const path = `/${paramPath}`;
   const symbol = ctx.searchParams.symbol ?? ROOT_SYMBOL;
-  let [, , , docPage] = await lookup(module, version, path, symbol);
+  let docPage = await lookupDocPage(module, version, path, symbol);
   if (!docPage) {
-    const datastore = await getDatastore();
-    docPage = await generateDocPage(
-      datastore,
-      module,
-      version,
-      path,
-      symbol,
-    );
+    datastore = datastore ?? await getDatastore();
+    docPage = await generateDocPage(datastore, module, version, path, symbol);
     if (docPage) {
       cacheDocPage(module, version, path, symbol, docPage);
     }
@@ -423,9 +428,8 @@ router.get("/v2/modules/:module/:version/page/:path*{/}?", async (ctx) => {
         "X-Deno-Module-Path": docPage.path,
       },
     });
-  } else {
-    return docPage;
   }
+  return docPage;
 });
 
 // webhooks
