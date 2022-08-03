@@ -499,8 +499,13 @@ async function getCodePageDir(
   version: ModuleVersion,
   entry: ModuleEntry,
 ): Promise<CodePageDir> {
-  const path = entry.path;
-  const codePage = getPageBase("dir", module, version, path) as CodePageDir;
+  const entryPath = entry.path;
+  const codePage = getPageBase(
+    "dir",
+    module,
+    version,
+    entryPath,
+  ) as CodePageDir;
   const query = datastore
     .createQuery("module_entry")
     .hasAncestor(datastore.key(
@@ -509,13 +514,14 @@ async function getCodePageDir(
     ));
   const entries: CodePageDirEntry[] = [];
   for await (const entity of datastore.streamQuery(query)) {
-    const { type: kind, size, docable, path } = entityToObject<ModuleEntry>(
-      entity,
-    );
-    if (
-      path.startsWith(path) &&
-      path.slice(path.length).lastIndexOf("/") <= 0
-    ) {
+    const {
+      type: kind,
+      size = 0,
+      docable,
+      path,
+    } = entityToObject<ModuleEntry>(entity);
+    const slice = entryPath !== "/" ? path.slice(entryPath.length) : path;
+    if (path.startsWith(entryPath) && slice.lastIndexOf("/") === 0) {
       entries.push({ path, kind, size, docable });
     }
   }
