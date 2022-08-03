@@ -15,6 +15,8 @@ servers:
 tags:
 - name: registry
   description: Information about the module registry.
+- name: pages
+  description: Endpoints for rendering pages.
 - name: metrics
   description: Metric information.
 - name: webhooks
@@ -423,80 +425,6 @@ paths:
             text/html:
               schema:
                 type: string
-  /v2/modules/{module}/{version}/legacy_index:
-    get:
-      tags:
-        - registry
-      summary: Get an index of the module in the legacy format.
-      operationId: getModuleVersionLegacyIndex
-      parameters:
-        - name: module
-          in: path
-          required: true
-          schema:
-            $ref: "#/components/schemas/ModuleName"
-        - name: version
-          in: path
-          required: true
-          schema:
-            type: string
-            example: v10.0.1
-      responses:
-        "200":
-          description: Successful operation
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/LegacyIndex"
-        "404":
-          description: Not found - the requested resource was not found
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/HttpError"
-            text/html:
-              schema:
-                type: string
-  /v2/modules/{module}/{version}/legacy_index/{path}:
-    get:
-      tags:
-        - registry
-      summary: Get a sub index of the module in the legacy format.
-      operationId: getModuleVersionLegacyIndexByPath
-      parameters:
-        - name: module
-          in: path
-          required: true
-          schema:
-            $ref: "#/components/schemas/ModuleName"
-        - name: version
-          in: path
-          required: true
-          schema:
-            type: string
-            example: v10.0.1
-        - name: path
-          in: path
-          required: true
-          schema:
-            type: string
-            example: src
-      responses:
-        "200":
-          description: Successful operation
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/LegacyIndex"
-        "404":
-          description: Not found - the requested resource was not found
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/HttpError"
-            text/html:
-              schema:
-                type: string
   /v2/modules/{module}/{version}/raw/{path}:
     get:
       tags:
@@ -533,143 +461,6 @@ paths:
               schema:
                 type: string
                 format: binary
-        "404":
-          description: Not found - the requested resource was not found
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/HttpError"
-            text/html:
-              schema:
-                type: string
-  /v2/modules/{module}/{version}/page:
-    get:
-      tags:
-        - registry
-      summary: Get information about a module to render the root page.
-      description: >
-        Responds with all the information needed to render a root page of a
-        module.
-      operationId: getPageInfo
-      parameters:
-        - name: module
-          in: path
-          required: true
-          schema:
-            $ref: "#/components/schemas/ModuleName"
-        - name: version
-          in: path
-          required: true
-          schema:
-            type: string
-            example: "0.148.0"
-      responses:
-        "200":
-          description: Successful operation
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/DocPage"
-        "400":
-          description: Bad Request - the request was malformed.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/HttpError"
-            text/html:
-              schema:
-                type: string
-        "301":
-          description: Moved - This page has a different location
-          headers:
-            Location:
-              schema:
-                type: string
-            X-Deno-Module:
-              schema:
-                $ref: "#/components/schemas/ModuleName"
-            X-Deno-Version:
-              schema:
-                type: string
-            X-Deno-Path:
-              schema:
-                type: string
-        "302":
-          description: >
-            Found - The latest version has been found. This is sent when 
-            `__latest__` is used as the version.
-          headers:
-            Location:
-              schema:
-                type: string
-            X-Deno-Module:
-              schema:
-                $ref: "#/components/schemas/ModuleName"
-            X-Deno-Latest-Version:
-              schema:
-                type: string
-        "404":
-          description: Not found - the requested resource was not found
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/HttpError"
-            text/html:
-              schema:
-                type: string
-  /v2/modules/{module}/{version}/page/{path}:
-    get:
-      tags:
-        - registry
-      summary: Get information about a module to render the root page.
-      description: >
-        Responds with all the information needed to render a root page of a
-        module.
-      operationId: getPagePathInfo
-      parameters:
-        - name: module
-          in: path
-          required: true
-          schema:
-            $ref: "#/components/schemas/ModuleName"
-        - name: version
-          in: path
-          required: true
-          schema:
-            type: string
-            example: "0.148.0"
-        - name: path
-          in: path
-          required: true
-          schema:
-            type: string
-            example: "mod.ts"
-        - name: symbol
-          in: query
-          description: >
-            The specific symbol to search for. If searching for a symbol on non-
-            module path, a Bad Request will be returned. To search for a
-            namespaced symbol, deliminate using the `.` (e.g.
-            `namespace.Value`).
-          schema:
-            type: string
-            example: "AClass"
-      responses:
-        "200":
-          description: Successful operation
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/DocPage"
-        "400":
-          description: Bad Request - the request was malformed.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/HttpError"
-            text/html:
-              schema:
-                type: string
         "404":
           description: Not found - the requested resource was not found
           content:
@@ -759,6 +550,280 @@ paths:
             text/html:
               schema:
                 type: string
+  /v2/pages/code/{module}/{version}:
+    get:
+      tags:
+        - pages
+      summary: Get information about a module to render a code view of a root.
+      description: >
+        Responds with all the information needed to render a root code view of a
+        module.
+      operationId: getCodePageInfo
+      parameters:
+        - name: module
+          in: path
+          required: true
+          schema:
+            $ref: "#/components/schemas/ModuleName"
+        - name: version
+          in: path
+          required: true
+          schema:
+            type: string
+            example: "0.148.0"
+      responses:
+        "200":
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CodePage"
+        "400":
+          description: Bad Request - the request was malformed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HttpError"
+            text/html:
+              schema:
+                type: string
+        "301":
+          description: Moved - This page has a different location
+          headers:
+            Location:
+              schema:
+                type: string
+            X-Deno-Module:
+              schema:
+                $ref: "#/components/schemas/ModuleName"
+            X-Deno-Version:
+              schema:
+                type: string
+            X-Deno-Path:
+              schema:
+                type: string
+        "302":
+          description: >
+            Found - The latest version has been found. This is sent when 
+            `__latest__` is used as the version.
+          headers:
+            Location:
+              schema:
+                type: string
+            X-Deno-Module:
+              schema:
+                $ref: "#/components/schemas/ModuleName"
+            X-Deno-Latest-Version:
+              schema:
+                type: string
+        "404":
+          description: Not found - the requested resource was not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HttpError"
+            text/html:
+              schema:
+                type: string
+  /v2/pages/code/{module}/{version}/{path}:
+    get:
+      tags:
+        - pages
+      summary: Get information about a module to render a code view.
+      description: >
+        Responds with all the information needed to render a a code view of an
+        entry of a module.
+      operationId: getCodePagePathInfo
+      parameters:
+        - name: module
+          in: path
+          required: true
+          schema:
+            $ref: "#/components/schemas/ModuleName"
+        - name: version
+          in: path
+          required: true
+          schema:
+            type: string
+            example: "0.148.0"
+        - name: path
+          in: path
+          required: true
+          schema:
+            type: string
+            example: "mod.ts"
+        - name: symbol
+          in: query
+          description: >
+            The specific symbol to search for. If searching for a symbol on non-
+            module path, a Bad Request will be returned. To search for a
+            namespaced symbol, deliminate using the `.` (e.g.
+            `namespace.Value`).
+          schema:
+            type: string
+            example: "AClass"
+      responses:
+        "200":
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CodePage"
+        "400":
+          description: Bad Request - the request was malformed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HttpError"
+            text/html:
+              schema:
+                type: string
+        "404":
+          description: Not found - the requested resource was not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HttpError"
+            text/html:
+              schema:
+                type: string
+  /v2/pages/doc/{module}/{version}:
+    get:
+      tags:
+        - pages
+      summary: Get information about a module to render the root doc page.
+      description: >
+        Responds with all the information needed to render a root doc page of a
+        module.
+      operationId: getDocPageInfo
+      parameters:
+        - name: module
+          in: path
+          required: true
+          schema:
+            $ref: "#/components/schemas/ModuleName"
+        - name: version
+          in: path
+          required: true
+          schema:
+            type: string
+            example: "0.148.0"
+      responses:
+        "200":
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DocPage"
+        "400":
+          description: Bad Request - the request was malformed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HttpError"
+            text/html:
+              schema:
+                type: string
+        "301":
+          description: Moved - This page has a different location
+          headers:
+            Location:
+              schema:
+                type: string
+            X-Deno-Module:
+              schema:
+                $ref: "#/components/schemas/ModuleName"
+            X-Deno-Version:
+              schema:
+                type: string
+            X-Deno-Path:
+              schema:
+                type: string
+        "302":
+          description: >
+            Found - The latest version has been found. This is sent when 
+            `__latest__` is used as the version.
+          headers:
+            Location:
+              schema:
+                type: string
+            X-Deno-Module:
+              schema:
+                $ref: "#/components/schemas/ModuleName"
+            X-Deno-Latest-Version:
+              schema:
+                type: string
+        "404":
+          description: Not found - the requested resource was not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HttpError"
+            text/html:
+              schema:
+                type: string
+  /v2/pages/doc/{module}/{version}/{path}:
+    get:
+      tags:
+        - pages
+      summary: Get information about a module to render a doc page.
+      description: >
+        Responds with all the information needed to render a doc page of a
+        module.
+      operationId: getDocPagePathInfo
+      parameters:
+        - name: module
+          in: path
+          required: true
+          schema:
+            $ref: "#/components/schemas/ModuleName"
+        - name: version
+          in: path
+          required: true
+          schema:
+            type: string
+            example: "0.148.0"
+        - name: path
+          in: path
+          required: true
+          schema:
+            type: string
+            example: "mod.ts"
+        - name: symbol
+          in: query
+          description: >
+            The specific symbol to search for. If searching for a symbol on non-
+            module path, a Bad Request will be returned. To search for a
+            namespaced symbol, deliminate using the `.` (e.g.
+            `namespace.Value`).
+          schema:
+            type: string
+            example: "AClass"
+      responses:
+        "200":
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DocPage"
+        "400":
+          description: Bad Request - the request was malformed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HttpError"
+            text/html:
+              schema:
+                type: string
+        "404":
+          description: Not found - the requested resource was not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HttpError"
+            text/html:
+              schema:
+                type: string
   /webhook/publish:
     post:
       tags:
@@ -815,6 +880,42 @@ paths:
                 $ref: "#/components/schemas/HttpError"
 components:
   schemas:
+    CodePage:
+      oneOf:
+        - $ref: "#/components/schemas/CodePageDir"
+        - $ref: "#/components/schemas/CodePageFile"
+        - $ref: "#/components/schemas/PageInvalidVersion"
+        - $ref: "#/components/schemas/PagePathNotFound"
+      discriminator:
+        propertyName: kind
+        mapping:
+          dir: "#/components/schemas/CodePageDir"
+          file: "#/components/schemas/CodePageFile"
+          invalid-version: "#/components/schemas/PageInvalidVersion"
+          notfound: "#/components/schemas/PagePathNotFound"
+    CodePageDir:
+      allOf:
+        - $ref: "#/components/schemas/PageBase"
+        - type: object
+          properties:
+            size:
+              type: number
+              example: 27234
+            docable:
+              type: boolean
+          required:
+            - "size"
+    CodePageFile:
+      allOf:
+        - $ref: "#/components/schemas/PageBase"
+        - type: object
+          properties:
+            entries:
+              type: array
+              items:
+                $ref: "#/components/schemas/ModuleEntry"
+          required:
+            - "entries"
     DocNode:
       type: object
       properties:
@@ -848,8 +949,8 @@ components:
         - $ref: "#/components/schemas/DocPageModule"
         - $ref: "#/components/schemas/DocPageIndex"
         - $ref: "#/components/schemas/DocPageFile"
-        - $ref: "#/components/schemas/DocPageInvalidVersion"
-        - $ref: "#/components/schemas/DocPagePathNotFound"
+        - $ref: "#/components/schemas/PageInvalidVersion"
+        - $ref: "#/components/schemas/PagePathNotFound"
       discriminator:
         propertyName: kind
         mapping:
@@ -857,51 +958,8 @@ components:
           module: "#/components/schemas/DocPageModule"
           index: "#/components/schemas/DocPageIndex"
           file: "#/components/schemas/DocPageFile"
-          invalid-version: "#/components/schemas/DocPageInvalidVersion"
-          notfound: "#/components/schemas/DocPagePathNotFound"
-    DocPageBase:
-      type: object
-      properties:
-        kind:
-          type: string
-          example: index
-        module:
-          $ref: "#/components/schemas/ModuleName"
-        description:
-          type: string
-          example: A module for Deno
-        version:
-          type: string
-          example: "0.148.0"
-        path:
-          type: string
-          example: "/mod.ts"
-        versions:
-          type: array
-          items:
-            type: string
-          example: ["0.146.0", "0.147.0", "0.148.0"]
-        latest_version:
-          type: string
-          example: "0.148.0"
-        uploaded_at:
-          type: string
-          format: date-time
-          example: 2022-05-06T01:03:14.774Z
-        upload_options:
-          $ref: "#/components/schemas/UploadOptions"
-        star_count:
-          type: number
-          example: 2406
-      required:
-        - "kind"
-        - "module"
-        - "version"
-        - "path"
-        - "versions"
-        - "latest_version"
-        - "uploaded_at"
-        - "upload_options"
+          invalid-version: "#/components/schemas/PageInvalidVersion"
+          notfound: "#/components/schemas/PagePathNotFound"
     DocPageDirItem:
       type: object
       properties:
@@ -916,10 +974,10 @@ components:
         - "path"
     DocPageFile:
       allOf:
-        - $ref: "#/components/schemas/DocPageBase"
+        - $ref: "#/components/schemas/PageBase"
     DocPageIndex:
       allOf:
-        - $ref: "#/components/schemas/DocPageBase"
+        - $ref: "#/components/schemas/PageBase"
         - type: object
           properties:
             items:
@@ -928,28 +986,9 @@ components:
                 $ref: "#/components/schemas/IndexItem"
           required:
             - "items"
-    DocPageInvalidVersion:
-      type: object
-      properties:
-        kind:
-          type: string
-          example: "invalid-version"
-        module:
-          $ref: "#/components/schemas/ModuleName"
-        description:
-          type: string
-          example: A module for Deno
-        versions:
-          type: array
-          items:
-            type: string
-          example: ["0.146.0", "0.147.0", "0.148.0"]
-        latest_version:
-          type: string
-          example: "0.148.0"
     DocPageModule:
       allOf:
-        - $ref: "#/components/schemas/DocPageBase"
+        - $ref: "#/components/schemas/PageBase"
         - type: object
           properties:
             nav:
@@ -987,12 +1026,9 @@ components:
         mapping:
           dir: "#/components/schemas/DocPageDirItem"
           module: "#/components/schemas/DocPageModuleItem"
-    DocPagePathNotFound:
-      allOf:
-        - $ref: "#/components/schemas/DocPageBase"
     DocPageSymbol:
       allOf:
-        - $ref: "#/components/schemas/DocPageBase"
+        - $ref: "#/components/schemas/PageBase"
         - type: object
           properties:
             nav:
@@ -1112,38 +1148,6 @@ components:
             - typedef
             - type
             - unsupported
-    LegacyIndex:
-      type: object
-      properties:
-        name:
-          $ref: "#/components/schemas/ModuleName"
-        description:
-          type: string
-          nullable: true
-          example: A middleware framework for Deno
-        star_count:
-          type: number
-          example: 4567
-        version:
-          type: string
-          example: v10.0.1
-        uploaded_at:
-          type: string
-          format: date-time
-          example: 2022-05-06T01:03:14.774Z
-        upload_options:
-          $ref: "#/components/schemas/UploadOptions"
-        files:
-          type: array
-          items:
-            $ref: "#/components/schemas/File"
-      required:
-        - "name"
-        - "description"
-        - "version"
-        - "uploaded_at"
-        - "upload_options"
-        - "files"
     Module:
       type: object
       properties:
@@ -1171,6 +1175,31 @@ components:
         - latest_version
         - versions
       description: Representation of a module
+    ModuleEntry:
+      type: object
+      properties:
+        path:
+          type: string
+          example: /mod.ts
+        type:
+          type: string
+          enum:
+            - file
+            - dir
+        size:
+          type: number
+        default:
+          type: string
+        dirs:
+          type: array
+          items:
+            type: string
+        docable:
+          type: boolean
+        index:
+          type: array
+          items:
+            type: string
     ModuleMetricList:
       allOf:
         - $ref: "#/components/schemas/ListBase"
@@ -1238,6 +1267,71 @@ components:
           example: 2022-05-06T01:03:14.774Z
         upload_options:
           $ref: "#/components/schemas/UploadOptions"
+    PageBase:
+      type: object
+      properties:
+        kind:
+          type: string
+          example: index
+        module:
+          $ref: "#/components/schemas/ModuleName"
+        description:
+          type: string
+          example: A module for Deno
+        version:
+          type: string
+          example: "0.148.0"
+        path:
+          type: string
+          example: "/mod.ts"
+        versions:
+          type: array
+          items:
+            type: string
+          example: ["0.146.0", "0.147.0", "0.148.0"]
+        latest_version:
+          type: string
+          example: "0.148.0"
+        uploaded_at:
+          type: string
+          format: date-time
+          example: 2022-05-06T01:03:14.774Z
+        upload_options:
+          $ref: "#/components/schemas/UploadOptions"
+        star_count:
+          type: number
+          example: 2406
+      required:
+        - "kind"
+        - "module"
+        - "version"
+        - "path"
+        - "versions"
+        - "latest_version"
+        - "uploaded_at"
+        - "upload_options"
+    PageInvalidVersion:
+      type: object
+      properties:
+        kind:
+          type: string
+          example: "invalid-version"
+        module:
+          $ref: "#/components/schemas/ModuleName"
+        description:
+          type: string
+          example: A module for Deno
+        versions:
+          type: array
+          items:
+            type: string
+          example: ["0.146.0", "0.147.0", "0.148.0"]
+        latest_version:
+          type: string
+          example: "0.148.0"
+    PagePathNotFound:
+      allOf:
+        - $ref: "#/components/schemas/PageBase"
     PublishEvent:
       type: object
       properties:

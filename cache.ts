@@ -3,7 +3,13 @@
 import { type Datastore, entityToObject } from "google_datastore";
 import type { Key } from "google_datastore/types";
 import { getDatastore } from "./store.ts";
-import type { DocPage, Module, ModuleEntry, ModuleVersion } from "./types.d.ts";
+import type {
+  CodePage,
+  DocPage,
+  Module,
+  ModuleEntry,
+  ModuleVersion,
+} from "./types.d.ts";
 import { assert } from "./util.ts";
 
 const CACHED_MODULE_COUNT =
@@ -14,6 +20,7 @@ const cachedModules = new Map<string, Module>();
 const cachedVersions = new WeakMap<Module, Map<string, ModuleVersion>>();
 const cachedEntries = new WeakMap<ModuleVersion, Map<string, ModuleEntry>>();
 const cachedDocPages = new WeakMap<ModuleEntry, Map<string, DocPage>>();
+const cachedCodePages = new WeakMap<ModuleVersion, Map<string, CodePage>>();
 
 /** The "LRU" for modules names. */
 const cachedModuleNames = new Set<string>();
@@ -60,7 +67,169 @@ export function clear() {
   cachedModuleNames.clear();
 }
 
-export async function lookup(module: string): Promise<[Module | undefined]>;
+export async function lookupCodePage(
+  module: string,
+  version: string,
+  path: string,
+): Promise<CodePage | undefined> {
+  let moduleItem = cachedModules.get(module);
+  let versionItem = moduleItem && cachedVersions.get(moduleItem)?.get(version);
+  let codePageItem = versionItem && cachedCodePages.get(versionItem)?.get(path);
+  if (!codePageItem) {
+    datastore = datastore || await getDatastore();
+    const keys: Key[] = [];
+    if (!moduleItem) {
+      keys.push(datastore.key(["module", module]));
+    }
+    if (!versionItem) {
+      keys.push(datastore.key(
+        ["module", module],
+        ["module_version", version],
+      ));
+    }
+    keys.push(datastore.key(
+      ["module", module],
+      ["module_version", version],
+      ["code_page", path],
+    ));
+
+    const res = await datastore.lookup(keys);
+    if (res.found) {
+      for (const { entity } of res.found) {
+        assert(entity.key);
+        const entityKind = entity.key.path[entity.key.path.length - 1].kind;
+        switch (entityKind) {
+          case "module":
+            moduleItem = entityToObject(entity);
+            cachedModules.set(module, moduleItem);
+            break;
+          case "module_version": {
+            versionItem = entityToObject(entity);
+            assert(moduleItem);
+            if (!cachedVersions.has(moduleItem)) {
+              cachedVersions.set(moduleItem, new Map());
+            }
+            const versions = cachedVersions.get(moduleItem)!;
+            versions.set(version, versionItem);
+            break;
+          }
+          case "code_page": {
+            codePageItem = entityToObject(entity);
+            assert(versionItem);
+            if (!cachedCodePages.has(versionItem)) {
+              cachedCodePages.set(versionItem, new Map());
+            }
+            const codePages = cachedCodePages.get(versionItem)!;
+            codePages.set(path, codePageItem);
+            break;
+          }
+          default:
+            throw new TypeError(`Unexpected kind "${entityKind}".`);
+        }
+      }
+    }
+  }
+  if (moduleItem) {
+    cachedModuleNames.add(module);
+    enqueuePrune();
+  }
+  return codePageItem;
+}
+
+export async function lookupDocPage(
+  module: string,
+  version: string,
+  path: string,
+  symbol: string,
+): Promise<DocPage | undefined> {
+  let moduleItem = cachedModules.get(module);
+  let versionItem = moduleItem && cachedVersions.get(moduleItem)?.get(version);
+  let entryItem = versionItem && cachedEntries.get(versionItem)?.get(path);
+  let docPageItem = entryItem && cachedDocPages.get(entryItem)?.get(symbol);
+  if (!docPageItem) {
+    datastore = datastore || await getDatastore();
+    const keys: Key[] = [];
+    if (!moduleItem) {
+      keys.push(datastore.key(
+        ["module", module],
+      ));
+    }
+    if (!versionItem) {
+      keys.push(datastore.key(
+        ["module", module],
+        ["module_version", version],
+      ));
+    }
+    if (!entryItem) {
+      keys.push(datastore.key(
+        ["module", module],
+        ["module_version", version],
+        ["module_entry", path],
+      ));
+    }
+    keys.push(datastore.key(
+      ["module", module],
+      ["module_version", version],
+      ["module_entry", path],
+      ["doc_page", symbol],
+    ));
+
+    const res = await datastore.lookup(keys);
+    if (res.found) {
+      for (const { entity } of res.found) {
+        assert(entity.key);
+        const entityKind = entity.key.path[entity.key.path.length - 1].kind;
+        switch (entityKind) {
+          case "module":
+            moduleItem = entityToObject(entity);
+            cachedModules.set(module, moduleItem);
+            break;
+          case "module_version": {
+            versionItem = entityToObject(entity);
+            assert(moduleItem);
+            if (!cachedVersions.has(moduleItem)) {
+              cachedVersions.set(moduleItem, new Map());
+            }
+            const versions = cachedVersions.get(moduleItem)!;
+            versions.set(version, versionItem);
+            break;
+          }
+          case "module_entry": {
+            entryItem = entityToObject(entity);
+            assert(versionItem);
+            if (!cachedEntries.has(versionItem)) {
+              cachedEntries.set(versionItem, new Map());
+            }
+            const entries = cachedEntries.get(versionItem)!;
+            entries.set(path, entryItem);
+            break;
+          }
+          case "doc_page": {
+            docPageItem = entityToObject(entity);
+            assert(entryItem);
+            if (!cachedDocPages.has(entryItem)) {
+              cachedDocPages.set(entryItem, new Map());
+            }
+            const docPages = cachedDocPages.get(entryItem)!;
+            docPages.set(symbol, docPageItem);
+            break;
+          }
+          default:
+            throw new TypeError(`Unexpected kind "${entityKind}".`);
+        }
+      }
+    }
+  }
+  if (moduleItem) {
+    cachedModuleNames.add(module);
+    enqueuePrune();
+  }
+  return docPageItem;
+}
+
+export async function lookup(
+  module: string,
+): Promise<[Module | undefined]>;
 export async function lookup(
   module: string,
   version: string,
@@ -74,33 +243,17 @@ export async function lookup(
 >;
 export async function lookup(
   module: string,
-  version: string,
-  path: string,
-  symbol: string,
-): Promise<
-  [
-    Module | undefined,
-    ModuleVersion | undefined,
-    ModuleEntry | undefined,
-    DocPage | undefined,
-  ]
->;
-export async function lookup(
-  module: string,
   version?: string,
   path?: string,
-  symbol?: string,
 ) {
-  const keys: Key[] = [];
   let moduleItem = cachedModules.get(module);
   let versionItem = version && moduleItem &&
       cachedVersions.get(moduleItem)?.get(version) || undefined;
-  let entryItem = path != null && versionItem &&
+  let entryItem = path && versionItem &&
       cachedEntries.get(versionItem)?.get(path) || undefined;
-  let docPageItem = symbol != null && entryItem &&
-      cachedDocPages.get(entryItem)?.get(symbol) || undefined;
   datastore = datastore || await getDatastore();
-  if (module && !moduleItem) {
+  const keys: Key[] = [];
+  if (!moduleItem) {
     keys.push(datastore.key(
       ["module", module],
     ));
@@ -117,16 +270,6 @@ export async function lookup(
       ["module", module],
       ["module_version", version],
       ["module_entry", path],
-    ));
-  }
-  if (symbol && !docPageItem) {
-    assert(version);
-    assert(path);
-    keys.push(datastore.key(
-      ["module", module],
-      ["module_version", version],
-      ["module_entry", path],
-      ["doc_page", symbol],
     ));
   }
   if (keys.length) {
@@ -162,17 +305,6 @@ export async function lookup(
             entries.set(path, entryItem);
             break;
           }
-          case "doc_page": {
-            docPageItem = entityToObject(entity);
-            assert(entryItem);
-            assert(symbol);
-            if (!cachedDocPages.has(entryItem)) {
-              cachedDocPages.set(entryItem, new Map());
-            }
-            const docPages = cachedDocPages.get(entryItem)!;
-            docPages.set(symbol, docPageItem);
-            break;
-          }
           default:
             throw new TypeError(`Unexpected kind "${entityKind}"`);
         }
@@ -183,7 +315,7 @@ export async function lookup(
     cachedModuleNames.add(module);
     enqueuePrune();
   }
-  return [moduleItem, versionItem, entryItem, docPageItem];
+  return [moduleItem, versionItem, entryItem];
 }
 
 export function cacheModule(module: string, moduleItem: Module): void {
@@ -222,6 +354,26 @@ export function cacheModuleEntry(
       }
       const entries = cachedEntries.get(versionItem)!;
       entries.set(path, entry);
+      cachedModuleNames.add(module);
+    }
+  }
+}
+
+export function cacheCodePage(
+  module: string,
+  version: string,
+  path: string,
+  codePage: CodePage,
+): void {
+  const moduleItem = cachedModules.get(module);
+  if (moduleItem) {
+    const versionItem = cachedVersions.get(moduleItem)?.get(version);
+    if (versionItem) {
+      if (!cachedCodePages.has(versionItem)) {
+        cachedCodePages.set(versionItem, new Map());
+      }
+      const codePages = cachedCodePages.get(versionItem)!;
+      codePages.set(path, codePage);
       cachedModuleNames.add(module);
     }
   }

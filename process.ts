@@ -10,6 +10,7 @@ import type { Mutation } from "google_datastore/types";
 
 import {
   addNodes,
+  commitCodePage,
   commitDocNodes,
   commitDocPage,
   commitModuleIndex,
@@ -37,6 +38,7 @@ import {
 } from "./modules.ts";
 import { getAlgolia, getDatastore } from "./store.ts";
 import type {
+  CodePage,
   DocPage,
   DocPageNavItem,
   Module,
@@ -79,6 +81,14 @@ interface ModuleIndexBase {
 
 interface CommitIndexTask extends TaskBase, ModuleIndexBase {
   kind: "commitIndex";
+}
+
+interface CommitCodePageTask extends TaskBase {
+  kind: "commitCodePage";
+  module: string;
+  version: string;
+  path: string;
+  codePage: CodePage;
 }
 
 interface CommitDocPageTask extends TaskBase {
@@ -128,6 +138,7 @@ type TaskDescriptor =
   | LoadTask
   | CommitTask
   | AlgoliaTask
+  | CommitCodePageTask
   | CommitDocPageTask
   | CommitIndexTask
   | CommitLegacyIndex
@@ -245,6 +256,20 @@ function taskCommitSymbolIndex(
     "color:none",
   );
   return commitSymbolIndex(id, module, version, path, index);
+}
+
+function taskCommitCodePage(
+  id: number,
+  { module, version, path, codePage }: CommitCodePageTask,
+) {
+  console.log(
+    `[${id}]: %cCommitting%c code page for %c"${module}@${version}${path}"%c...`,
+    "color:green",
+    "color:none",
+    "color:cyan",
+    "color:none",
+  );
+  return commitCodePage(id, module, version, path, codePage);
 }
 
 function taskCommitDocPage(
@@ -504,6 +529,8 @@ function process(id: number, task: TaskDescriptor): Promise<void> {
       return taskCommitMutations(id, task);
     case "commitSymbolIndex":
       return taskCommitSymbolIndex(id, task);
+    case "commitCodePage":
+      return taskCommitCodePage(id, task);
     case "commitDocPage":
       return taskCommitDocPage(id, task);
     case "commitNav":
