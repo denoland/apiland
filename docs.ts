@@ -48,6 +48,7 @@ import { getDatastore } from "./store.ts";
 import type {
   CodePage,
   CodePageDir,
+  CodePageDirEntry,
   CodePageFile,
   DocPage,
   DocPageFile,
@@ -506,15 +507,16 @@ async function getCodePageDir(
       ["module", module.name],
       ["module_version", version.version],
     ));
-  const entries: ModuleEntry[] = [];
+  const entries: CodePageDirEntry[] = [];
   for await (const entity of datastore.streamQuery(query)) {
-    const moduleEntry = entityToObject<ModuleEntry>(entity);
-    console.log(path, moduleEntry.path);
+    const { type: kind, size, docable, path } = entityToObject<ModuleEntry>(
+      entity,
+    );
     if (
-      moduleEntry.path.startsWith(path) &&
-      moduleEntry.path.slice(path.length).lastIndexOf("/") <= 0
+      path.startsWith(path) &&
+      path.slice(path.length).lastIndexOf("/") <= 0
     ) {
-      entries.push(moduleEntry);
+      entries.push({ path, kind, size, docable });
     }
   }
   codePage.entries = entries;
