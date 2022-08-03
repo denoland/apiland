@@ -898,6 +898,36 @@ components:
         - $ref: "#/components/schemas/PageBase"
         - type: object
           properties:
+            entries:
+              type: array
+              items:
+                $ref: "#/components/schemas/CodePageDirEntry"
+          required:
+            - "entries"
+    CodePageDirEntry:
+      type: object
+      properties:
+        path:
+          type: string
+          example: /mod.ts
+        kind:
+          type: string
+          enum:
+            - file
+            - dir
+        size:
+          type: number
+        docable:
+          type: boolean
+      required:
+        - "path"
+        - "kind"
+        - "size"
+    CodePageFile:
+      allOf:
+        - $ref: "#/components/schemas/PageBase"
+        - type: object
+          properties:
             size:
               type: number
               example: 27234
@@ -905,17 +935,6 @@ components:
               type: boolean
           required:
             - "size"
-    CodePageFile:
-      allOf:
-        - $ref: "#/components/schemas/PageBase"
-        - type: object
-          properties:
-            entries:
-              type: array
-              items:
-                $ref: "#/components/schemas/ModuleEntry"
-          required:
-            - "entries"
     DocNode:
       type: object
       properties:
@@ -1044,26 +1063,6 @@ components:
             - "nav"
             - "name"
             - "docNodes"
-    File:
-      type: object
-      properties:
-        path:
-          type: string
-          example: /mod.ts
-        size:
-          type: number
-          format: int64
-          example: 3454
-        type:
-          type: string
-          enum:
-            - file
-            - dir
-          example: file
-        raw_url:
-          type: string
-          format: uri
-          example: "https://api.deno.land/modules/oak/v10.0.1/raw/mod.ts"
     HttpError:
       type: object
       properties:
@@ -1175,31 +1174,6 @@ components:
         - latest_version
         - versions
       description: Representation of a module
-    ModuleEntry:
-      type: object
-      properties:
-        path:
-          type: string
-          example: /mod.ts
-        type:
-          type: string
-          enum:
-            - file
-            - dir
-        size:
-          type: number
-        default:
-          type: string
-        dirs:
-          type: array
-          items:
-            type: string
-        docable:
-          type: boolean
-        index:
-          type: array
-          items:
-            type: string
     ModuleMetricList:
       allOf:
         - $ref: "#/components/schemas/ListBase"

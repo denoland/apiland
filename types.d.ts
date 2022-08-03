@@ -187,9 +187,17 @@ export interface CodePageFile extends PageBase {
   docable?: boolean;
 }
 
+export interface CodePageDirEntry {
+  path: string;
+  kind: "file" | "dir";
+  size: number;
+  /** Indicates if the page is docable or not. */
+  docable?: boolean;
+}
+
 export interface CodePageDir extends PageBase {
   kind: "dir";
-  entries: ModuleEntry[];
+  entries: CodePageDirEntry[];
 }
 
 export type CodePage =
