@@ -397,7 +397,10 @@ export function cacheDocPage(
           cachedDocPages.set(entryItem, new Map());
         }
         const docPages = cachedDocPages.get(entryItem)!;
-        docPages.set(symbol, docPage);
+        // the original doc page can get partially serialized after added to
+        // the cache, which causes problems when revisiting the page in the
+        // same isolate, so we do a structured clone when caching here.
+        docPages.set(symbol, structuredClone(docPage));
         cachedModuleNames.add(module);
       }
     }
