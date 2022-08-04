@@ -2,6 +2,7 @@
 
 import { type Datastore, entityToObject } from "google_datastore";
 import type { Key } from "google_datastore/types";
+import { entityToDocPage } from "./docs.ts";
 import { getDatastore } from "./store.ts";
 import type {
   CodePage,
@@ -205,7 +206,7 @@ export async function lookupDocPage(
             break;
           }
           case "doc_page": {
-            docPageItem = entityToObject(entity);
+            docPageItem = entityToDocPage(entity);
             assert(entryItem);
             if (!cachedDocPages.has(entryItem)) {
               cachedDocPages.set(entryItem, new Map());
