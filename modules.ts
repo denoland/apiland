@@ -27,7 +27,7 @@ interface ApiModuleData {
   };
 }
 
-interface ModuleMetaVersionsJson {
+export interface ModuleMetaVersionsJson {
   latest: string;
   versions: string[];
 }
@@ -252,7 +252,8 @@ export async function loadModule(
     moduleItem = {
       name: module,
       description: moduleData.data.description,
-      versions: moduleMetaVersion.versions,
+      // sometimes there are duplicates in the versions, so dedupe
+      versions: [...new Set(moduleMetaVersion.versions)],
       latest_version: moduleMetaVersion.latest,
     };
     objectSetKey(moduleItem, moduleKey);

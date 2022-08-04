@@ -2,6 +2,7 @@
   "imports": {
     "acorn": "https://deno.land/x/acorn@0.0.11/mod.ts",
     "algoliasearch": "https://esm.sh/algoliasearch@4.13.1?pin=v87",
+    "dax": "https://deno.land/x/dax@0.8.0/mod.ts",
     "deno_doc": "https://deno.land/x/deno_doc@0.39.0/mod.ts",
     "deno_doc/types": "https://deno.land/x/deno_doc@0.39.0/lib/types.d.ts",
     "google_analytics_reporting": "https://googleapis.deno.dev/v1/analyticsreporting:v4.ts",
