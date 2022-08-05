@@ -754,9 +754,11 @@ export async function generateDocPage(
       }
       return undefined;
     }
+  } else if (!moduleVersion) {
+    assert(moduleItem);
+    return getPageInvalidVersion(moduleItem);
   } else if (!moduleEntry) {
     assert(moduleItem);
-    assert(moduleVersion);
     return getPagePathNotFound(moduleItem, moduleVersion, path);
   }
   if (moduleEntry && moduleEntry.default) {
