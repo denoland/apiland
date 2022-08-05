@@ -360,7 +360,10 @@ router.get("/v2/modules/:module/:version/symbols/:path*{/}?", async (ctx) => {
 });
 
 router.get("/v2/pages/code/:module/:version/:path*{/}?", async (ctx) => {
-  const { module, version, path: paramPath } = ctx.params;
+  let { module, version, path: paramPath } = ctx.params;
+  module = decodeURIComponent(module);
+  version = decodeURIComponent(version);
+  paramPath = decodeURIComponent(paramPath);
   if (version === "__latest__") {
     return redirectToLatest(ctx.url(), module);
   }
@@ -389,7 +392,10 @@ router.get("/v2/pages/code/:module/:version/:path*{/}?", async (ctx) => {
 });
 
 router.get("/v2/pages/doc/:module/:version/:path*{/}?", async (ctx) => {
-  const { module, version, path: paramPath } = ctx.params;
+  let { module, version, path: paramPath } = ctx.params;
+  module = decodeURIComponent(module);
+  version = decodeURIComponent(version);
+  paramPath = decodeURIComponent(paramPath);
   if (version === "__latest__") {
     return redirectToLatest(ctx.url(), module);
   }
@@ -398,7 +404,13 @@ router.get("/v2/pages/doc/:module/:version/:path*{/}?", async (ctx) => {
   let docPage = await lookupDocPage(module, version, path, symbol);
   if (!docPage) {
     datastore = datastore ?? await getDatastore();
-    docPage = await generateDocPage(datastore, module, version, path, symbol);
+    try {
+      docPage = await generateDocPage(datastore, module, version, path, symbol);
+    } catch (e) {
+      console.log("docPageError");
+      console.error(e);
+      throw e;
+    }
     if (docPage) {
       cacheDocPage(module, version, path, symbol, docPage);
     }
