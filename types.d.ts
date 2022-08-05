@@ -26,12 +26,15 @@ export interface Module {
   tags?: ModuleTag[];
 }
 
+/** Defines a tag related to how popular a module is. */
+export interface PopularityModuleTag {
+  kind: "popularity";
+  value: "top_1_percent" | "top_5_percent" | "top_10_percent";
+}
+
 /** Defines a "tag" which can be displayed when rending a module or part of a
  * module. */
-export interface ModuleTag {
-  kind: "popularity";
-  value: string;
-}
+export type ModuleTag = PopularityModuleTag;
 
 /** Stores as kind `module_metrics` in the datastore. */
 export interface ModuleMetrics {

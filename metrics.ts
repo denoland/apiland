@@ -110,11 +110,11 @@ function setModuleTags(module: Module) {
   const rank = getPercentile(module.name);
   if (rank != null) {
     if (rank === 0) {
-      module.tags.push({ kind: "popularity", value: "Super Popular" });
+      module.tags.push({ kind: "popularity", value: "top_1_percent" });
     } else if (rank < 5) {
-      module.tags.push({ kind: "popularity", value: "Very Popular" });
+      module.tags.push({ kind: "popularity", value: "top_5_percent" });
     } else if (rank < 10) {
-      module.tags.push({ kind: "popularity", value: "Popular" });
+      module.tags.push({ kind: "popularity", value: "top_10_percent" });
     }
   }
 }
