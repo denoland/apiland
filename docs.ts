@@ -372,42 +372,46 @@ export async function getNav(
     ["module_entry", path],
   );
   const entry: ModuleEntry | undefined = await dbLookup(datastore, entryKey);
-  if (!entry || !entry.index || !entry.dirs) {
+  if (!entry) {
     throw new errors.InternalServerError(
       `Unable to lookup nav dir module entry: ${path}`,
     );
   }
   const missing: string[] = [];
   const nav: DocPageNavItem[] = [];
-  for (const path of entry.dirs) {
-    nav.push({ path, kind: "dir" });
-  }
-  for (const path of entry.index) {
-    const ancestor = datastore.key(
-      ["module", module],
-      ["module_version", version],
-      ["module_entry", path],
-    );
-    const query = datastore.createQuery("doc_node").hasAncestor(ancestor);
-    const entities: Entity[] = [];
-    try {
-      for await (const entity of datastore.streamQuery(query)) {
-        entities.push(entity);
-      }
-    } catch (e) {
-      if (e instanceof DatastoreError) {
-        console.log(JSON.stringify(e.statusInfo, undefined, "  "));
-      }
-      throw e;
+  if (entry.dirs) {
+    for (const path of entry.dirs) {
+      nav.push({ path, kind: "dir" });
     }
-    if (entities.length) {
-      nav.push({
-        path,
-        kind: "module",
-        items: entitiesToSymbolItems(ancestor, entities),
-      });
-    } else {
-      missing.push(path);
+  }
+  if (entry.index) {
+    for (const path of entry.index) {
+      const ancestor = datastore.key(
+        ["module", module],
+        ["module_version", version],
+        ["module_entry", path],
+      );
+      const query = datastore.createQuery("doc_node").hasAncestor(ancestor);
+      const entities: Entity[] = [];
+      try {
+        for await (const entity of datastore.streamQuery(query)) {
+          entities.push(entity);
+        }
+      } catch (e) {
+        if (e instanceof DatastoreError) {
+          console.log(JSON.stringify(e.statusInfo, undefined, "  "));
+        }
+        throw e;
+      }
+      if (entities.length) {
+        nav.push({
+          path,
+          kind: "module",
+          items: entitiesToSymbolItems(ancestor, entities),
+        });
+      } else {
+        missing.push(path);
+      }
     }
   }
   if (missing.length) {

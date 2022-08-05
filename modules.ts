@@ -322,6 +322,8 @@ export async function loadModule(
             moduleEntry.path,
             listing,
           );
+        } else {
+          moduleEntry.index = [];
         }
         objectSetKey(
           moduleEntry,
