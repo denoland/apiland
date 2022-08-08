@@ -16,7 +16,12 @@ import {
 import { isDocable } from "./docs.ts";
 
 import { getDatastore } from "./store.ts";
-import type { Module, ModuleEntry, ModuleVersion } from "./types.d.ts";
+import type {
+  Module,
+  ModuleEntry,
+  ModuleVersion,
+  PageNoVersions,
+} from "./types.d.ts";
 import { assert } from "./util.ts";
 
 interface ApiModuleData {
@@ -149,7 +154,7 @@ export async function getVersionMeta(
 
 async function getModuleLatestVersion(
   module: string,
-): Promise<string | undefined> {
+): Promise<string | null | undefined> {
   const datastore = await getDatastore();
   const result = await datastore.lookup(datastore.key(["module", module]));
   if (result.found && result.found.length) {
@@ -160,14 +165,20 @@ async function getModuleLatestVersion(
 
 /** For a given module, lookup the latest version in the database and redirect
  * the requested URL to the latest version (or return `undefined` if the module
- * is not located). */
+ * is not located).
+ *
+ * If the module has no versions, then a {@linkcode PageNoVersions} is returned.
+ */
 export async function redirectToLatest(
   url: URL,
   module: string,
-): Promise<Response | undefined> {
+): Promise<Response | PageNoVersions | undefined> {
   const latest = await getModuleLatestVersion(module);
-  if (!latest) {
+  if (latest === undefined) {
     return undefined;
+  }
+  if (latest === null) {
+    return { kind: "no-versions", module };
   }
   const location = `${
     url.pathname.replace("/__latest__", `/${latest}`)
@@ -236,7 +247,6 @@ export async function loadModule(
   const moduleData = await getModuleData(module);
   assert(moduleData, "Module data missing");
   const moduleMetaVersion = await getModuleMetaVersions(module);
-  assert(moduleMetaVersion, "Module version data missing");
 
   const mutations: Mutation[] = [];
   const datastore = await getDatastore();
@@ -247,16 +257,16 @@ export async function loadModule(
     moduleItem.description = moduleData.data.description;
     // for some reason, the version.json contains multiple versions, so we do a
     // quick de-dupe of them here
-    moduleItem.versions = [...new Set(moduleMetaVersion.versions)];
-    moduleItem.latest_version = moduleMetaVersion.latest;
+    moduleItem.versions = [...new Set(moduleMetaVersion?.versions ?? [])];
+    moduleItem.latest_version = moduleMetaVersion?.latest ?? null;
     moduleItem.star_count = moduleData.data.star_count;
   } else {
     moduleItem = {
       name: module,
       description: moduleData.data.description,
       // sometimes there are duplicates in the versions, so dedupe
-      versions: [...new Set(moduleMetaVersion.versions)],
-      latest_version: moduleMetaVersion.latest,
+      versions: [...new Set(moduleMetaVersion?.versions) ?? []],
+      latest_version: moduleMetaVersion?.latest ?? null,
     };
     objectSetKey(moduleItem, moduleKey);
     cacheModule(module, moduleItem);
@@ -271,6 +281,7 @@ export async function loadModule(
     if (version === "all") {
       versions = moduleItem.versions;
     } else if (version === "latest") {
+      assert(moduleItem.latest_version, "There is no latest version");
       versions = [moduleItem.latest_version];
     } else {
       assert(moduleItem.versions.includes(version));

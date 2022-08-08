@@ -112,46 +112,46 @@ async function doc(
   }
 }
 
+dax.logStep(`Loading ${moduleNames.size} modules...`);
+
 for (const moduleName of moduleNames) {
   const versionData = await getModuleMetaVersions(moduleName);
-  if (versionData && versionData.latest) {
-    let mutations: Mutation[];
-    let toDoc: [string, string, Set<string>][];
-    try {
-      [mutations, , , , toDoc] = await loadModule(
-        moduleName,
-        versionData.latest,
+  let mutations: Mutation[];
+  let toDoc: [string, string, Set<string>][];
+  try {
+    [mutations, , , , toDoc] = await loadModule(
+      moduleName,
+      versionData?.latest,
+    );
+  } catch (err) {
+    dax.logWarn(`Skipping module "${moduleName}", cannot load.`, err);
+    continue;
+  }
+  if (toDoc && toDoc.length) {
+    await doc(toDoc, mutations);
+  } else {
+    dax.logWarn(`  Nothing to document.`);
+  }
+  let remaining = mutations.length;
+  dax.logStep(`  Committing to datastore ${remaining} changes...`);
+  try {
+    for await (
+      const res of datastore.commit(mutations, { transactional: false })
+    ) {
+      remaining -= res.mutationResults.length;
+      dax.logLight(
+        `    ${res.mutationResults.length} committed. ${remaining} to go.`,
       );
-    } catch (err) {
-      dax.logWarn(`Skipping module "${moduleName}", cannot load.`, err);
-      continue;
     }
-    if (toDoc && toDoc.length) {
-      await doc(toDoc, mutations);
+  } catch (err) {
+    if (err instanceof DatastoreError) {
+      dax.logError(
+        "DatastoreError",
+        err.statusText,
+        JSON.stringify(err.statusInfo, undefined, "  "),
+      );
     } else {
-      dax.logWarn(`  Nothing to document.`);
-    }
-    let remaining = mutations.length;
-    dax.logStep(`  Committing to datastore ${remaining} changes...`);
-    try {
-      for await (
-        const res of datastore.commit(mutations, { transactional: false })
-      ) {
-        remaining -= res.mutationResults.length;
-        dax.logLight(
-          `    ${res.mutationResults.length} committed. ${remaining} to go.`,
-        );
-      }
-    } catch (err) {
-      if (err instanceof DatastoreError) {
-        dax.logError(
-          "DatastoreError",
-          err.statusText,
-          JSON.stringify(err.statusInfo, undefined, "  "),
-        );
-      } else {
-        throw err;
-      }
+      throw err;
     }
   }
 }
