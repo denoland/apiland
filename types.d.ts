@@ -15,7 +15,7 @@ export interface Module {
   name: string;
   description: string;
   versions: string[];
-  latest_version: string;
+  latest_version: string | null;
   /** @deprecated Use `popularity_score` instead. */
   star_count?: number;
   maintenance_score?: number;
@@ -95,7 +95,7 @@ export interface PageBase {
   versions: string[];
   latest_version: string;
   uploaded_at: string;
-  upload_options: {
+  upload_options?: {
     type: string;
     repository: string;
     ref: string;
@@ -165,6 +165,11 @@ export interface PagePathNotFound extends PageBase {
   kind: "notfound";
 }
 
+export interface PageNoVersions {
+  kind: "no-versions";
+  module: string;
+}
+
 export interface PageInvalidVersion {
   kind: "invalid-version";
   module: string;
@@ -180,6 +185,7 @@ export type DocPage =
   | DocPageIndex
   | DocPageFile
   | PageInvalidVersion
+  | PageNoVersions
   | PagePathNotFound
   | DocPageRedirect;
 
@@ -207,4 +213,5 @@ export type CodePage =
   | CodePageFile
   | CodePageDir
   | PageInvalidVersion
+  | PageNoVersions
   | PagePathNotFound;

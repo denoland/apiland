@@ -322,6 +322,7 @@ function getPageBase<Kind extends DocPage["kind"] | CodePage["kind"]>(
     ModuleVersion,
   path: string,
 ): PageBase & { kind: Kind } {
+  assert(latest_version);
   return {
     kind,
     module,
@@ -472,6 +473,7 @@ function getPagePathNotFound(
 function getPageInvalidVersion(
   { name: module, description, versions, latest_version }: Module,
 ): PageInvalidVersion {
+  assert(latest_version);
   return {
     kind: "invalid-version",
     module,
