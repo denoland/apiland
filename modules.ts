@@ -245,7 +245,9 @@ export async function loadModule(
   let [moduleItem] = await lookup(module);
   if (moduleItem) {
     moduleItem.description = moduleData.data.description;
-    moduleItem.versions = moduleMetaVersion.versions;
+    // for some reason, the version.json contains multiple versions, so we do a
+    // quick de-dupe of them here
+    moduleItem.versions = [...new Set(moduleMetaVersion.versions)];
     moduleItem.latest_version = moduleMetaVersion.latest;
     moduleItem.star_count = moduleData.data.star_count;
   } else {
@@ -271,7 +273,8 @@ export async function loadModule(
     } else if (version === "latest") {
       versions = [moduleItem.latest_version];
     } else {
-      versions = moduleItem.versions.filter((v) => v === version);
+      assert(moduleItem.versions.includes(version));
+      versions = [version];
     }
     assert(versions.length, "No valid version specified.");
     for (const version of versions) {
@@ -339,7 +342,8 @@ export async function loadModule(
         }
         mutations.push({ upsert: objectToEntity(moduleEntry) });
       }
-      if (toDocPaths.size) {
+      // we skip any module which has > 2000 modules to document
+      if (toDocPaths.size && toDocPaths.size <= 2000) {
         toDoc.push([moduleItem.name, version, toDocPaths]);
       }
     }
