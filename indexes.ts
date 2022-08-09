@@ -6,6 +6,7 @@
  * @module
  */
 
+import dax from "dax";
 import { parse } from "std/flags/mod.ts";
 import { getDatastore } from "./store.ts";
 
@@ -15,59 +16,39 @@ const datastore = await getDatastore();
 
 if (args["delete"]) {
   const indexId: string = args["delete"];
-  console.log(
-    `%cDeleting%c index %c"${indexId}"%c...`,
-    "color:yellow",
-    "color:none",
-    "color:cyan",
-    "color:none",
-  );
+  dax.logStep(`Deleting index "${indexId}"...`);
   const response = await datastore.indexes.delete(indexId);
 
   if (response.error) {
-    console.error("%cError%c creating index:", "color:red", "color:none");
-    console.error(JSON.stringify(response.error));
+    dax.logError("Error deleting index:", JSON.stringify(response.error));
   } else {
-    console.log("%cSuccess%c.", "color:green", "color:none");
+    dax.logStep("Success.");
   }
 
-  console.log("%cDone%c.", "color:green", "color:none");
+  dax.logStep("Done.");
 } else if (args["create"]) {
-  console.log("%cCreating%c composite indexes...", "color:green", "color:none");
+  dax.logStep("Creating composite indexes...");
 
-  /* This is commented out, because composite indexes must have all fields
-   * present in the response, and jsDoc is optional, and so most queries simply
-   * don't work, but in the future if there is a good index, we can use this
-   * as an example.
-   */
-  // console.log(
-  //   "%cCreate%c doc_node symbol index...",
-  //   "color:green",
-  //   "color:none",
-  // );
-  // const response = await datastore.indexes.create({
-  //   ancestor: "ALL_ANCESTORS",
-  //   kind: "doc_node",
-  //   properties: [{
-  //     direction: "ASCENDING",
-  //     name: "name",
-  //   }, {
-  //     direction: "ASCENDING",
-  //     name: "kind",
-  //   }, {
-  //     direction: "ASCENDING",
-  //     name: "jsDoc",
-  //   }],
-  // });
+  dax.logStep("  Create module index...");
+  const response = await datastore.indexes.create({
+    ancestor: "ALL_ANCESTORS",
+    kind: "module",
+    properties: [{
+      direction: "ASCENDING",
+      name: "name",
+    }, {
+      direction: "ASCENDING",
+      name: "latest_version",
+    }],
+  });
 
-  // if (response.error) {
-  //   console.error("%cError%c creating index:", "color:red", "color:none");
-  //   console.error(JSON.stringify(response.error));
-  // } else {
-  //   console.log("%cSuccess%c.", "color:green", "color:none");
-  // }
+  if (response.error) {
+    dax.logError("Error deleting index:", JSON.stringify(response.error));
+  } else {
+    dax.logStep("Success.");
+  }
 
-  console.log("%cDone%c.", "color:green", "color:none");
+  dax.logStep("Done.");
 } else {
   const { indexes } = await datastore.indexes.list({ pageSize: 0 });
   // deno-lint-ignore no-explicit-any
@@ -82,6 +63,6 @@ if (args["delete"]) {
       ).join(", "),
     };
   }
-  console.log("%cIndexes%c:", "color:green", "color:none");
+  dax.logStep("Indexes:");
   console.table(output);
 }
