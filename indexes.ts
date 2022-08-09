@@ -31,7 +31,7 @@ if (args["delete"]) {
 
   dax.logStep("  Create module index...");
   const response = await datastore.indexes.create({
-    ancestor: "ALL_ANCESTORS",
+    ancestor: "NONE",
     kind: "module",
     properties: [{
       direction: "ASCENDING",
