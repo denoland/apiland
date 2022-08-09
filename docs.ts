@@ -702,7 +702,6 @@ async function getDocPageIndex(
       ancestor,
       "moduleDoc",
     ) as DocNodeModuleDoc[];
-    console.log(docNodes);
     for (const moduleDoc of docNodes) {
       if (moduleDoc.jsDoc.doc) {
         const key = objectGetKey(moduleDoc);
@@ -1026,10 +1025,8 @@ export async function generateSymbolIndex(
     }
   }
   if (items.length) {
-    console.log("has items");
     return { items };
   } else {
-    console.log("no items");
     return undefined;
   }
 }
