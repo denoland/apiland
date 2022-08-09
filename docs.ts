@@ -380,9 +380,26 @@ export async function getNav(
   }
   const missing: string[] = [];
   const nav: DocPageNavItem[] = [];
-  if (entry.dirs) {
-    for (const path of entry.dirs) {
-      nav.push({ path, kind: "dir" });
+  if (entry.dirs && entry.dirs.length) {
+    const keys = entry.dirs.map((path) =>
+      datastore.key(
+        ["module", module],
+        ["module_version", version],
+        ["module_entry", path],
+      )
+    );
+    const res = await datastore.lookup(keys);
+    if (res.found) {
+      for (const { entity } of res.found) {
+        const entry = entityToObject<ModuleEntry>(entity);
+        if (
+          entry.default ||
+          (entry.dirs && entry.dirs.length) ||
+          (entry.index && entry.index.length)
+        ) {
+          nav.push({ kind: "dir", path: entry.path });
+        }
+      }
     }
   }
   if (entry.index) {
@@ -671,7 +688,9 @@ async function getDocPageIndex(
           kind: "dir",
           path: entry.path,
           size: entry.size,
-          ignored: RE_PRIVATE_PATH.test(slice),
+          ignored: RE_PRIVATE_PATH.test(slice) ||
+            !(entry.default || (entry.dirs && entry.dirs.length) ||
+              (entry.index && entry.index.length)),
         }));
       }
     }

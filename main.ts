@@ -434,7 +434,7 @@ router.get("/v2/pages/doc/:module/:version/:path*{/}?", async (ctx) => {
       statusText: "Moved Permanently",
       headers: {
         location:
-          `/v2/modules/${module}/${version}/page${docPage.path}${ctx.url().search}`,
+          `/v2/pages/doc/${module}/${version}${docPage.path}${ctx.url().search}`,
         "X-Deno-Module": module,
         "X-Deno-Version": version,
         "X-Deno-Module-Path": docPage.path,
