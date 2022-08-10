@@ -30,7 +30,7 @@ import { entityToObject } from "google_datastore";
 import { algoliaKeys, denoManualAlgoliaKeys, readyPromise } from "./auth.ts";
 import { getDatastore } from "./store.ts";
 
-const ALGOLIA_INDEX = "deno_modules";
+const ALGOLIA_INDEX = "doc_nodes";
 const NUMBER_OF_MODULES_TO_SCRAPE = 1000;
 const STD_POPULARITY_SCORE = 1000000;
 const ALLOWED_DOCNODES = [
@@ -101,7 +101,7 @@ async function updateManual() {
     algoliaKeys.appId,
     algoliaKeys.apiKey,
   );
-  const sourceIndex = denoManualApp.initIndex("deno_manual");
+  const sourceIndex = denoManualApp.initIndex("manual");
   const destinationIndex = denoLandApp.initIndex("destination_index");
 
   // Why copy and move?
@@ -109,14 +109,14 @@ async function updateManual() {
   // a new index to an existing index's place.
   try {
     accountCopyIndex(sourceIndex, destinationIndex).then(() => {
-      denoLandApp.moveIndex("destination_index", "deno_manual").then(
+      denoLandApp.moveIndex("destination_index", "manual").then(
         () => {
-          console.log("Successfully updated deno_manual index.");
+          console.log("Successfully updated manual index.");
         },
       );
     });
   } catch (error) {
-    console.error("failed to update deno_manual index", error);
+    console.error("failed to update manual index", error);
   }
 }
 
