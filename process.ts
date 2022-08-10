@@ -486,7 +486,7 @@ async function taskAlgolia(
   { module, version, docNodes }: AlgoliaTask,
 ) {
   const algolia = await getAlgolia();
-  const index = algolia.initIndex("deno_modules");
+  const index = algolia.initIndex("doc_nodes");
   console.log(
     `[${id}]: %Indexing%c module %c"${module}@${version}"%c...`,
     "color:green",
