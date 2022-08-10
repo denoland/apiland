@@ -22,7 +22,7 @@
  * ```
  */
 
-import "https://deno.land/x/xhr@0.2.1/mod.ts?code";
+import "xhr";
 import { accountCopyIndex } from "https://esm.sh/@algolia/client-account@4.14.1?dts";
 import algoliasearch from "https://esm.sh/algoliasearch@4.14.1?dts";
 import { entityToObject } from "google_datastore";
