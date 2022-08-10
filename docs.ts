@@ -32,6 +32,8 @@ import type {
   Mutation,
   PartitionId,
   PathElement,
+  Value,
+  ValueString,
 } from "google_datastore/types";
 import * as JSONC from "jsonc-parser";
 import { errors } from "oak_commons/http_errors.ts";
@@ -1765,6 +1767,18 @@ async function getNamespaceKeyInit(
   }
 }
 
+function isStringValue(value: Value): value is ValueString {
+  return "stringValue" in value;
+}
+
+function isNamespace(entity: Entity): boolean {
+  return !!(entity.key &&
+    entity.key.path[entity.key.path.length - 1].kind === "doc_node" &&
+    entity.properties && entity.properties["kind"] &&
+    isStringValue(entity.properties["kind"]) &&
+    entity.properties["kind"].stringValue === "namespace");
+}
+
 async function queryDocNodesBySymbol(
   datastore: Datastore,
   module: string,
@@ -1803,8 +1817,26 @@ async function queryDocNodesBySymbol(
     .hasAncestor(ancestor)
     .filter("name", name);
   const entities: Entity[] = [];
+  const namespaceKeys: Key[] = [];
   for await (const entity of datastore.streamQuery(query)) {
     entities.push(entity);
+    if (isNamespace(entity)) {
+      assert(entity.key);
+      namespaceKeys.push(entity.key);
+    }
+  }
+  if (namespaceKeys.length) {
+    for (const key of namespaceKeys) {
+      const query = datastore
+        .createQuery("doc_node")
+        .hasAncestor(key);
+      for await (const entity of datastore.streamQuery(query)) {
+        assert(entity.key);
+        if (!isKeyEqual(key, entity.key)) {
+          entities.push(entity);
+        }
+      }
+    }
   }
   return entitiesToDocNodes(ancestor, entities);
 }
