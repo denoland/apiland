@@ -17,7 +17,7 @@ import {
 } from "./docs.ts";
 import { loadModule } from "./modules.ts";
 import { getDatastore } from "./store.ts";
-import type { ModuleEntry } from "./types.d.ts";
+import type { Module, ModuleEntry } from "./types.d.ts";
 import { assert } from "./util.ts";
 
 const toReload = new Set<string>();
@@ -88,16 +88,17 @@ for (const moduleVersion of toReload) {
   const version = rest.join("@");
   let mutations: Mutation[];
   let toDoc: [string, string, Set<string>][];
+  let moduleItem: Module | undefined;
   try {
-    [mutations, , , , toDoc] = await loadModule(module, version);
+    [mutations, moduleItem, , , toDoc] = await loadModule(module, version);
   } catch (err) {
     dax.logWarn(`Skipping module "${module}@${version}", cannot load.`, err);
     continue;
   }
-  if (toDoc && toDoc.length) {
+  if (toDoc && toDoc.length && moduleItem.latest_version === version) {
     await doc(toDoc, mutations);
   } else {
-    dax.logWarn(`  Nothing to document.`);
+    dax.logLight(`  not documenting...`);
   }
   let remaining = mutations.length;
   dax.logStep(`  Committing to datastore ${remaining} changes...`);
