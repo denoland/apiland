@@ -1426,6 +1426,9 @@ components:
         message:
           type: string
           example: v1.0.0
+        namedLogo:
+          type: string
+          example: deno
         color:
           type: string
           example: informational

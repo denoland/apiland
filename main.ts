@@ -475,6 +475,7 @@ router.get("/shields/:module/version", async (ctx) => {
     return {
       schemaVersion: 1,
       label: "deno.land/x",
+      namedLogo: "deno",
       message: moduleItem.latest_version,
       color: "informational",
     };
@@ -507,6 +508,7 @@ router.get("/shields/:module/popularity", async (ctx) => {
     return {
       schemaVersion: 1,
       label: "deno.land/x",
+      namedLogo: "deno",
       message,
       color,
     };
