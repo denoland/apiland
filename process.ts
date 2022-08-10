@@ -36,7 +36,7 @@ import {
   RE_IGNORED_MODULE,
   RE_PRIVATE_PATH,
 } from "./modules.ts";
-import { getAlgolia, getDatastore } from "./store.ts";
+import { getAlgolia, getAlgoliaKeys, getDatastore } from "./store.ts";
 import type {
   CodePage,
   DocPage,
@@ -447,6 +447,14 @@ async function taskLoadModule(
         `[${id}]: Error generating doc nodes for "${path}":\n${msg}`,
       );
     }
+    // Upload doc nodes to algolia.
+    enqueue({
+      kind: "algolia",
+      module: moduleItem.name,
+      version: moduleVersion.version,
+      docNodes,
+      path,
+    });
     addNodes(
       datastore,
       docMutations,

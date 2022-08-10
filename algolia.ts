@@ -22,7 +22,7 @@
  * ```
  */
 
-import "https://deno.land/x/xhr@0.1.2/mod.ts?code";
+import "https://deno.land/x/xhr@0.2.1/mod.ts?code";
 import { accountCopyIndex } from "https://esm.sh/@algolia/client-account@4.14.1?dts";
 import algoliasearch from "https://esm.sh/algoliasearch@4.14.1?dts";
 import { entityToObject } from "google_datastore";
@@ -167,7 +167,7 @@ async function scrapeModule(
 }
 
 /** Upload batch requests to Algolia. */
-async function uploadToAlgolia(
+export async function uploadToAlgolia(
   batchRequests: AlgoliaBatchRecords[],
   keys: typeof algoliaKeys,
   algoliaIndex: string,

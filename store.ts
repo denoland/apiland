@@ -25,3 +25,8 @@ export async function getAlgolia(): Promise<ReturnType<typeof algoliasearch>> {
   await readyPromise;
   return algolia = algoliasearch(algoliaKeys.appId, algoliaKeys.apiKey);
 }
+
+export async function getAlgoliaKeys(): Promise<typeof algoliaKeys> {
+  await readyPromise;
+  return algoliaKeys;
+}
