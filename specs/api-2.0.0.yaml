@@ -19,6 +19,8 @@ tags:
   description: Endpoints for rendering pages.
 - name: metrics
   description: Metric information.
+- name: badges
+  description: Endpoints providing badge information.
 - name: webhooks
   description: Endpoints used for integration.
 - name: infrastructure
@@ -824,6 +826,68 @@ paths:
             text/html:
               schema:
                 type: string
+  /shields/{module}/popularity:
+    get:
+      tags:
+        - badges
+      summary: A shield payload for popularity
+      description: >
+        Return a JSON payload which can be used on shields.io to generate a
+        badge representing how popular a package is on deno.land/x.
+      operationId: getBadgeModulePopularity
+      parameters:
+        - name: module
+          in: path
+          required: true
+          schema:
+            $ref: "#/components/schemas/ModuleName"
+      responses:
+        "200":
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ShieldsPayload"
+        "404":
+          description: Not found - the requested resource was not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HttpError"
+            text/html:
+              schema:
+                type: string
+  /shields/{module}/version:
+    get:
+      tags:
+        - badges
+      summary: A shield payload for latest version
+      description: >
+        Return a JSON payload which can be used on shields.io to generate a
+        badge representing the latest version published on deno.land/x.
+      operationId: getBadgeModuleVersion
+      parameters:
+        - name: module
+          in: path
+          required: true
+          schema:
+            $ref: "#/components/schemas/ModuleName"
+      responses:
+        "200":
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ShieldsPayload"
+        "404":
+          description: Not found - the requested resource was not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HttpError"
+            text/html:
+              schema:
+                type: string
   /webhook/publish:
     post:
       tags:
@@ -1350,6 +1414,31 @@ components:
         previous:
           type: string
           example: /modules?limit=100&page=1
+    ShieldsPayload:
+      type: object
+      properties:
+        schemaVersion:
+          type: number
+          example: 1
+        label:
+          type: string
+          example: deno.land/x
+        message:
+          type: string
+          example: v1.0.0
+        namedLogo:
+          type: string
+          example: deno
+        color:
+          type: string
+          example: informational
+        cacheSeconds:
+          type: number
+          example: 300
+      required:
+        - schemaVersion
+        - label
+        - message
     SymbolIndex:
       type: object
       properties:

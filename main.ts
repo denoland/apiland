@@ -14,6 +14,7 @@ import { endpointAuth } from "./auth.ts";
 import {
   cacheCodePage,
   cacheDocPage,
+  lookup,
   lookupCodePage,
   lookupDocPage,
 } from "./cache.ts";
@@ -464,6 +465,55 @@ router.post(
     return { result: "enqueued", id };
   }, endpointAuth),
 );
+
+// shield.io endpoints
+
+router.get("/shields/:module/version", async (ctx) => {
+  const { module } = ctx.params;
+  const [moduleItem] = await lookup(module);
+  if (moduleItem?.latest_version) {
+    return {
+      schemaVersion: 1,
+      label: "deno.land/x",
+      namedLogo: "deno",
+      message: moduleItem.latest_version,
+      color: "informational",
+    };
+  }
+});
+
+router.get("/shields/:module/popularity", async (ctx) => {
+  const { module } = ctx.params;
+  const [moduleItem] = await lookup(module);
+  if (moduleItem?.tags) {
+    let message = "Published";
+    let color = "informational";
+    const popularity = moduleItem.tags.find(({ kind }) =>
+      kind === "popularity"
+    );
+    switch (popularity?.value) {
+      case "top_1_percent":
+        message = "Top 1%";
+        color = "brightgreen";
+        break;
+      case "top_5_percent":
+        message = "Top 5%";
+        color = "green";
+        break;
+      case "top_10_percent":
+        message = "Top 10%";
+        color = "yellowgreen";
+        break;
+    }
+    return {
+      schemaVersion: 1,
+      label: "deno.land/x",
+      namedLogo: "deno",
+      message,
+      color,
+    };
+  }
+});
 
 // basic logging and error handling
 
