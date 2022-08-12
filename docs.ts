@@ -577,14 +577,23 @@ export async function generateCodePage(
       enqueue({ kind: "commitMutations", mutations });
     } catch {
       if (!moduleVersion) {
-        assert(moduleItem);
+        assert(
+          moduleItem,
+          `moduleItem should exists of loadModule: ${module}@${version}${path}`,
+        );
         return getPageInvalidVersion(moduleItem);
       }
       return undefined;
     }
   } else if (!moduleEntry) {
-    assert(moduleItem);
-    assert(moduleVersion);
+    assert(
+      moduleItem,
+      `moduleItem should exists after lookup: ${module}@${version}${path}`,
+    );
+    assert(
+      moduleVersion,
+      `moduleItem should exists after lookup: ${module}@${version}${path}`,
+    );
     return getPagePathNotFound(moduleItem, moduleVersion, path);
   }
   if (moduleItem && moduleVersion && moduleEntry) {
