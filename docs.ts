@@ -369,12 +369,7 @@ export async function getNav(
   if (navIndex) {
     return navIndex.nav;
   }
-  const entryKey = datastore.key(
-    ["module", module],
-    ["module_version", version],
-    ["module_entry", path],
-  );
-  const entry: ModuleEntry | undefined = await dbLookup(datastore, entryKey);
+  const [, , entry] = await lookup(module, version, path);
   if (!entry) {
     throw new errors.InternalServerError(
       `Unable to lookup nav dir module entry: ${module}@${version}${path}`,
