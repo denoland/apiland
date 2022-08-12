@@ -369,15 +369,10 @@ export async function getNav(
   if (navIndex) {
     return navIndex.nav;
   }
-  const entryKey = datastore.key(
-    ["module", module],
-    ["module_version", version],
-    ["module_entry", path],
-  );
-  const entry: ModuleEntry | undefined = await dbLookup(datastore, entryKey);
+  const [, , entry] = await lookup(module, version, path);
   if (!entry) {
     throw new errors.InternalServerError(
-      `Unable to lookup nav dir module entry: ${path}`,
+      `Unable to lookup nav dir module entry: ${module}@${version}${path}`,
     );
   }
   const missing: string[] = [];
@@ -565,7 +560,9 @@ export async function generateCodePage(
     moduleVersion,
     moduleEntry,
   ] = await lookup(module, version, path);
-  if (!moduleItem && !moduleVersion) {
+  if (
+    !moduleItem || (!moduleVersion && moduleItem.versions.includes(version))
+  ) {
     let mutations: Mutation[];
     try {
       [
@@ -575,16 +572,23 @@ export async function generateCodePage(
         moduleEntry,
       ] = await loadModule(module, version, path);
       enqueue({ kind: "commitMutations", mutations });
-    } catch {
-      if (!moduleVersion) {
-        assert(moduleItem);
-        return getPageInvalidVersion(moduleItem);
-      }
+    } catch (e) {
+      console.log("error loading module", e);
       return undefined;
     }
-  } else if (!moduleEntry) {
+  }
+  if (!moduleVersion) {
     assert(moduleItem);
-    assert(moduleVersion);
+    return getPageInvalidVersion(moduleItem);
+  } else if (!moduleEntry) {
+    assert(
+      moduleItem,
+      `moduleItem should exists after lookup: ${module}@${version}${path}`,
+    );
+    assert(
+      moduleVersion,
+      `moduleItem should exists after lookup: ${module}@${version}${path}`,
+    );
     return getPagePathNotFound(moduleItem, moduleVersion, path);
   }
   if (moduleItem && moduleVersion && moduleEntry) {
@@ -763,7 +767,9 @@ export async function generateDocPage(
     moduleVersion,
     moduleEntry,
   ] = await lookup(module, version, path);
-  if (!moduleItem && !moduleVersion) {
+  if (
+    !moduleItem || (!moduleVersion && moduleItem.versions.includes(version))
+  ) {
     let mutations: Mutation[];
     try {
       [
@@ -773,14 +779,12 @@ export async function generateDocPage(
         moduleEntry,
       ] = await loadModule(module, version, path);
       enqueue({ kind: "commitMutations", mutations });
-    } catch {
-      if (!moduleVersion) {
-        assert(moduleItem);
-        return getPageInvalidVersion(moduleItem);
-      }
+    } catch (e) {
+      console.log("error loading module", e);
       return undefined;
     }
-  } else if (!moduleVersion) {
+  }
+  if (!moduleVersion) {
     assert(moduleItem);
     return getPageInvalidVersion(moduleItem);
   } else if (!moduleEntry) {
