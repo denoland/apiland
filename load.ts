@@ -25,7 +25,7 @@ import { getDatastore } from "./store.ts";
 
 const datastore = await getDatastore();
 
-const args = parse(Deno.args, { boolean: ["doc", "dry-run"] });
+const args = parse(Deno.args, { boolean: ["no-doc", "dry-run"] });
 
 function assert(cond: unknown, message = "Assertion failed."): asserts cond {
   if (!cond) {
@@ -56,40 +56,44 @@ if (args["dry-run"]) {
   Deno.exit();
 }
 
-for (const [module, version, paths] of toDoc) {
-  const importMap = await getImportMapSpecifier(module, version);
-  for (const path of paths) {
-    console.log(
-      `%cGenerating%c doc nodes for: %c${module}@${version}${path}%c...`,
-      "color:green",
-      "color:none",
-      "color:cyan",
-      "color:none",
-    );
-    let docNodes: (DocNode | DocNodeNull)[] = [];
-    try {
-      docNodes = await generateDocNodes(
-        module,
-        version,
-        path.slice(1),
-        importMap,
+if (!args["no-doc"]) {
+  for (const [module, version, paths] of toDoc) {
+    const importMap = await getImportMapSpecifier(module, version);
+    for (const path of paths) {
+      console.log(
+        `%cGenerating%c doc nodes for: %c${module}@${version}${path}%c...`,
+        "color:green",
+        "color:none",
+        "color:cyan",
+        "color:none",
       );
-    } catch (e) {
-      const msg = e instanceof Error ? `${e.message}\n\n${e.stack}` : String(e);
-      console.error(
-        `Error generating doc nodes for "${module}@${version}${path}":\n${msg}`,
+      let docNodes: (DocNode | DocNodeNull)[] = [];
+      try {
+        docNodes = await generateDocNodes(
+          module,
+          version,
+          path.slice(1),
+          importMap,
+        );
+      } catch (e) {
+        const msg = e instanceof Error
+          ? `${e.message}\n\n${e.stack}`
+          : String(e);
+        console.error(
+          `Error generating doc nodes for "${module}@${version}${path}":\n${msg}`,
+        );
+      }
+      addNodes(
+        datastore,
+        mutations,
+        docNodes.length ? docNodes : [{ kind: "null" }],
+        [
+          ["module", module],
+          ["module_version", version],
+          ["module_entry", path],
+        ],
       );
     }
-    addNodes(
-      datastore,
-      mutations,
-      docNodes.length ? docNodes : [{ kind: "null" }],
-      [
-        ["module", module],
-        ["module_version", version],
-        ["module_entry", path],
-      ],
-    );
   }
 }
 
