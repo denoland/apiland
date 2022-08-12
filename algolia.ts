@@ -22,15 +22,16 @@
  * ```
  */
 
-import "https://deno.land/x/xhr@0.2.1/mod.ts?code";
+import "xhr";
 import { accountCopyIndex } from "https://esm.sh/@algolia/client-account@4.14.1?dts";
 import algoliasearch from "https://esm.sh/algoliasearch@4.14.1?dts";
 import { entityToObject } from "google_datastore";
 
 import { algoliaKeys, denoManualAlgoliaKeys, readyPromise } from "./auth.ts";
 import { getDatastore } from "./store.ts";
+import type { Module } from "./types.d.ts";
 
-const ALGOLIA_INDEX = "deno_modules";
+const ALGOLIA_INDEX = "doc_nodes";
 const NUMBER_OF_MODULES_TO_SCRAPE = 1000;
 const STD_POPULARITY_SCORE = 1000000;
 const ALLOWED_DOCNODES = [
@@ -79,9 +80,11 @@ async function updateModules() {
       action: "addObject",
       body: {
         objectID: module.name,
-        popularity_score: module.name == "std"
+        popularity_score: module.name === "std"
           ? STD_POPULARITY_SCORE
           : module.popularity_score,
+        popularity_tag: module.tags?.find(({ kind }) => kind === "popularity")
+          ?.value,
         description: module.description,
         name: module.name,
       },
@@ -101,7 +104,7 @@ async function updateManual() {
     algoliaKeys.appId,
     algoliaKeys.apiKey,
   );
-  const sourceIndex = denoManualApp.initIndex("deno_manual");
+  const sourceIndex = denoManualApp.initIndex("manual");
   const destinationIndex = denoLandApp.initIndex("destination_index");
 
   // Why copy and move?
@@ -109,14 +112,14 @@ async function updateManual() {
   // a new index to an existing index's place.
   try {
     accountCopyIndex(sourceIndex, destinationIndex).then(() => {
-      denoLandApp.moveIndex("destination_index", "deno_manual").then(
+      denoLandApp.moveIndex("destination_index", "manual").then(
         () => {
-          console.log("Successfully updated deno_manual index.");
+          console.log("Successfully updated manual index.");
         },
       );
     });
   } catch (error) {
-    console.error("failed to update deno_manual index", error);
+    console.error("failed to update manual index", error);
   }
 }
 
@@ -132,6 +135,9 @@ async function scrapeModule(
   console.time(logPrefix);
   try {
     const batchRecordsGenerators = [];
+    if (!module.latest_version) {
+      return;
+    }
     const [publishedAt, moduleIndex] = await Promise.all([
       getPublishDate(module.name, module.latest_version),
       getModuleIndex(module.name, module.latest_version),
@@ -240,28 +246,30 @@ async function getAlgoliaBatchRecords(
   publishedAt: Date,
 ): Promise<AlgoliaBatchRecords[]> {
   const batchRecords = [];
-  const docNodes = await getDocNodes(
-    module.name,
-    module.latest_version,
-    path,
-  );
-  const filteredNodes = filterDocNodes(path, docNodes);
-  for (const node of filteredNodes) {
-    const objectID = `${module.name}${path}:${node.kind}:${node.name}`;
-    batchRecords.push({
-      action: "addObject",
-      body: {
-        name: node.name,
-        kind: node.kind,
-        jsDoc: node.jsDoc,
-        location: node.location,
-        objectID,
-        publishedAt: publishedAt.getTime(),
-        popularityScore: module.name == "std"
-          ? STD_POPULARITY_SCORE
-          : module.popularity_score,
-      },
-    });
+  if (module.latest_version) {
+    const docNodes = await getDocNodes(
+      module.name,
+      module.latest_version,
+      path,
+    );
+    const filteredNodes = filterDocNodes(path, docNodes);
+    for (const node of filteredNodes) {
+      const objectID = `${module.name}${path}:${node.kind}:${node.name}`;
+      batchRecords.push({
+        action: "addObject",
+        body: {
+          name: node.name,
+          kind: node.kind,
+          jsDoc: node.jsDoc,
+          location: node.location,
+          objectID,
+          publishedAt: publishedAt.getTime(),
+          popularityScore: module.name == "std"
+            ? STD_POPULARITY_SCORE
+            : module.popularity_score,
+        },
+      });
+    }
   }
   return batchRecords;
 }
@@ -317,11 +325,4 @@ interface DocNode {
   };
   // deno-lint-ignore no-explicit-any
   jsDoc: Record<string, any>;
-}
-
-interface Module {
-  description: string;
-  name: string;
-  popularity_score: number;
-  latest_version: string;
 }
