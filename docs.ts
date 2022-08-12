@@ -377,7 +377,7 @@ export async function getNav(
   const entry: ModuleEntry | undefined = await dbLookup(datastore, entryKey);
   if (!entry) {
     throw new errors.InternalServerError(
-      `Unable to lookup nav dir module entry: ${path}`,
+      `Unable to lookup nav dir module entry: ${module}@${version}${path}`,
     );
   }
   const missing: string[] = [];
