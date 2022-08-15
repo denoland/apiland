@@ -16,10 +16,6 @@ import {
 import { config } from "std/dotenv/mod.ts";
 import { getDatastore } from "./store.ts";
 
-await config({ export: true });
-
-const privateKey = Deno.env.get("GOOGLE_PRIVATE_KEY") ?? "";
-
 /** The service account keys used when connecting to the Google Datastore. */
 export let keys: {
   client_email: string;
@@ -39,6 +35,7 @@ export const readyPromise = new Promise((res) => {
 (async () => {
   await config({ export: true });
   readyResolve!();
+  const privateKey = Deno.env.get("GOOGLE_PRIVATE_KEY") ?? "";
   keys = {
     client_email: Deno.env.get("GOOGLE_CLIENT_EMAIL") ?? "",
     private_key:

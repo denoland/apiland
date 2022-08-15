@@ -1,5 +1,6 @@
 // Copyright 2018-2022 the Deno authors. All rights reserved. MIT license.
 
+import { type MultipleBatchRequest } from "@algolia/client-search";
 import {
   DatastoreError,
   entityToObject,
@@ -8,6 +9,12 @@ import {
 } from "google_datastore";
 import type { Mutation } from "google_datastore/types";
 
+import {
+  docNodeToRequest,
+  filteredDocNode,
+  moduleToRequest,
+  upload,
+} from "./algolia.ts";
 import {
   addNodes,
   commitCodePage,
@@ -36,7 +43,7 @@ import {
   RE_IGNORED_MODULE,
   RE_PRIVATE_PATH,
 } from "./modules.ts";
-import { getAlgolia, getAlgoliaKeys, getDatastore } from "./store.ts";
+import { getDatastore } from "./store.ts";
 import type {
   CodePage,
   DocPage,
@@ -130,8 +137,11 @@ interface LoadTask extends TaskBase {
   version: string;
 }
 
-interface AlgoliaTask extends TaskBase, ModuleBase {
+interface AlgoliaTask extends TaskBase {
   kind: "algolia";
+  module: Module;
+  version: ModuleVersion;
+  docNodes: Map<string, DocNode[]>;
 }
 
 type TaskDescriptor =
@@ -425,6 +435,7 @@ async function taskLoadModule(
     moduleItem.name,
     moduleVersion.version,
   );
+  const docNodes = new Map<string, DocNode[]>();
   for (const path of toDoc) {
     console.log(
       `[${id}]: %cGenerating%c doc nodes for: %c${moduleItem.name}@${moduleVersion.version}${path}%c...`,
@@ -433,38 +444,41 @@ async function taskLoadModule(
       "color:cyan",
       "color:none",
     );
-    let docNodes: (DocNode | DocNodeNull)[] = [];
+    let nodes: DocNode[] = [];
     try {
-      docNodes = await generateDocNodes(
+      nodes = await generateDocNodes(
         moduleItem.name,
         moduleVersion.version,
         path.slice(1),
         importMap,
       );
+      docNodes.set(path, nodes);
     } catch (e) {
       const msg = e instanceof Error ? `${e.message}\n\n${e.stack}` : String(e);
       console.error(
         `[${id}]: Error generating doc nodes for "${path}":\n${msg}`,
       );
     }
-    // Upload doc nodes to algolia.
-    enqueue({
-      kind: "algolia",
-      module: moduleItem.name,
-      version: moduleVersion.version,
-      docNodes,
-      path,
-    });
     addNodes(
       datastore,
       docMutations,
-      docNodes.length ? docNodes : [{ kind: "null" }],
+      nodes.length ? nodes : [{ kind: "null" }],
       [
         ["module", moduleItem.name],
         ["module_version", moduleVersion.version],
         ["module_entry", path],
       ],
     );
+  }
+
+  // Upload doc nodes to algolia.
+  if (docNodes.size) {
+    enqueue({
+      kind: "algolia",
+      module: moduleItem,
+      version: moduleVersion,
+      docNodes,
+    });
   }
 
   remaining = docMutations.length;
@@ -493,40 +507,44 @@ async function taskAlgolia(
   id: number,
   { module, version, docNodes }: AlgoliaTask,
 ) {
-  const algolia = await getAlgolia();
-  const index = algolia.initIndex("doc_nodes");
   console.log(
-    `[${id}]: %Indexing%c module %c"${module}@${version}"%c...`,
+    `[${id}]: %cUploading%c %c"${version.name}@${version.version}"%c doc nodes to algolia...`,
     "color:green",
     "color:none",
     "color:cyan",
     "color:none",
   );
-  // deno-lint-ignore no-explicit-any
-  const docNodesWithIDs: Record<string, any>[] = [];
-  docNodes.map((node) => {
-    if (node.kind !== "null") {
-      const location = node.location;
-      const fullPath = `${location.filename}:${location.line}:${location.col}`;
-      const objectID = `${fullPath}_${node.kind}_${node.name}`;
-      docNodesWithIDs.push({
-        objectID,
-        ...node,
-      });
+  const requests: MultipleBatchRequest[] = [];
+  requests.push(moduleToRequest(module));
+  const publishedAt = version.uploaded_at.getTime();
+  const popularityScore = module.popularity_score;
+  for (const [path, nodes] of docNodes) {
+    for (const docNode of nodes) {
+      if (!filteredDocNode(path, docNode)) {
+        requests.push(docNodeToRequest(
+          module.name,
+          path,
+          publishedAt,
+          popularityScore,
+          docNode,
+        ));
+      }
     }
-  });
-  index.saveObjects(docNodesWithIDs).wait();
+  }
+  await upload(requests);
   console.log(
-    `[${id}]: %cIndexed%c module %c${module}@${version}%c.`,
+    `[${id}]: %cUploaded%c %c${requests.length}%c items to algolia.`,
     "color:green",
     "color:none",
-    "color:yellow",
+    "color:cyan",
     "color:none",
   );
 }
 
 function process(id: number, task: TaskDescriptor): Promise<void> {
   switch (task.kind) {
+    case "algolia":
+      return taskAlgolia(id, task);
     case "commit":
       return taskCommitDocNodes(id, task);
     case "commitIndex":
@@ -545,8 +563,6 @@ function process(id: number, task: TaskDescriptor): Promise<void> {
       return taskCommitNav(id, task);
     case "load":
       return taskLoadModule(id, task);
-    case "algolia":
-      return Promise.resolve(taskAlgolia(id, task));
     default:
       console.error(
         `%cERROR%c: [${id}]: unexpected task kind: %c${
