@@ -230,11 +230,11 @@ export async function lookupDocPage(
 
 export async function lookup(
   module: string,
-): Promise<[Module | undefined]>;
+): Promise<[Module | undefined, undefined, undefined]>;
 export async function lookup(
   module: string,
   version: string,
-): Promise<[Module | undefined, ModuleVersion | undefined]>;
+): Promise<[Module | undefined, ModuleVersion | undefined, undefined]>;
 export async function lookup(
   module: string,
   version: string,

@@ -1,7 +1,5 @@
 // Copyright 2018-2022 the Deno authors. All rights reserved. MIT license.
 
-import "xhr"; // algoliasearch depends on XMLHttpRequest().
-import algoliasearch from "algoliasearch";
 import { Datastore } from "google_datastore";
 
 import { algoliaKeys, keys, readyPromise } from "./auth.ts";
@@ -16,12 +14,7 @@ export async function getDatastore(): Promise<Datastore> {
   return datastore = new Datastore(keys);
 }
 
-let algolia: ReturnType<typeof algoliasearch> | undefined;
-
-export async function getAlgolia(): Promise<ReturnType<typeof algoliasearch>> {
-  if (algolia) {
-    return algolia;
-  }
+export async function getAlgoliaKeys(): Promise<typeof algoliaKeys> {
   await readyPromise;
-  return algolia = algoliasearch(algoliaKeys.appId, algoliaKeys.apiKey);
+  return algoliaKeys;
 }

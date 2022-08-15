@@ -1,38 +1,29 @@
 // Copyright 2018-2022 the Deno authors. All rights reserved. MIT license.
 
 /**
- * Script to upload doc nodes of modules to algolia.
+ * Script to upload modules, doc nodes, and copy the manual index to algolia.
  *
- * How does it work?
- *
- * 1. List modules using /v2/modules endpoint.
- * 2. For each module, get the paths of the latest version of the module.
- * 3. For each path, get the doc nodes of the module.
- * 4. Get the publish date of the module from Google Datastore.
- * 5. Append publishDate and popularityScore to the doc nodes.
- * 6. Upload the doc nodes to algolia.
- *
- * Usage:
- * ```
- * # Upload 1000 most popular modules to algolia.
- * $ deno task algolia
- *
- * # Upload the lastest version of a specific module to algolia.
- * $ deno task algolia <module>
- * ```
+ * @module
  */
 
-import "xhr";
-import { accountCopyIndex } from "https://esm.sh/@algolia/client-account@4.14.1?dts";
-import algoliasearch from "https://esm.sh/algoliasearch@4.14.1?dts";
-import { entityToObject } from "google_datastore";
+import { accountCopyIndex } from "@algolia/client-account";
+import { type MultipleBatchRequest } from "@algolia/client-search";
+import { createFetchRequester } from "@algolia/requester-fetch";
+import algoliasearch from "algoliasearch";
+import dax from "dax";
+import { parse } from "std/flags/mod.ts";
+import { type Datastore, entityToObject, objectGetKey } from "google_datastore";
+import { type Entity } from "google_datastore/types";
 
 import { algoliaKeys, denoManualAlgoliaKeys, readyPromise } from "./auth.ts";
+import { lookup } from "./cache.ts";
+import { entitiesToDocNodes } from "./docs.ts";
 import { getDatastore } from "./store.ts";
-import type { Module } from "./types.d.ts";
+import type { DocNode, Module, ModuleVersion } from "./types.d.ts";
 
-const ALGOLIA_INDEX = "doc_nodes";
-const NUMBER_OF_MODULES_TO_SCRAPE = 1000;
+const DOC_NODE_INDEX = "doc_nodes";
+const MODULES_INDEX = "modules";
+
 const STD_POPULARITY_SCORE = 1000000;
 const ALLOWED_DOCNODES = [
   "function",
@@ -43,286 +34,213 @@ const ALLOWED_DOCNODES = [
   "interface",
 ];
 
-async function main() {
-  const arg = Deno.args[0]?.trim();
-  if (arg === "--update-manual") {
-    return await updateManual();
-  }
-  if (arg === "--update-modules") {
-    return await updateModules();
-  }
-  if (arg) {
-    const module =
-      await (await fetch("https://apiland.deno.dev/v2/modules/" + arg))
-        .json();
-    return await scrapeModule(module, 1, 1);
-  }
+let datastore: Datastore | undefined;
 
-  const limitPerRequest = 100;
-  const totalPages = NUMBER_OF_MODULES_TO_SCRAPE / limitPerRequest;
-  for (let currentPage = 1; currentPage <= totalPages; currentPage++) {
-    const modules = await getModules(limitPerRequest, currentPage);
-    for await (let [index, module] of modules.entries()) {
-      index = index + (currentPage - 1) * limitPerRequest;
-      await scrapeModule(module, index, NUMBER_OF_MODULES_TO_SCRAPE);
-    }
+function main() {
+  const args = parse(Deno.args, {
+    boolean: ["update-manual", "update-modules"],
+  });
+  if (args["update-manual"]) {
+    return updateManual();
+  }
+  if (args["update-modules"]) {
+    return updateModules();
+  }
+  const module = args["_"][0] as string;
+  if (module) {
+    return loadModule(module);
   }
 }
-main();
+
+if (import.meta.main) {
+  await main();
+}
+
+function getPath(docNode: DocNode): string | undefined {
+  return objectGetKey(docNode)
+    ?.path
+    .find(({ kind }) => kind === "module_entry")
+    ?.name;
+}
+
+export function filteredDocNode(path: string, node: DocNode): boolean {
+  return !ALLOWED_DOCNODES.includes(node.kind) ||
+    !node.location.filename.endsWith(path);
+}
+
+/** Convert a doc node to a batch request for algolia. */
+export function docNodeToRequest(
+  module: string,
+  path: string,
+  publishedAt: number,
+  popularityScore: number | undefined,
+  docNode: DocNode,
+): MultipleBatchRequest {
+  const objectID = `${module}${path}:${docNode.kind}:${docNode.name}`;
+  const { name, kind, jsDoc, location } = docNode;
+  return {
+    action: "updateObject",
+    indexName: DOC_NODE_INDEX,
+    body: {
+      name,
+      kind,
+      jsDoc,
+      location,
+      objectID,
+      publishedAt,
+      popularityScore,
+    },
+  };
+}
+
+async function loadModule(module: string, version?: string) {
+  dax.logStep(`Loading doc nodes for module "${module}"...`);
+  let moduleItem: Module | undefined;
+  let moduleVersion: ModuleVersion | undefined;
+  if (version) {
+    [moduleItem, moduleVersion] = await lookup(module, version);
+  } else {
+    [moduleItem] = await lookup(module);
+    if (moduleItem && moduleItem.latest_version) {
+      version = moduleItem.latest_version;
+      [, moduleVersion] = await lookup(module, version);
+    }
+  }
+  if (version && moduleVersion && moduleItem) {
+    dax.logLight(`  using version ${version}.`);
+    datastore = datastore ?? await getDatastore();
+    const ancestor = datastore.key(
+      ["module", module],
+      ["module_version", version],
+    );
+    const query = datastore
+      .createQuery("doc_node")
+      .hasAncestor(ancestor);
+    const entities: Entity[] = [];
+    for await (const entity of datastore.streamQuery(query)) {
+      entities.push(entity);
+    }
+    const docNodes = entitiesToDocNodes(ancestor, entities);
+    dax.logLight(`  loaded ${entities.length} doc nodes.`);
+    const requests: MultipleBatchRequest[] = [];
+    requests.push(moduleToRequest(moduleItem));
+    const publishedAt = moduleVersion.uploaded_at.getTime();
+    const popularityScore = moduleItem.name === "std"
+      ? STD_POPULARITY_SCORE
+      : moduleItem.popularity_score;
+    for (const docNode of docNodes) {
+      const path = getPath(docNode);
+      if (path && !filteredDocNode(path, docNode)) {
+        requests.push(
+          docNodeToRequest(module, path, publishedAt, popularityScore, docNode),
+        );
+      }
+    }
+    dax.logStep(
+      `Uploading ${requests.length} index items to algolia...`,
+    );
+    await upload(requests);
+    dax.logStep(`Success.`);
+    Deno.exit(0);
+  } else {
+    dax.logError("Unable to find latest version of module.");
+  }
+}
+
+export function moduleToRequest(module: Module): MultipleBatchRequest {
+  return {
+    action: "updateObject",
+    indexName: MODULES_INDEX,
+    body: {
+      objectID: module.name,
+      popularity_score: module.name === "std"
+        ? STD_POPULARITY_SCORE
+        : module.popularity_score,
+      popularity_tag: module.tags?.find(({ kind }) => kind === "popularity")
+        ?.value,
+      description: module.description,
+      name: module.name,
+    },
+  };
+}
 
 async function updateModules() {
-  console.log("[update_modules] started updating modules");
+  dax.logStep("Updating modules...");
   const modules = await getAllModules();
-  console.log(`[update_modules] fetched ${modules.length} modules`);
-  const batchRequests = [];
+  dax.logStep(`Fetched ${modules.length} modules.`);
+  const requests: MultipleBatchRequest[] = [];
   for (const module of modules) {
-    batchRequests.push({
-      action: "addObject",
-      body: {
-        objectID: module.name,
-        popularity_score: module.name === "std"
-          ? STD_POPULARITY_SCORE
-          : module.popularity_score,
-        popularity_tag: module.tags?.find(({ kind }) => kind === "popularity")
-          ?.value,
-        description: module.description,
-        name: module.name,
-      },
-    });
+    requests.push(moduleToRequest(module));
   }
-  await uploadToAlgolia(batchRequests, algoliaKeys, "modules");
-  console.log(`[update_modules] uploaded ${modules.length} modules to algolia`);
+  dax.logStep(`Uploading ${modules.length} modules to algolia...`);
+  await upload(requests);
+  dax.logStep(`Success.`);
+  Deno.exit(0);
 }
 
 async function updateManual() {
   await readyPromise;
+  dax.logStep("Updating manual...");
+  const requester = createFetchRequester();
   const denoManualApp = algoliasearch(
     denoManualAlgoliaKeys.appId,
     denoManualAlgoliaKeys.apiKey,
+    { requester },
   );
   const denoLandApp = algoliasearch(
     algoliaKeys.appId,
     algoliaKeys.apiKey,
+    { requester },
   );
-  const sourceIndex = denoManualApp.initIndex("manual");
+  const sourceIndex = denoManualApp.initIndex("deno_manual");
   const destinationIndex = denoLandApp.initIndex("destination_index");
 
   // Why copy and move?
   // We cannot copy to an existing index, but move
   // a new index to an existing index's place.
   try {
-    accountCopyIndex(sourceIndex, destinationIndex).then(() => {
-      denoLandApp.moveIndex("destination_index", "manual").then(
-        () => {
-          console.log("Successfully updated manual index.");
-        },
-      );
-    });
+    await accountCopyIndex(sourceIndex, destinationIndex).wait();
   } catch (error) {
-    console.error("failed to update manual index", error);
+    // RetryErrors seem to be expected, as it is really a long running process
+    // so we just only fail if it is something we don't expect
+    if (
+      !(error && typeof error === "object" && "name" in error &&
+        error.name === "RetryError")
+    ) {
+      dax.logStep("Failed to update the manual index");
+      console.log(error);
+      Deno.exit(1);
+    }
   }
-}
-
-async function scrapeModule(
-  module: Module,
-  currentIndex: number,
-  totalModules: number,
-) {
-  const logPrefix =
-    `[${currentIndex}/${totalModules} ${module.name}@${module.latest_version}]`;
-  const log = (msg: string) => console.log(`${logPrefix} ${msg}`);
-  log("started scraping doc nodes");
-  console.time(logPrefix);
   try {
-    const batchRecordsGenerators = [];
-    if (!module.latest_version) {
-      return;
-    }
-    const [publishedAt, moduleIndex] = await Promise.all([
-      getPublishDate(module.name, module.latest_version),
-      getModuleIndex(module.name, module.latest_version),
-    ]);
-    for (const path of moduleIndex) {
-      // Ignore tests and examples.
-      if (!path.startsWith("/tests") && !path.startsWith("/examples")) {
-        batchRecordsGenerators.push(
-          getAlgoliaBatchRecords(module, path, publishedAt),
-        );
-      }
-    }
-    const batchRequests = (await Promise.all(batchRecordsGenerators))
-      .flat();
-    log(`scraped ${batchRequests.length} doc nodes`);
-    // Back up doc nodes to the disk.
-    await Deno.mkdir("docnodes").catch((err) => {
-      if (err.name !== "AlreadyExists") {
-        throw err;
-      }
-    });
-    const backupPath =
-      `docnodes/${currentIndex}_${module.name}_${Date.now()}.json`;
-    await Deno.writeTextFile(
-      backupPath,
-      JSON.stringify(batchRequests),
-    );
-    await uploadToAlgolia(batchRequests, algoliaKeys, ALGOLIA_INDEX);
+    await denoLandApp.moveIndex("destination_index", "manual").wait();
   } catch (error) {
-    log(`failed to scrape module ${error}`);
+    dax.logError("Failed to update manual index");
+    console.log(error);
+    Deno.exit(1);
   }
-  console.timeEnd(logPrefix);
+  dax.logStep("Successfully updated manual index.");
+  Deno.exit(0);
 }
 
 /** Upload batch requests to Algolia. */
-async function uploadToAlgolia(
-  batchRequests: AlgoliaBatchRecords[],
-  keys: typeof algoliaKeys,
-  algoliaIndex: string,
-) {
-  const payload = JSON.stringify({
-    requests: batchRequests,
-  });
-  const res = await fetch(
-    `https://QFPCRZC6WX.algolia.net/1/indexes/${algoliaIndex}/batch`,
-    {
-      method: "POST",
-      headers: {
-        "X-Algolia-API-Key": keys.apiKey,
-        "X-Algolia-Application-Id": keys.appId,
-      },
-      body: payload,
-    },
+export async function upload(requests: MultipleBatchRequest[]): Promise<void> {
+  const requester = createFetchRequester();
+  const denoLandApp = algoliasearch(
+    algoliaKeys.appId,
+    algoliaKeys.apiKey,
+    { requester },
   );
-  if (!res.ok) {
-    throw await res.text();
-  }
-}
-
-/** Get the publish date of a module. */
-async function getPublishDate(module: string, version: string): Promise<Date> {
-  const response = await fetch(
-    `https://apiland.deno.dev/v2/modules/${module}/${version}`,
-  );
-  const data = await response.json();
-  return new Date(data.uploaded_at);
-}
-
-/** Get the index of the module. The index contains all paths of the module. */
-async function getModuleIndex(
-  module: string,
-  version: string,
-): Promise<string[]> {
-  const response = await fetch(
-    `https://apiland.deno.dev/v2/modules/${module}/${version}/index`,
-  );
-  const data = await response.json();
-  if (response.ok) {
-    return Object.values(data.index).flat() as string[];
-  } else {
-    return [];
-  }
-}
-
-/** Get the index of the module. The index contains all paths of the module. */
-async function getDocNodes(
-  module: string,
-  version: string,
-  path: string,
-): Promise<DocNode[]> {
-  const response = await fetch(
-    `https://apiland.deno.dev/v2/modules/${module}/${version}/doc${path}`,
-  );
-  if (response.ok) {
-    return await response.json();
-  } else {
-    return [];
-  }
-}
-
-/** Get doc nodes for the module, filter them and construct them into
- * valid Algolia batch records. */
-async function getAlgoliaBatchRecords(
-  module: Module,
-  path: string,
-  publishedAt: Date,
-): Promise<AlgoliaBatchRecords[]> {
-  const batchRecords = [];
-  if (module.latest_version) {
-    const docNodes = await getDocNodes(
-      module.name,
-      module.latest_version,
-      path,
-    );
-    const filteredNodes = filterDocNodes(path, docNodes);
-    for (const node of filteredNodes) {
-      const objectID = `${module.name}${path}:${node.kind}:${node.name}`;
-      batchRecords.push({
-        action: "addObject",
-        body: {
-          name: node.name,
-          kind: node.kind,
-          jsDoc: node.jsDoc,
-          location: node.location,
-          objectID,
-          publishedAt: publishedAt.getTime(),
-          popularityScore: module.name == "std"
-            ? STD_POPULARITY_SCORE
-            : module.popularity_score,
-        },
-      });
-    }
-  }
-  return batchRecords;
-}
-
-/** Remove docNodes that don't have a jsDoc, are not of allowed docNodeKinds
- * and those that don't belong to the provided modulePath. */
-function filterDocNodes(modulePath: string, docNodes: DocNode[]): DocNode[] {
-  const filtered = [];
-  for (const node of docNodes) {
-    if (
-      ALLOWED_DOCNODES.includes(node.kind) &&
-      node.location.filename.endsWith(modulePath)
-    ) {
-      filtered.push(node);
-    }
-  }
-  return filtered;
-}
-
-/** Get modules from apiland.deno.dev */
-async function getModules(limit: number, page: number) {
-  const listModules = await fetch(
-    `https://apiland.deno.dev/v2/modules?limit=${limit}&page=${page}`,
-  );
-  const modules: Module[] = (await listModules.json()).items;
-  return modules;
+  await denoLandApp.multipleBatch(requests);
 }
 
 /** Get all modules from Datastore. */
 async function getAllModules() {
   const modules: Module[] = [];
-  const datastore = await getDatastore();
+  datastore = datastore ?? await getDatastore();
   const query = datastore.createQuery("module");
   for await (const entity of datastore.streamQuery(query)) {
     modules.push(entityToObject(entity));
   }
   return modules;
-}
-
-interface AlgoliaBatchRecords {
-  action: string;
-  // deno-lint-ignore no-explicit-any
-  body: Record<string, any>;
-}
-
-interface DocNode {
-  kind: string;
-  name: string;
-  location: {
-    filename: string;
-    line: number;
-    col: number;
-  };
-  // deno-lint-ignore no-explicit-any
-  jsDoc: Record<string, any>;
 }

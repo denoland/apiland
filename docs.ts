@@ -1622,7 +1622,7 @@ export function entitiesToDocNodes(
   const namespaceElements = new KeyMap<DenoDocNode[]>();
   const namespaces = new KeyMap<DocNodeNamespace>();
   for (const entity of entities) {
-    const docNode: DocNode = entityToObject(entity);
+    const docNode = entityToObject<DocNode>(entity);
     if (isDocNodeNull(docNode)) {
       continue;
     }
