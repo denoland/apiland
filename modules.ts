@@ -6,7 +6,7 @@ import {
   objectSetKey,
   objectToEntity,
 } from "google_datastore";
-import type { Mutation } from "google_datastore/types";
+import type { Key, Mutation } from "google_datastore/types";
 import {
   cacheModule,
   cacheModuleEntry,
@@ -198,28 +198,27 @@ export function isIndexedDir(item: PackageMetaListing): boolean {
   return item.type === "dir" && !item.path.match(RE_PRIVATE_PATH);
 }
 
-/** A function which */
-export async function clearModule(
+const MODULE_KINDS = [
+  "doc_page",
+  "code_page",
+];
+const VERSION_KINDS = [
+  "doc_node",
+  "module_index",
+  "symbol_index",
+  "nav_index",
+];
+
+async function clearAppend(
   datastore: Datastore,
   mutations: Mutation[],
-  module: string,
-  version: string,
-): Promise<void> {
-  const kinds = [
-    "doc_node",
-    "module_index",
-    "symbol_index",
-    "doc_page",
-    "nav_index",
-  ];
-
+  kinds: string[],
+  ancestor: Key,
+) {
   for (const kind of kinds) {
     const query = datastore
       .createQuery(kind)
-      .hasAncestor(datastore.key(
-        ["module", module],
-        ["module_version", version],
-      ))
+      .hasAncestor(ancestor)
       .select("__key__");
 
     for await (const { key } of datastore.streamQuery(query)) {
@@ -228,6 +227,31 @@ export async function clearModule(
       }
     }
   }
+}
+
+/** A function which */
+export function clearModule(
+  datastore: Datastore,
+  mutations: Mutation[],
+  module: string,
+  version: string,
+): Promise<unknown> {
+  const pModules = clearAppend(
+    datastore,
+    mutations,
+    MODULE_KINDS,
+    datastore.key(["module", module]),
+  );
+  const pVersions = clearAppend(
+    datastore,
+    mutations,
+    VERSION_KINDS,
+    datastore.key(
+      ["module", module],
+      ["module_version", version],
+    ),
+  );
+  return Promise.all([pModules, pVersions]);
 }
 
 export async function loadModule(
