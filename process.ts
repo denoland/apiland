@@ -15,6 +15,7 @@ import {
   moduleToRequest,
   upload,
 } from "./algolia.ts";
+import { clear } from "./cache.ts";
 import {
   addNodes,
   commitCodePage,
@@ -501,6 +502,7 @@ async function taskLoadModule(
       "color:none",
     );
   }
+  clear(module);
 }
 
 async function taskAlgolia(

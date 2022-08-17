@@ -8,7 +8,7 @@
   },
   "importMap": "./import-map.json",
   "tasks": {
-    "dev": "deno run --check --allow-net --allow-hrtime --allow-env --allow-read=. main.ts",
+    "dev": "deno run --check --unstable --allow-net --allow-hrtime --allow-env --allow-read=. main.ts",
     "load": "deno run --allow-net --allow-env --allow-read=.env,.env.defaults load.ts",
     "indexes": "deno run --allow-net --allow-env --allow-read=.env,.env.defaults indexes.ts",
     "metrics": "deno run --allow-net --allow-env --allow-read=.env,.env.defaults metrics.ts",

@@ -26,6 +26,30 @@ const cachedCodePages = new WeakMap<ModuleVersion, Map<string, CodePage>>();
 /** The "LRU" for modules names. */
 const cachedModuleNames = new Set<string>();
 
+let bc: BroadcastChannel | undefined;
+
+if ("BroadcastChannel" in globalThis) {
+  console.log(
+    "%cStarting%c cache broadcast channel.",
+    "color:green",
+    "color:none",
+  );
+  bc = new BroadcastChannel("cache_clear");
+
+  bc.addEventListener("message", ({ data }) => {
+    const module = String(data);
+    console.log(
+      `%cReceived%c clear cache for module: %c"${module}"%c.`,
+      "color:green",
+      "color:none",
+      "color:cyan",
+      "color:none",
+    );
+    cachedModules.delete(module);
+    cachedModuleNames.delete(module);
+  });
+}
+
 /** Lazily set datastore. */
 let datastore: Datastore | undefined;
 
@@ -63,9 +87,15 @@ function enqueuePrune() {
   }
 }
 
-export function clear() {
-  cachedModules.clear();
-  cachedModuleNames.clear();
+export function clear(module?: string) {
+  if (module) {
+    cachedModules.delete(module);
+    cachedModuleNames.delete(module);
+    bc?.postMessage(module);
+  } else {
+    cachedModules.clear();
+    cachedModuleNames.clear();
+  }
 }
 
 export async function lookupCodePage(
