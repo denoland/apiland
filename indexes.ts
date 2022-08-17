@@ -30,7 +30,7 @@ if (args["delete"]) {
   dax.logStep("Creating composite indexes...");
 
   dax.logStep("  Create module index...");
-  const response = await datastore.indexes.create({
+  let response = await datastore.indexes.create({
     ancestor: "NONE",
     kind: "module",
     properties: [{
@@ -43,7 +43,29 @@ if (args["delete"]) {
   });
 
   if (response.error) {
-    dax.logError("Error deleting index:", JSON.stringify(response.error));
+    dax.logError("Error creating index:", JSON.stringify(response.error));
+  } else {
+    dax.logStep("Success.");
+  }
+
+  dax.logStep("  Create doc node index...");
+  response = await datastore.indexes.create({
+    ancestor: "NONE",
+    kind: "doc_node",
+    properties: [{
+      direction: "ASCENDING",
+      name: "name",
+    }, {
+      direction: "ASCENDING",
+      name: "kind",
+    }, {
+      direction: "ASCENDING",
+      name: "jsDoc",
+    }],
+  });
+
+  if (response.error) {
+    dax.logError("Error creating index:", JSON.stringify(response.error));
   } else {
     dax.logStep("Success.");
   }

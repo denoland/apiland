@@ -1135,6 +1135,8 @@ function docPageToEntity(docPage: DocPage): Entity {
           break;
         }
       }
+      // ensure the property exists in Google Datastore
+      node.jsDoc = node.jsDoc ?? null;
       return node;
     });
   }
@@ -1269,6 +1271,8 @@ export function addNodes(
         break;
       }
     }
+    // ensure the property exists in Google Datastore
+    node.jsDoc = node.jsDoc ?? null;
     objectSetKey(node, datastore.key(...paths));
     mutations.push({ upsert: objectToEntity(node) });
   }
