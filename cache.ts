@@ -456,12 +456,15 @@ export async function lookupLibDocPage(
           }
           case "doc_page": {
             docPageItem = entityToLibDocPage(entity);
-            assert(versionItem);
-            if (!cachedLibDocPages.has(versionItem)) {
-              cachedLibDocPages.set(versionItem, new Map());
-            }
-            const docPages = cachedLibDocPages.get(versionItem)!;
-            docPages.set(symbol, docPageItem);
+            queueMicrotask(() => {
+              assert(docPageItem);
+              assert(versionItem);
+              if (!cachedLibDocPages.has(versionItem)) {
+                cachedLibDocPages.set(versionItem, new Map());
+              }
+              const docPages = cachedLibDocPages.get(versionItem)!;
+              docPages.set(symbol, docPageItem);
+            });
             break;
           }
           default:
@@ -531,24 +534,30 @@ export async function lookup(
             break;
           case "module_version": {
             versionItem = entityToObject(entity);
-            assert(moduleItem);
-            assert(version);
-            if (!cachedVersions.has(moduleItem)) {
-              cachedVersions.set(moduleItem, new Map());
-            }
-            const versions = cachedVersions.get(moduleItem)!;
-            versions.set(version, versionItem);
+            queueMicrotask(() => {
+              assert(versionItem);
+              assert(moduleItem);
+              assert(version);
+              if (!cachedVersions.has(moduleItem)) {
+                cachedVersions.set(moduleItem, new Map());
+              }
+              const versions = cachedVersions.get(moduleItem)!;
+              versions.set(version, versionItem);
+            });
             break;
           }
           case "module_entry": {
             entryItem = entityToObject(entity);
-            assert(versionItem);
-            assert(path);
-            if (!cachedEntries.has(versionItem)) {
-              cachedEntries.set(versionItem, new Map());
-            }
-            const entries = cachedEntries.get(versionItem)!;
-            entries.set(path, entryItem);
+            queueMicrotask(() => {
+              assert(entryItem);
+              assert(versionItem);
+              assert(path);
+              if (!cachedEntries.has(versionItem)) {
+                cachedEntries.set(versionItem, new Map());
+              }
+              const entries = cachedEntries.get(versionItem)!;
+              entries.set(path, entryItem);
+            });
             break;
           }
           default:
