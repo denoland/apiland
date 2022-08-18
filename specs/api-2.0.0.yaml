@@ -689,7 +689,63 @@ paths:
             text/html:
               schema:
                 type: string
-  /v2/pages/doc/{module}/{version}:
+  /v2/pages/lib/doc/{library}/{version}:
+    get:
+      tags:
+        - pages
+      summary: Get information about a library to render a doc page.
+      description: >
+        Responds with all the information needed to render a doc page of a
+        library.
+      operationId: getLibDocPageInfo
+      parameters:
+        - name: library
+          in: path
+          required: true
+          schema:
+            $ref: "#/components/schemas/ModuleName"
+        - name: version
+          in: path
+          required: true
+          schema:
+            type: string
+            example: "1.23.0"
+        - name: symbol
+          in: query
+          description: >
+            The specific symbol to search for. If searching for a symbol on non-
+            module path, a Bad Request will be returned. To search for a
+            namespaced symbol, deliminate using the `.` (e.g.
+            `namespace.Value`).
+          schema:
+            type: string
+            example: "Deno.errors"
+      responses:
+        "200":
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LibDocPage"
+        "400":
+          description: Bad Request - the request was malformed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HttpError"
+            text/html:
+              schema:
+                type: string
+        "404":
+          description: Not found - the requested resource was not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HttpError"
+            text/html:
+              schema:
+                type: string
+  /v2/pages/mod/doc/{module}/{version}:
     get:
       tags:
         - pages
@@ -697,7 +753,7 @@ paths:
       description: >
         Responds with all the information needed to render a root doc page of a
         module.
-      operationId: getDocPageInfo
+      operationId: getModDocPageInfo
       parameters:
         - name: module
           in: path
@@ -764,7 +820,7 @@ paths:
             text/html:
               schema:
                 type: string
-  /v2/pages/doc/{module}/{version}/{path}:
+  /v2/pages/mod/doc/{module}/{version}/{path}:
     get:
       tags:
         - pages
@@ -772,7 +828,7 @@ paths:
       description: >
         Responds with all the information needed to render a doc page of a
         module.
-      operationId: getDocPagePathInfo
+      operationId: getModDocPagePathInfo
       parameters:
         - name: module
           in: path
@@ -1106,6 +1162,80 @@ components:
                 $ref: "#/components/schemas/IndexItem"
           required:
             - "items"
+    DocPageLibrary:
+      allOf:
+        - $ref: "#/components/schemas/DocPageLibraryBase"
+        - type: object
+          properties:
+            items:
+              type: array
+              items:
+                $ref: "#/components/schemas/SymbolItem"
+          required:
+            - "items"
+    DocPageLibraryBase:
+      type: object
+      properties:
+        kind:
+          type: string
+          example: library
+        name:
+          type: string
+          example: deno_stable
+        version:
+          type: string
+          example: "1.23.0"
+        versions:
+          type: array
+          items:
+            type: string
+        latest_version:
+          type: string
+          example: "1.23.0"
+      required:
+        - "kind"
+        - "name"
+        - "version"
+        - "versions"
+        - "latest_version"
+    DocPageLibraryInvalidVersion:
+      type: object
+      properties:
+        kind:
+          type: string
+          example: libraryInvalidVersion
+        name:
+          type: string
+          example: deno_stable
+        versions:
+          type: array
+          items:
+            type: string
+        latest_version:
+          type: string
+          example: "1.23.0"
+      required:
+        - "kind"
+        - "name"
+        - "versions"
+        - "latest_version"
+    DocPageLibrarySymbol:
+      allOf:
+        - $ref: "#/components/schemas/DocPageLibraryBase"
+        - type: object
+          properties:
+            items:
+              type: array
+              items:
+                $ref: "#/components/schemas/SymbolItem"
+            docNodes:
+              items:
+                type: array
+                items:
+                  $ref: "#/components/schemas/DocNode"
+          required:
+            - "items"
+            - "docNodes"
     DocPageModule:
       allOf:
         - $ref: "#/components/schemas/PageBase"
@@ -1540,6 +1670,17 @@ components:
       example:
         /: ["/mod.ts"]
         /src: ["/src/lib.ts", "/src/util.js"]
+    LibDocPage:
+      oneOf:
+        - $ref: "#/components/schemas/DocPageLibrary"
+        - $ref: "#/components/schemas/DocPageLibrarySymbol"
+        - $ref: "#/components/schemas/DocPageLibraryInvalidVersion"
+      discriminator:
+        propertyName: kind
+        mapping:
+          library: "#/components/schemas/DocPageSymbol"
+          librarySymbol: "#/components/schemas/DocPageModule"
+          libraryInvalidVersion: "#/components/schemas/DocPageIndex"
     ListBase:
       type: object
       properties:
