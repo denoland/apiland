@@ -243,15 +243,26 @@ async function taskCommitMutations(id: number, { mutations }: CommitMutations) {
     "color:none",
   );
   const datastore = await getDatastore();
-  for await (
-    const batch of datastore.commit(mutations, { transactional: false })
-  ) {
-    console.log(
-      `[${id}]: %cCommitted %c${batch.mutationResults.length}%c mutations.`,
-      "color:green",
-      "color:cyan",
-      "color:none",
-    );
+  try {
+    for await (
+      const batch of datastore.commit(mutations, { transactional: false })
+    ) {
+      console.log(
+        `[${id}]: %cCommitted %c${batch.mutationResults.length}%c mutations.`,
+        "color:green",
+        "color:cyan",
+        "color:none",
+      );
+    }
+  } catch (error) {
+    if (error instanceof DatastoreError) {
+      console.log(`[${id}] Datastore Error:`);
+      console.log(`${error.status} ${error.message}`);
+      console.log(error.statusInfo);
+    } else {
+      console.log("Unexpected Error:");
+      console.log(error);
+    }
   }
 }
 

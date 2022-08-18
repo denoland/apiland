@@ -50,7 +50,7 @@ if (args["delete"]) {
 
   dax.logStep("  Create doc node index...");
   response = await datastore.indexes.create({
-    ancestor: "NONE",
+    ancestor: "ALL_ANCESTORS",
     kind: "doc_node",
     properties: [{
       direction: "ASCENDING",

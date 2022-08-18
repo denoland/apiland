@@ -136,7 +136,9 @@ const cachedResources = new Map<string, LoadResponse | undefined>();
 let cacheCheckQueued = false;
 let cacheSize = 0;
 
-async function load(specifier: string): Promise<LoadResponse | undefined> {
+export async function load(
+  specifier: string,
+): Promise<LoadResponse | undefined> {
   if (cachedResources.has(specifier)) {
     cachedSpecifiers.delete(specifier);
     cachedSpecifiers.add(specifier);
@@ -1166,7 +1168,7 @@ export async function generateSymbolIndex(
 
 /** Namespaces and interfaces are open ended. This function will merge these
  * together, so that you have single entries per symbol. */
-function mergeEntries(entries: DenoDocNode[]): DenoDocNode[] {
+export function mergeEntries(entries: DenoDocNode[]): DenoDocNode[] {
   const merged: DenoDocNode[] = [];
   const namespaces = new Map<string, DocNodeNamespace>();
   const interfaces = new Map<string, DocNodeInterface>();
@@ -1176,7 +1178,8 @@ function mergeEntries(entries: DenoDocNode[]): DenoDocNode[] {
       if (namespace) {
         namespace.namespaceDef.elements.push(...node.namespaceDef.elements);
         if (!namespace.jsDoc) {
-          namespace.jsDoc = node.jsDoc;
+          // deno-lint-ignore no-explicit-any
+          namespace.jsDoc = (node.jsDoc ?? null) as any;
         }
       } else {
         namespaces.set(node.name, node);
@@ -1207,67 +1210,126 @@ function mergeEntries(entries: DenoDocNode[]): DenoDocNode[] {
   return merged;
 }
 
+export function dehydrateDocNodes(docNodes: DocNode[]): DenoDocNode[] {
+  return docNodes.map((docNode) => {
+    // deno-lint-ignore no-explicit-any
+    let node: any;
+    switch (docNode.kind) {
+      case "moduleDoc":
+        node = docNode;
+        break;
+      case "namespace": {
+        const { namespaceDef, ...rest } = docNode;
+        const elements = namespaceDef.elements.map((el) => JSON.stringify(el));
+        node = { namespaceDef: { elements }, ...rest };
+        break;
+      }
+      case "class": {
+        const { classDef, ...rest } = docNode;
+        node = { classDef: JSON.stringify(classDef), ...rest };
+        break;
+      }
+      case "enum": {
+        const { enumDef, ...rest } = docNode;
+        node = { enumDef: JSON.stringify(enumDef), ...rest };
+        break;
+      }
+      case "function": {
+        const { functionDef, ...rest } = docNode;
+        node = { functionDef: JSON.stringify(functionDef), ...rest };
+        break;
+      }
+      case "import": {
+        const { importDef, ...rest } = docNode;
+        node = { importDef: JSON.stringify(importDef), ...rest };
+        break;
+      }
+      case "interface": {
+        const { interfaceDef, ...rest } = docNode;
+        node = { interfaceDef: JSON.stringify(interfaceDef), ...rest };
+        break;
+      }
+      case "typeAlias": {
+        const { typeAliasDef, ...rest } = docNode;
+        node = { typeAliasDef: JSON.stringify(typeAliasDef), ...rest };
+        break;
+      }
+      case "variable": {
+        const { variableDef, ...rest } = docNode;
+        node = { variableDef: JSON.stringify(variableDef), ...rest };
+        break;
+      }
+    }
+    // ensure the property exists in Google Datastore
+    node.jsDoc = node.jsDoc ?? null;
+    return node;
+  });
+}
+
 /** Convert a doc page to an {@linkcode Entity}, serializing any doc nodes
  * that are part of the object. */
 function docPageToEntity(docPage: DocPage): Entity {
   if ("docNodes" in docPage) {
-    docPage.docNodes = docPage.docNodes.map((docNode) => {
-      // deno-lint-ignore no-explicit-any
-      let node: any;
-      switch (docNode.kind) {
-        case "moduleDoc":
-          node = docNode;
-          break;
-        case "namespace": {
-          const { namespaceDef, ...rest } = docNode;
-          const elements = namespaceDef.elements.map((el) =>
-            JSON.stringify(el)
-          );
-          node = { namespaceDef: { elements }, ...rest };
-          break;
-        }
-        case "class": {
-          const { classDef, ...rest } = docNode;
-          node = { classDef: JSON.stringify(classDef), ...rest };
-          break;
-        }
-        case "enum": {
-          const { enumDef, ...rest } = docNode;
-          node = { enumDef: JSON.stringify(enumDef), ...rest };
-          break;
-        }
-        case "function": {
-          const { functionDef, ...rest } = docNode;
-          node = { functionDef: JSON.stringify(functionDef), ...rest };
-          break;
-        }
-        case "import": {
-          const { importDef, ...rest } = docNode;
-          node = { importDef: JSON.stringify(importDef), ...rest };
-          break;
-        }
-        case "interface": {
-          const { interfaceDef, ...rest } = docNode;
-          node = { interfaceDef: JSON.stringify(interfaceDef), ...rest };
-          break;
-        }
-        case "typeAlias": {
-          const { typeAliasDef, ...rest } = docNode;
-          node = { typeAliasDef: JSON.stringify(typeAliasDef), ...rest };
-          break;
-        }
-        case "variable": {
-          const { variableDef, ...rest } = docNode;
-          node = { variableDef: JSON.stringify(variableDef), ...rest };
-          break;
-        }
-      }
-      // ensure the property exists in Google Datastore
-      node.jsDoc = node.jsDoc ?? null;
-      return node;
-    });
+    docPage.docNodes = dehydrateDocNodes(docPage.docNodes);
   }
   return objectToEntity(docPage);
+}
+
+export function hydrateDocNodes(docNodes: DocNode[]): void {
+  for (const docNode of docNodes) {
+    switch (docNode.kind) {
+      case "namespace": {
+        docNode.namespaceDef.elements = docNode.namespaceDef.elements.map((
+          element,
+        ) => typeof element === "string" ? JSON.parse(element) : element);
+        break;
+      }
+      case "class":
+        if (typeof docNode.classDef === "string") {
+          docNode.classDef = JSON.parse(docNode.classDef);
+        }
+        break;
+      case "enum":
+        if (typeof docNode.enumDef === "string") {
+          docNode.enumDef = JSON.parse(docNode.enumDef);
+        }
+        break;
+      case "function":
+        if (typeof docNode.functionDef === "string") {
+          docNode.functionDef = JSON.parse(
+            docNode.functionDef as unknown as string,
+          );
+        }
+        break;
+      case "import":
+        if (typeof docNode.importDef === "string") {
+          docNode.importDef = JSON.parse(
+            docNode.importDef as unknown as string,
+          );
+        }
+        break;
+      case "interface":
+        if (typeof docNode.interfaceDef === "string") {
+          docNode.interfaceDef = JSON.parse(
+            docNode.interfaceDef as unknown as string,
+          );
+        }
+        break;
+      case "typeAlias":
+        if (typeof docNode.typeAliasDef === "string") {
+          docNode.typeAliasDef = JSON.parse(
+            docNode.typeAliasDef as unknown as string,
+          );
+        }
+        break;
+      case "variable":
+        if (typeof docNode.variableDef === "string") {
+          docNode.variableDef = JSON.parse(
+            docNode.variableDef as unknown as string,
+          );
+        }
+    }
+  }
 }
 
 /** Take a datastore entity and convert it to a {@linkcode DocPage}. It will
@@ -1275,60 +1337,7 @@ function docPageToEntity(docPage: DocPage): Entity {
 export function entityToDocPage(entity: Entity): DocPage {
   const docPage = entityToObject<DocPage>(entity);
   if ("docNodes" in docPage) {
-    for (const docNode of docPage.docNodes) {
-      switch (docNode.kind) {
-        case "namespace": {
-          docNode.namespaceDef.elements = docNode.namespaceDef.elements.map((
-            element,
-          ) => typeof element === "string" ? JSON.parse(element) : element);
-          break;
-        }
-        case "class":
-          if (typeof docNode.classDef === "string") {
-            docNode.classDef = JSON.parse(docNode.classDef);
-          }
-          break;
-        case "enum":
-          if (typeof docNode.enumDef === "string") {
-            docNode.enumDef = JSON.parse(docNode.enumDef);
-          }
-          break;
-        case "function":
-          if (typeof docNode.functionDef === "string") {
-            docNode.functionDef = JSON.parse(
-              docNode.functionDef as unknown as string,
-            );
-          }
-          break;
-        case "import":
-          if (typeof docNode.importDef === "string") {
-            docNode.importDef = JSON.parse(
-              docNode.importDef as unknown as string,
-            );
-          }
-          break;
-        case "interface":
-          if (typeof docNode.interfaceDef === "string") {
-            docNode.interfaceDef = JSON.parse(
-              docNode.interfaceDef as unknown as string,
-            );
-          }
-          break;
-        case "typeAlias":
-          if (typeof docNode.typeAliasDef === "string") {
-            docNode.typeAliasDef = JSON.parse(
-              docNode.typeAliasDef as unknown as string,
-            );
-          }
-          break;
-        case "variable":
-          if (typeof docNode.variableDef === "string") {
-            docNode.variableDef = JSON.parse(
-              docNode.variableDef as unknown as string,
-            );
-          }
-      }
-    }
+    hydrateDocNodes(docPage.docNodes);
   }
   return docPage;
 }
@@ -1660,7 +1669,7 @@ function isPartitionIdEqual(
 }
 
 /** Determine if a datastore key is equal to another one. */
-function isKeyEqual(a: Key, b: Key): boolean {
+export function isKeyEqual(a: Key, b: Key): boolean {
   if (isPartitionIdEqual(a.partitionId, b.partitionId)) {
     return isPathEqual(a.path, b.path);
   }
@@ -1690,7 +1699,10 @@ function isPathEqual(a: PathElement[], b: PathElement[]): boolean {
  * {@linkcode Key} of the parent is returned. If the `descendent` is a direct
  * child of the `parent`, `undefined` is returned. If the provided key is not
  * a descendent of the parent, the function throws. */
-function descendentNotChild(parent: Key, descendent: Key): Key | undefined {
+export function descendentNotChild(
+  parent: Key,
+  descendent: Key,
+): Key | undefined {
   if (!isPartitionIdEqual(parent.partitionId, descendent.partitionId)) {
     throw new TypeError("Keys are from different partitions.");
   }
@@ -1877,7 +1889,7 @@ export async function getDocNodes(
   }
 }
 
-async function getNamespaceKeyInit(
+export async function getNamespaceKeyInit(
   datastore: Datastore,
   keyInit: KeyInit[],
   namespace: string,
@@ -1906,7 +1918,7 @@ function isStringValue(value: Value): value is ValueString {
   return "stringValue" in value;
 }
 
-function isNamespace(entity: Entity): boolean {
+export function isNamespace(entity: Entity): boolean {
   return !!(entity.key &&
     entity.key.path[entity.key.path.length - 1].kind === "doc_node" &&
     entity.properties && entity.properties["kind"] &&

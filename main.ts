@@ -18,6 +18,7 @@ import {
   lookupCodePage,
   lookupDocPage,
   lookupInfoPage,
+  lookupLibDocPage,
 } from "./cache.ts";
 import {
   checkMaybeLoad,
@@ -36,8 +37,10 @@ import {
   ROOT_SYMBOL,
 } from "./docs.ts";
 import { redirectToLatest } from "./modules.ts";
+import { generateLibDocPage } from "./pages.ts";
 import { enqueue } from "./process.ts";
 import { getDatastore } from "./store.ts";
+import { Library } from "./types.d.ts";
 
 interface PagedItems<T> {
   items: T[];
@@ -277,6 +280,31 @@ router.post(
   },
 );
 
+router.get("/v2/libs/:lib/:version/doc{/}?", async (ctx) => {
+  let { lib, version } = ctx.params;
+  datastore = datastore ?? await getDatastore();
+  if (version === "latest") {
+    const res = await datastore.lookup(datastore.key(["library", lib]));
+    if (res.found && res.found.length) {
+      const libItem = entityToObject<Library>(res.found[0].entity);
+      version = libItem.latest_version;
+    } else {
+      return;
+    }
+  }
+  const results = await queryDocNodes(
+    datastore,
+    datastore.key(
+      ["library", lib],
+      ["library_version", version],
+    ),
+    ctx.searchParams.kind as DocNodeKind,
+  );
+  if (results.length) {
+    return results;
+  }
+});
+
 router.get("/v2/modules/:module/:version/doc/:path*", async (ctx) => {
   const { module, version, path } = ctx.params;
   if (!isDocable(path)) {
@@ -410,7 +438,15 @@ router.get("/v2/pages/mod/info/:module/:version{/}?", async (ctx) => {
   return infoPage;
 });
 
-router.get("/v2/pages/doc/:module/:version/:path*{/}?", async (ctx) => {
+interface ModuleDocPagesParams extends Record<string, string> {
+  module: string;
+  version: string;
+  /** get around limitations of type inference on params */
+  "path*{": string;
+  path: string;
+}
+
+async function moduleDocPage(ctx: Context<unknown, ModuleDocPagesParams>) {
   let { module, version, path: paramPath } = ctx.params;
   module = decodeURIComponent(module);
   version = decodeURIComponent(version);
@@ -453,7 +489,7 @@ router.get("/v2/pages/doc/:module/:version/:path*{/}?", async (ctx) => {
       statusText: "Moved Permanently",
       headers: {
         location:
-          `/v2/pages/doc/${module}/${version}${docPage.path}${ctx.url().search}`,
+          `/v2/pages/mod/doc/${module}/${version}${docPage.path}${ctx.url().search}`,
         "X-Deno-Module": module,
         "X-Deno-Version": version,
         "X-Deno-Module-Path": docPage.path,
@@ -461,7 +497,31 @@ router.get("/v2/pages/doc/:module/:version/:path*{/}?", async (ctx) => {
     });
   }
   return docPage;
-});
+}
+
+router.get("/v2/pages/doc/:module/:version/:path*{/}?", moduleDocPage);
+router.get("/v2/pages/mod/doc/:module/:version/:path*{/}?", moduleDocPage);
+
+interface LibDocPagesParams extends Record<string, string> {
+  lib: string;
+  version: string;
+  // get around param inference limitations
+  "version{": string;
+}
+
+async function libDocPage(ctx: Context<unknown, LibDocPagesParams>) {
+  let { lib, version } = ctx.params;
+  lib = decodeURIComponent(lib);
+  version = decodeURIComponent(version);
+  const symbol = ctx.searchParams.symbol ?? ROOT_SYMBOL;
+  let docPage = await lookupLibDocPage(lib, version, symbol);
+  if (!docPage) {
+    docPage = await generateLibDocPage(lib, version, symbol);
+  }
+  return docPage;
+}
+
+router.get("/v2/pages/lib/doc/:lib/:version{/}?", libDocPage);
 
 // webhooks
 
