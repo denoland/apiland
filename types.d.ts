@@ -186,7 +186,7 @@ export interface ModInfoPage {
   config?: string;
   /** The file entry for an import map specified within the detectable config
    * file. */
-  importMap?: string;
+  import_map?: string;
   uploaded_at: string;
   upload_options?: {
     type: string;

@@ -92,6 +92,7 @@ router.all("/", () =>
         <ul>
           <li><code>/v2/pages/doc/:module/:version/:path*</code> - provides a structure to render a doc view page - [<a href="/v2/pages/doc/std/0.150.0/testing/asserts.ts">example</a>]</li>
           <li><code>/v2/pages/code/:module/:version/:path*</code> - provides a structure to render a code view page - [<a href="/v2/pages/code/std/0.150.0/testing/asserts.ts">example</a>]</li>
+          <li><code>/v2/pages/mod/info/:module/:version</code> - provides a structure to render a module info page - [<a href="/v2/pages/info/oak/v11.0.0">example</a>]</li>
           <li><code>/v2/modules</code> - Provide a list of modules in the registry - [<a href="/v2/modules" target="_blank">example</a>]</li>
           <li><code>/v2/metrics/modules/:module</code> - Provide metric information for a module -  [<a href="/v2/metrics/modules/oak" target="_blank">example</a>]</li>
           <li><code>/v2/modules/:module</code> - Provide information about a specific module - [<a href="/v2/modules/std" target="_blank">example</a>]</li>
