@@ -6,7 +6,7 @@
  * @module
  */
 
-import { auth, type Context, Router } from "acorn";
+import { auth, type Context, NativeHttpServer, Router } from "acorn";
 import { errors, isHttpError } from "oak_commons/http_errors.ts";
 import { type Datastore, entityToObject } from "google_datastore";
 
@@ -442,8 +442,6 @@ router.get("/v2/pages/mod/info/:module/:version{/}?", async (ctx) => {
 interface ModuleDocPagesParams extends Record<string, string> {
   module: string;
   version: string;
-  /** get around limitations of type inference on params */
-  "path*{": string;
   path: string;
 }
 
@@ -506,8 +504,6 @@ router.get("/v2/pages/mod/doc/:module/:version/:path*{/}?", moduleDocPage);
 interface LibDocPagesParams extends Record<string, string> {
   lib: string;
   version: string;
-  // get around param inference limitations
-  "version{": string;
 }
 
 async function libDocPage(ctx: Context<unknown, LibDocPagesParams>) {
@@ -651,5 +647,6 @@ router.addEventListener("error", (evt) => {
 // we only listen if this is the main module (or on Deploy). This allows the
 // router listening to be controlled in the tests.
 if (Deno.env.get("DENO_DEPLOYMENT_ID") || Deno.mainModule === import.meta.url) {
+  // router.listen({ port: 3000, server: NativeHttpServer });
   router.listen({ port: 3000 });
 }

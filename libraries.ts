@@ -11,10 +11,11 @@ import {
 } from "google_datastore";
 import type { Mutation } from "google_datastore/types";
 import { parse } from "std/flags/mod.ts";
+import * as semver from "std/semver/mod.ts";
 
 import { addNodes, mergeEntries } from "./docs.ts";
 import { getDatastore } from "./store.ts";
-import type { Library, LibraryVersion } from "./types.d.ts";
+import type { DocNode, Library, LibraryVersion } from "./types.d.ts";
 import { assert } from "./util.ts";
 
 interface GitHubAsset {
@@ -34,6 +35,7 @@ interface GitHubRelease {
 const LIBRARY_KIND = "library";
 const LIBRARY_VERSION_KIND = "library_version";
 const DENO_STABLE_NAME = "deno_stable";
+const DENO_UNSTABLE_NAME = "deno_unstable";
 
 const GITHUB_API_HEADERS = {
   accept: "application/vnd.github.v3+json",
@@ -89,30 +91,112 @@ async function commit(datastore: Datastore, mutations: Mutation[]) {
 async function docLibrary(
   datastore: Datastore,
   mutations: Mutation[],
-  source: string,
-  contentType: string | undefined,
+  sources: { url: string; contentType?: string }[],
   keyInit: KeyInit[],
 ) {
-  const docNodes = mergeEntries(
-    await doc(source, {
-      includeAll: true,
-      async load(specifier) {
-        const res = await dax.request(specifier).noThrow();
-        if (res.status === 200) {
-          return {
-            specifier,
-            headers: {
-              "content-type": contentType ?? res.headers.get("content-type") ??
-                "application/typescript",
-            },
-            content: await res.text(),
-            kind: "module",
-          };
-        }
-      },
-    }),
-  );
+  let items: DocNode[] = [];
+  for (const { url, contentType } of sources) {
+    items = items.concat(
+      await doc(url, {
+        includeAll: true,
+        async load(specifier) {
+          const res = await dax.request(specifier).noThrow();
+          if (res.status === 200) {
+            return {
+              specifier,
+              headers: {
+                "content-type": contentType ??
+                  res.headers.get("content-type") ??
+                  "application/typescript",
+              },
+              content: await res.text(),
+              kind: "module",
+            };
+          }
+        },
+      }),
+    );
+  }
+  const docNodes = mergeEntries(items);
   addNodes(datastore, mutations, docNodes, keyInit);
+}
+
+async function loadUnstableLibrary(reload: boolean) {
+  dax.logStep("Loading the Deno CLI stable + unstable libraries...");
+  dax.logStep("Fetching most recent 100 release...");
+  const releases = await dax
+    .request(
+      "https://api.github.com/repos/denoland/deno/releases?per_page=100",
+    )
+    .header(GITHUB_API_HEADERS).json<GitHubRelease[]>();
+  const unstableVersions = new Map<string, LibraryVersion>();
+  let latestVersion: string | undefined;
+  for (const release of releases) {
+    if (!release.draft && !release.prerelease) {
+      latestVersion = latestVersion ?? release.tag_name;
+      for (const asset of release.assets) {
+        if (asset.name === "lib.deno.d.ts") {
+          unstableVersions.set(release.tag_name, {
+            name: DENO_UNSTABLE_NAME,
+            version: release.tag_name,
+            sources: [
+              {
+                url: asset.browser_download_url,
+                contentType: asset.content_type,
+              },
+              {
+                url: semver.lte(release.tag_name, "1.2.0")
+                  ? `https://raw.githubusercontent.com/denoland/deno/${release.tag_name}/cli/js/lib.deno.unstable.d.ts`
+                  : `https://raw.githubusercontent.com/denoland/deno/${release.tag_name}/cli/dts/lib.deno.unstable.d.ts`,
+                contentType: "application/typescript",
+              },
+            ],
+          });
+        }
+      }
+    }
+  }
+  assert(latestVersion);
+  const library: Library = {
+    name: DENO_UNSTABLE_NAME,
+    versions: [...unstableVersions].map(([, { version }]) => version),
+    latest_version: latestVersion,
+  };
+  const datastore = await getDatastore();
+  const libraryKey = datastore.key([LIBRARY_KIND, DENO_UNSTABLE_NAME]);
+  if (!reload) {
+    const versionQuery = datastore
+      .createQuery(LIBRARY_VERSION_KIND)
+      .hasAncestor(libraryKey)
+      .select("__key__");
+    for await (const { key } of datastore.streamQuery(versionQuery)) {
+      if (key && key.path[1]?.name) {
+        unstableVersions.delete(key.path[1].name);
+      }
+    }
+  }
+  if (!unstableVersions.size) {
+    dax.logWarn("Nothing to load.");
+    return;
+  }
+  dax.logStep(`Creating ${unstableVersions.size} unstable library versions...`);
+  objectSetKey(library, libraryKey);
+  let mutations: Mutation[] = [];
+  mutations.push({ upsert: objectToEntity(library) });
+  for (const [versionName, version] of unstableVersions) {
+    dax.logLight(`  documenting ${versionName}...`);
+    const keyInit: KeyInit[] = [
+      [LIBRARY_KIND, DENO_UNSTABLE_NAME],
+      [LIBRARY_VERSION_KIND, versionName],
+    ];
+    await clear(datastore, mutations, keyInit);
+    objectSetKey(version, datastore.key(...keyInit));
+    mutations.push({ upsert: objectToEntity(version) });
+    await docLibrary(datastore, mutations, version.sources, keyInit);
+    await commit(datastore, mutations);
+    mutations = [];
+  }
+  dax.logStep("Success.");
 }
 
 async function loadStableLibrary(reload: boolean) {
@@ -133,8 +217,10 @@ async function loadStableLibrary(reload: boolean) {
           stableVersions.set(release.tag_name, {
             name: DENO_STABLE_NAME,
             version: release.tag_name,
-            source: asset.browser_download_url,
-            source_content_type: asset.content_type,
+            sources: [{
+              url: asset.browser_download_url,
+              contentType: asset.content_type,
+            }],
           });
         }
       }
@@ -176,13 +262,7 @@ async function loadStableLibrary(reload: boolean) {
     await clear(datastore, mutations, keyInit);
     objectSetKey(version, datastore.key(...keyInit));
     mutations.push({ upsert: objectToEntity(version) });
-    await docLibrary(
-      datastore,
-      mutations,
-      version.source,
-      version.source_content_type,
-      keyInit,
-    );
+    await docLibrary(datastore, mutations, version.sources, keyInit);
     await commit(datastore, mutations);
     mutations = [];
   }
@@ -193,6 +273,8 @@ function loadLibrary(name: string, reload: boolean) {
   switch (name) {
     case "stable":
       return loadStableLibrary(reload);
+    case "unstable":
+      return loadUnstableLibrary(reload);
     default:
       dax.logError(`Unsupported loading of library: "${name}".`);
   }
