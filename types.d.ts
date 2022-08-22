@@ -161,6 +161,44 @@ export interface DocPageRedirect {
   path: string;
 }
 
+interface ModInfoDependency {
+  kind: "denoland" | "esm" | "github" | "skypack" | "other";
+  package: string;
+  version: string;
+}
+
+export interface ModInfoPage {
+  kind: "modinfo";
+  module: string;
+  description?: string;
+  version: string;
+  versions: string[];
+  latest_version: string;
+  /** An array of dependencies identified for the module. */
+  dependencies?: ModInfoDependency[];
+  /** The default module for the module. */
+  defaultModule?: string;
+  /** A flag that indicates if the default module has a default export. */
+  defaultExport?: string;
+  /** The file entry for the module that is a README to be rendered. */
+  readme?: string;
+  /** The file entry for the module that has a detectable deno configuration. */
+  config?: string;
+  /** The file entry for an import map specified within the detectable config
+   * file. */
+  import_map?: string;
+  uploaded_at: string;
+  upload_options?: {
+    type: string;
+    repository: string;
+    ref: string;
+    subdir?: string;
+  };
+  tags?: ModuleTag[];
+}
+
+export type InfoPage = ModInfoPage | PageInvalidVersion | PageNoVersions;
+
 export interface PagePathNotFound extends PageBase {
   kind: "notfound";
 }

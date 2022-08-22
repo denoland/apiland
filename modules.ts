@@ -200,6 +200,7 @@ export function isIndexedDir(item: PackageMetaListing): boolean {
 
 const MODULE_KINDS = [
   "doc_page",
+  "info_page",
   "code_page",
 ];
 const VERSION_KINDS = [
@@ -266,6 +267,7 @@ export async function loadModule(
     moduleVersion: ModuleVersion | undefined,
     moduleEntry: ModuleEntry | undefined,
     toDoc: [string, string, Set<string>][],
+    moduleEntries: ModuleEntry[],
   ]
 > {
   const moduleData = await getModuleData(module);
@@ -300,6 +302,7 @@ export async function loadModule(
   let moduleVersion: ModuleVersion | undefined;
   let foundModuleEntry: ModuleEntry | undefined;
   const toDoc: [string, string, Set<string>][] = [];
+  const moduleEntries: ModuleEntry[] = [];
   if (version) {
     let versions: string[] = [];
     if (version === "all") {
@@ -375,6 +378,7 @@ export async function loadModule(
         if (moduleEntry.path === path) {
           foundModuleEntry = moduleEntry;
         }
+        moduleEntries.push(moduleEntry);
         mutations.push({ upsert: objectToEntity(moduleEntry) });
       }
       // we skip any module which has > 2000 modules to document
@@ -384,5 +388,12 @@ export async function loadModule(
     }
   }
 
-  return [mutations, moduleItem, moduleVersion, foundModuleEntry, toDoc];
+  return [
+    mutations,
+    moduleItem,
+    moduleVersion,
+    foundModuleEntry,
+    toDoc,
+    moduleEntries,
+  ];
 }

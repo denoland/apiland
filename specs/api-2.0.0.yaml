@@ -826,6 +826,43 @@ paths:
             text/html:
               schema:
                 type: string
+  /v2/pages/mod/info/{module}/{version}:
+    get:
+      tags:
+        - pages
+      summary: Get information about a module to render a doc page.
+      description: >
+        Responds with all the information needed to render a doc page of a
+        module.
+      operationId: getPageModInfo
+      parameters:
+        - name: module
+          in: path
+          required: true
+          schema:
+            $ref: "#/components/schemas/ModuleName"
+        - name: version
+          in: path
+          required: true
+          schema:
+            type: string
+            example: "0.148.0"
+      responses:
+        "200":
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InfoPage"
+        "404":
+          description: Not found - the requested resource was not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HttpError"
+            text/html:
+              schema:
+                type: string
   /shields/{module}/popularity:
     get:
       tags:
@@ -1173,6 +1210,15 @@ components:
         - "path"
         - "size"
         - "ignored"
+    InfoPage:
+      oneOf:
+        - $ref: "#/components/schemas/ModInfoPage"
+        - $ref: "#/components/schemas/PageInvalidVersion"
+      discriminator:
+        propertyName: kind
+        mapping:
+          modinfo: "#/components/schemas/ModInfoPage"
+          invalid-version: "#/components/schemas/PageInvalidVersion"
     JsDoc:
       type: object
       properties:
@@ -1211,6 +1257,84 @@ components:
             - typedef
             - type
             - unsupported
+    ModInfoDependency:
+      type: object
+      properties:
+        kind:
+          type: string
+          enum:
+            - denoland
+            - esm
+            - github
+            - skypack
+            - other
+          example: denoland
+        package:
+          type: string
+          example: std
+        version:
+          type: string
+          example: "0.152.0"
+    ModInfoPage:
+      type: object
+      properties:
+        kind:
+          type: string
+          example: modinfo
+        module:
+          $ref: "#/components/schemas/ModuleName"
+        description:
+          type: string
+          example: A module for Deno
+        version:
+          type: string
+          example: "0.148.0"
+        path:
+          type: string
+          example: "/mod.ts"
+        versions:
+          type: array
+          items:
+            type: string
+          example: ["0.146.0", "0.147.0", "0.148.0"]
+        latest_version:
+          type: string
+          example: "0.148.0"
+        dependencies:
+          type: array
+          items:
+            $ref: "#/components/schemas/ModInfoDependency"
+        defaultModule:
+          type: string
+          example: "/mod.ts"
+        defaultExport:
+          type: boolean
+        readme:
+          type: string
+          example: "/README.md"
+        config:
+          type: string
+          example: "/deno.jsonc"
+        import_map:
+          type: string
+          example: "/import-map.json"
+        uploaded_at:
+          type: string
+          format: date-time
+          example: 2022-05-06T01:03:14.774Z
+        upload_options:
+          $ref: "#/components/schemas/UploadOptions"
+        tags:
+          type: array
+          items:
+            $ref: "#/components/schemas/ModuleTag"
+      required:
+        - "kind"
+        - "module"
+        - "version"
+        - "versions"
+        - "latest_version"
+        - "uploaded_at"
     Module:
       type: object
       properties:
@@ -1287,6 +1411,13 @@ components:
       type: string
       pattern: "^[A-Za-z_]{3,}$"
       example: oak
+    ModuleTag:
+      oneOf:
+        - $ref: "#/components/schemas/PopularityModuleTag"
+      discriminator:
+        propertyName: kind
+        mapping:
+          popularity: "#/components/schemas/PopularityModuleTag"
     ModuleVersion:
       type: object
       properties:
@@ -1339,6 +1470,10 @@ components:
         star_count:
           type: number
           example: 2406
+        tags:
+          type: array
+          items:
+            $ref: "#/components/schemas/ModuleTag"
       required:
         - "kind"
         - "module"
@@ -1414,6 +1549,18 @@ components:
         previous:
           type: string
           example: /modules?limit=100&page=1
+    PopularityModuleTag:
+      type: object
+      properties:
+        kind:
+          type: string
+          example: "popularity"
+        value:
+          type: string
+          enum:
+            - "top_1_percent"
+            - "top_5_percent"
+            - "top_10_percent"
     ShieldsPayload:
       type: object
       properties:
