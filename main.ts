@@ -17,6 +17,7 @@ import {
   lookup,
   lookupCodePage,
   lookupDocPage,
+  lookupInfoPage,
 } from "./cache.ts";
 import {
   checkMaybeLoad,
@@ -25,6 +26,7 @@ import {
   generateCodePage,
   generateDocNodes,
   generateDocPage,
+  generateInfoPage,
   generateModuleIndex,
   generateSymbolIndex,
   getDocNodes,
@@ -390,6 +392,21 @@ router.get("/v2/pages/code/:module/:version/:path*{/}?", async (ctx) => {
     }
   }
   return codePage;
+});
+
+router.get("/v2/pages/mod/info/:module/:version{/}?", async (ctx) => {
+  let { module, version } = ctx.params;
+  module = decodeURIComponent(module);
+  version = decodeURIComponent(version);
+  if (version === "__latest__") {
+    return redirectToLatest(ctx.url(), module);
+  }
+
+  let infoPage = await lookupInfoPage(module, version);
+  if (!infoPage) {
+    infoPage = await generateInfoPage(module, version);
+  }
+  return infoPage;
 });
 
 router.get("/v2/pages/doc/:module/:version/:path*{/}?", async (ctx) => {

@@ -38,7 +38,7 @@ import type {
 import * as JSONC from "jsonc-parser";
 import { errors } from "oak_commons/http_errors.ts";
 
-import { lookup } from "./cache.ts";
+import { cacheInfoPage, lookup } from "./cache.ts";
 import {
   getIndexModule,
   loadModule,
@@ -59,6 +59,8 @@ import type {
   DocPageNavItem,
   DocPageSymbol,
   IndexItem,
+  InfoPage,
+  ModInfoPage,
   Module,
   ModuleEntry,
   ModuleVersion,
@@ -753,6 +755,131 @@ async function getDocPageSymbol(
   if (docPage.docNodes.length) {
     return docPage;
   }
+}
+
+let datastore: Datastore | undefined;
+
+async function getModuleEntries(
+  module: string,
+  version: string,
+): Promise<ModuleEntry[]> {
+  datastore = datastore || await getDatastore();
+  const query = datastore
+    .createQuery("module_entry")
+    .hasAncestor(datastore.key(
+      ["module", module],
+      ["module_version", version],
+    ));
+  const entries: ModuleEntry[] = [];
+  for await (const entity of datastore.streamQuery(query)) {
+    entries.push(entityToObject(entity));
+  }
+  return entries;
+}
+
+function getDefaultModule(entries: ModuleEntry[]): string | undefined {
+  for (const entry of entries) {
+    if (entry.path === "/" && entry.type === "dir") {
+      return entry.default;
+    }
+  }
+}
+
+function getConfig(entries: ModuleEntry[]): string | undefined {
+  for (const entry of entries) {
+    if (entry.type === "file" && /^\/deno\.jsonc?$/i.test(entry.path)) {
+      return entry.path;
+    }
+  }
+}
+
+function getReadme(entries: ModuleEntry[]): string | undefined {
+  for (const entry of entries) {
+    if (
+      entry.type === "file" &&
+      /^\/README(\.(md|txt|markdown))?$/i.test(entry.path)
+    ) {
+      return entry.path;
+    }
+  }
+}
+
+function getModInfoPage(
+  moduleItem: Module,
+  moduleVersion: ModuleVersion,
+  entries: ModuleEntry[],
+): ModInfoPage {
+  const {
+    name: module,
+    description,
+    latest_version,
+    tags,
+    versions,
+  } = moduleItem;
+  assert(latest_version);
+  const { uploaded_at, upload_options, version } = moduleVersion;
+  const defaultModule = getDefaultModule(entries);
+  const config = getConfig(entries);
+  const readme = getReadme(entries);
+  return {
+    kind: "modinfo",
+    module,
+    description,
+    version,
+    versions,
+    latest_version,
+    defaultModule,
+    readme,
+    config,
+    uploaded_at: uploaded_at.toISOString(),
+    upload_options,
+    tags,
+  };
+}
+
+export async function generateInfoPage(
+  module: string,
+  version: string,
+): Promise<InfoPage | undefined> {
+  let [moduleItem, moduleVersion] = await lookup(module, version);
+  let moduleEntries: ModuleEntry[] | undefined;
+  if (
+    !moduleItem || (!moduleVersion && moduleItem.versions.includes(version))
+  ) {
+    let mutations: Mutation[];
+    try {
+      [
+        mutations,
+        moduleItem,
+        moduleVersion,
+        ,
+        ,
+        moduleEntries,
+      ] = await loadModule(module, version);
+      enqueue({ kind: "commitMutations", mutations });
+    } catch (e) {
+      console.log("error loading module", e);
+      return undefined;
+    }
+  }
+  if (!moduleVersion) {
+    assert(moduleItem);
+    return getPageInvalidVersion(moduleItem);
+  }
+  if (!moduleItem.latest_version) {
+    return { kind: "no-versions", module: moduleItem.name };
+  }
+  moduleEntries = moduleEntries || await getModuleEntries(module, version);
+  const infoPage = getModInfoPage(moduleItem, moduleVersion, moduleEntries);
+  datastore = datastore || await getDatastore();
+  objectSetKey(
+    infoPage,
+    datastore.key(["module", module], ["info_page", version]),
+  );
+  const mutations: Mutation[] = [{ upsert: objectToEntity(infoPage) }];
+  enqueue({ kind: "commitMutations", mutations });
+  cacheInfoPage(module, version, infoPage);
+  return infoPage;
 }
 
 export async function generateDocPage(

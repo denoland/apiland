@@ -7,6 +7,7 @@ import { getDatastore } from "./store.ts";
 import type {
   CodePage,
   DocPage,
+  InfoPage,
   Module,
   ModuleEntry,
   ModuleVersion,
@@ -20,6 +21,7 @@ const CACHED_MODULE_COUNT =
 const cachedModules = new Map<string, Module>();
 const cachedVersions = new WeakMap<Module, Map<string, ModuleVersion>>();
 const cachedEntries = new WeakMap<ModuleVersion, Map<string, ModuleEntry>>();
+const cachedInfoPages = new WeakMap<Module, Map<string, InfoPage>>();
 const cachedDocPages = new WeakMap<ModuleEntry, Map<string, DocPage>>();
 const cachedCodePages = new WeakMap<ModuleVersion, Map<string, CodePage>>();
 
@@ -113,10 +115,7 @@ export async function lookupCodePage(
       keys.push(datastore.key(["module", module]));
     }
     if (!versionItem) {
-      keys.push(datastore.key(
-        ["module", module],
-        ["module_version", version],
-      ));
+      keys.push(datastore.key(["module", module], ["module_version", version]));
     }
     keys.push(datastore.key(
       ["module", module],
@@ -165,6 +164,52 @@ export async function lookupCodePage(
     enqueuePrune();
   }
   return codePageItem;
+}
+
+export async function lookupInfoPage(
+  module: string,
+  version: string,
+): Promise<InfoPage | undefined> {
+  let moduleItem = cachedModules.get(module);
+  let infoPageItem = moduleItem &&
+    cachedInfoPages.get(moduleItem)?.get(version);
+  if (!infoPageItem) {
+    datastore = datastore || await getDatastore();
+    const keys: Key[] = [];
+    if (!moduleItem) {
+      keys.push(datastore.key(["module", module]));
+    }
+    keys.push(datastore.key(["module", module], ["info_page", version]));
+
+    const res = await datastore.lookup(keys);
+    if (res.found) {
+      for (const { entity } of res.found) {
+        assert(entity.key);
+        const entityKind = entity.key.path[entity.key.path.length - 1].kind;
+        switch (entityKind) {
+          case "module":
+            moduleItem = entityToObject(entity);
+            cachedModules.set(module, moduleItem);
+            break;
+          case "info_page": {
+            infoPageItem = entityToObject(entity);
+            assert(moduleItem);
+            if (!cachedInfoPages.has(moduleItem)) {
+              cachedInfoPages.set(moduleItem, new Map());
+            }
+            const infoPages = cachedInfoPages.get(moduleItem)!;
+            infoPages.set(version, infoPageItem);
+            break;
+          }
+        }
+      }
+    }
+  }
+  if (moduleItem) {
+    cachedModuleNames.add(module);
+    enqueuePrune();
+  }
+  return infoPageItem;
 }
 
 export async function lookupDocPage(
@@ -434,5 +479,21 @@ export function cacheDocPage(
         cachedModuleNames.add(module);
       }
     }
+  }
+}
+
+export function cacheInfoPage(
+  module: string,
+  version: string,
+  infoPage: InfoPage,
+): void {
+  const moduleItem = cachedModules.get(module);
+  if (moduleItem) {
+    if (!cachedInfoPages.has(moduleItem)) {
+      cachedInfoPages.set(moduleItem, new Map());
+    }
+    const infoPages = cachedInfoPages.get(moduleItem)!;
+    infoPages.set(version, infoPage);
+    cachedModuleNames.add(module);
   }
 }
