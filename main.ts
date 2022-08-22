@@ -6,7 +6,7 @@
  * @module
  */
 
-import { auth, type Context, NativeHttpServer, Router } from "acorn";
+import { auth, type Context, Router } from "acorn";
 import { errors, isHttpError } from "oak_commons/http_errors.ts";
 import { type Datastore, entityToObject } from "google_datastore";
 
