@@ -10,6 +10,22 @@ import type { DocNode, DocNodeKind, JsDoc } from "deno_doc/types";
 
 export type { DocNode } from "deno_doc/types";
 
+export interface Library {
+  name: string;
+  versions: string[];
+  latest_version: string;
+}
+
+export interface LibraryVersion {
+  name: string;
+  version: string;
+  sources: { url: string; contentType?: string }[];
+}
+
+export interface LibrarySymbolItems {
+  items: SymbolItem[];
+}
+
 /** Stored as kind `module` in the datastore. */
 export interface Module {
   name: string;
@@ -111,10 +127,10 @@ interface DocPageDirItem {
   path: string;
 }
 
-interface SymbolItem {
+export interface SymbolItem {
   name: string;
   kind: DocNodeKind;
-  jsDoc?: JsDoc;
+  jsDoc?: JsDoc | null;
 }
 
 export interface IndexItem {
@@ -226,6 +242,37 @@ export type DocPage =
   | PageNoVersions
   | PagePathNotFound
   | DocPageRedirect;
+
+interface DocPageLibraryBase {
+  kind: string;
+  name: string;
+  version: string;
+  versions: string[];
+  latest_version: string;
+}
+
+export interface DocPageLibrary extends DocPageLibraryBase {
+  kind: "library";
+  items: SymbolItem[];
+}
+
+export interface DocPageLibrarySymbol extends DocPageLibraryBase {
+  kind: "librarySymbol";
+  items: SymbolItem[];
+  docNodes: DocNode[];
+}
+
+export interface DocPageLibraryInvalidVersion {
+  kind: "libraryInvalidVersion";
+  name: string;
+  versions: string[];
+  latest_version: string;
+}
+
+export type LibDocPage =
+  | DocPageLibrary
+  | DocPageLibrarySymbol
+  | DocPageLibraryInvalidVersion;
 
 export interface CodePageFile extends PageBase {
   kind: "file";
