@@ -647,6 +647,5 @@ router.addEventListener("error", (evt) => {
 // we only listen if this is the main module (or on Deploy). This allows the
 // router listening to be controlled in the tests.
 if (Deno.env.get("DENO_DEPLOYMENT_ID") || Deno.mainModule === import.meta.url) {
-  // router.listen({ port: 3000, server: NativeHttpServer });
   router.listen({ port: 3000 });
 }
