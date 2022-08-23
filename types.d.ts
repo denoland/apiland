@@ -193,16 +193,16 @@ export interface ModInfoPage {
   /** An array of dependencies identified for the module. */
   dependencies?: ModInfoDependency[];
   /** The default module for the module. */
-  defaultModule?: string;
+  defaultModule?: ModuleEntry;
   /** A flag that indicates if the default module has a default export. */
-  defaultExport?: string;
+  defaultExport?: boolean;
   /** The file entry for the module that is a README to be rendered. */
-  readme?: string;
+  readme?: ModuleEntry;
   /** The file entry for the module that has a detectable deno configuration. */
-  config?: string;
+  config?: ModuleEntry;
   /** The file entry for an import map specified within the detectable config
    * file. */
-  import_map?: string;
+  import_map?: ModuleEntry;
   uploaded_at: string;
   upload_options?: {
     type: string;

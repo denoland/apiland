@@ -1379,20 +1379,16 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/ModInfoDependency"
-        defaultModule:
-          type: string
-          example: "/mod.ts"
+        defaultModule: 
+          $ref: "#/components/schemas/ModuleEntry"
         defaultExport:
           type: boolean
         readme:
-          type: string
-          example: "/README.md"
+          $ref: "#/components/schemas/ModuleEntry"
         config:
-          type: string
-          example: "/deno.jsonc"
+          $ref: "#/components/schemas/ModuleEntry"
         import_map:
-          type: string
-          example: "/import-map.json"
+          $ref: "#/components/schemas/ModuleEntry"
         uploaded_at:
           type: string
           format: date-time
@@ -1446,6 +1442,38 @@ components:
               type: array
               items:
                 $ref: "#/components/schemas/ModuleMetrics"
+    ModuleEntry:
+      type: object
+      properties:
+        path:
+          type: string
+          example: "/mod.ts"
+        type:
+          type: string
+          enum:
+            - "file"
+            - "dir"
+          example: "file"
+        size:
+          type: number
+          example: 4532
+        default:
+          type: string
+          example: "/mod.ts"
+        dirs:
+          type: array
+          items:
+            type: string
+        docable:
+          type: boolean
+        index:
+          type: array
+          items:
+            type: string
+      required:
+        - "path"
+        - "type"
+        - "size"
     ModuleList:
       allOf:
         - $ref: "#/components/schemas/ListBase"
