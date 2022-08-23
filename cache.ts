@@ -165,8 +165,8 @@ export async function lookupSourcePage(
             if (!cachedSourcePages.has(versionItem)) {
               cachedSourcePages.set(versionItem, new Map());
             }
-            const codePages = cachedSourcePages.get(versionItem)!;
-            codePages.set(path, sourcePageItem);
+            const sourcePages = cachedSourcePages.get(versionItem)!;
+            sourcePages.set(path, sourcePageItem);
             break;
           }
           default:
