@@ -12,23 +12,23 @@ import { type Datastore, entityToObject } from "google_datastore";
 
 import { endpointAuth } from "./auth.ts";
 import {
-  cacheCodePage,
   cacheDocPage,
+  cacheSourcePage,
   lookup,
-  lookupCodePage,
   lookupDocPage,
   lookupInfoPage,
   lookupLibDocPage,
+  lookupSourcePage,
 } from "./cache.ts";
 import {
   checkMaybeLoad,
   type DocNode,
   type DocNodeKind,
-  generateCodePage,
   generateDocNodes,
   generateDocPage,
   generateInfoPage,
   generateModuleIndex,
+  generateSourcePage,
   generateSymbolIndex,
   getDocNodes,
   getImportMapSpecifier,
@@ -95,7 +95,7 @@ router.all("/", () =>
         <ul>
           <li><code>/v2/pages/mod/doc/:module/:version/:path*</code> - provides a structure to render a doc view page - [<a href="/v2/pages/mod/doc/std/0.150.0/testing/asserts.ts">example</a>]</li>
           <li><code>/v2/pages/lib/doc/:module/:version/:path*</code> - provides a structure to render a doc view page - [<a href="/v2/pages/lib/doc/deno_stable/latest?symbol=Deno.errors">example</a>]</li>
-          <li><code>/v2/pages/code/:module/:version/:path*</code> - provides a structure to render a code view page - [<a href="/v2/pages/code/std/0.150.0/testing/asserts.ts">example</a>]</li>
+          <li><code>/v2/pages/mod/source/:module/:version/:path*</code> - provides a structure to render a source view page - [<a href="/v2/pages/mod/source/std/0.150.0/testing/asserts.ts">example</a>]</li>
           <li><code>/v2/pages/mod/info/:module/:version</code> - provides a structure to render a module info page - [<a href="/v2/pages/info/oak/v11.0.0">example</a>]</li>
           <li><code>/v2/modules</code> - Provide a list of modules in the registry - [<a href="/v2/modules" target="_blank">example</a>]</li>
           <li><code>/v2/metrics/modules/:module</code> - Provide metric information for a module -  [<a href="/v2/metrics/modules/oak" target="_blank">example</a>]</li>
@@ -392,7 +392,15 @@ router.get("/v2/modules/:module/:version/symbols/:path*{/}?", async (ctx) => {
   return index;
 });
 
-router.get("/v2/pages/code/:module/:version/:path*{/}?", async (ctx) => {
+interface ModuleSourcePagesParams extends Record<string, string> {
+  module: string;
+  version: string;
+  path: string;
+}
+
+async function moduleSourcePage(
+  ctx: Context<unknown, ModuleSourcePagesParams>,
+) {
   let { module, version, path: paramPath } = ctx.params;
   module = decodeURIComponent(module);
   version = decodeURIComponent(version);
@@ -401,28 +409,35 @@ router.get("/v2/pages/code/:module/:version/:path*{/}?", async (ctx) => {
     return redirectToLatest(ctx.url(), module);
   }
   const path = `/${paramPath}`;
-  let codePage = await lookupCodePage(module, version, path);
-  if (!codePage) {
+  let sourcePage = await lookupSourcePage(module, version, path);
+  if (!sourcePage) {
     datastore = datastore ?? await getDatastore();
-    codePage = await generateCodePage(datastore, module, version, path);
-    if (codePage) {
-      cacheCodePage(module, version, path, codePage);
+    sourcePage = await generateSourcePage(datastore, module, version, path);
+    if (sourcePage) {
+      cacheSourcePage(module, version, path, sourcePage);
     }
     if (
-      codePage && codePage.kind !== "invalid-version" &&
-      codePage.kind !== "notfound"
+      sourcePage && sourcePage.kind !== "invalid-version" &&
+      sourcePage.kind !== "notfound"
     ) {
       enqueue({
-        kind: "commitCodePage",
+        kind: "commitSourcePage",
         module,
         version,
         path,
-        codePage,
+        sourcePage,
       });
     }
   }
-  return codePage;
-});
+  return sourcePage;
+}
+
+/** @deprecated to be removed */
+router.get("/v2/pages/code/:module/:version/:path*{/}?", moduleSourcePage);
+router.get(
+  "/v2/pages/mod/source/:module/:version/:path*{/}?",
+  moduleSourcePage,
+);
 
 router.get("/v2/pages/mod/info/:module/:version{/}?", async (ctx) => {
   let { module, version } = ctx.params;
@@ -498,6 +513,7 @@ async function moduleDocPage(ctx: Context<unknown, ModuleDocPagesParams>) {
   return docPage;
 }
 
+/** @deprecated to be removed */
 router.get("/v2/pages/doc/:module/:version/:path*{/}?", moduleDocPage);
 router.get("/v2/pages/mod/doc/:module/:version/:path*{/}?", moduleDocPage);
 
