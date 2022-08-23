@@ -779,31 +779,26 @@ async function getModuleEntries(
   return entries;
 }
 
-function getDefaultModule(entries: ModuleEntry[]): string | undefined {
-  for (const entry of entries) {
-    if (entry.path === "/" && entry.type === "dir") {
-      return entry.default;
-    }
+function getDefaultModule(entries: ModuleEntry[]): ModuleEntry | undefined {
+  const root = entries.find(({ path, type }) => path === "/" && type === "dir");
+  const defModule = root?.default;
+  if (defModule) {
+    return entries.find(({ path, type }) =>
+      path === defModule && type === "file"
+    );
   }
 }
 
-function getConfig(entries: ModuleEntry[]): string | undefined {
-  for (const entry of entries) {
-    if (entry.type === "file" && /^\/deno\.jsonc?$/i.test(entry.path)) {
-      return entry.path;
-    }
-  }
+function getConfig(entries: ModuleEntry[]): ModuleEntry | undefined {
+  return entries.find(({ type, path }) =>
+    type === "file" && /^\/deno\.jsonc?$/i.test(path)
+  );
 }
 
-function getReadme(entries: ModuleEntry[]): string | undefined {
-  for (const entry of entries) {
-    if (
-      entry.type === "file" &&
-      /^\/README(\.(md|txt|markdown))?$/i.test(entry.path)
-    ) {
-      return entry.path;
-    }
-  }
+function getReadme(entries: ModuleEntry[]): ModuleEntry | undefined {
+  return entries.find(({ type, path }) =>
+    type === "file" && /^\/README(\.(md|txt|markdown))?$/i.test(path)
+  );
 }
 
 function getModInfoPage(
