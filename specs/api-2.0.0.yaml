@@ -552,15 +552,15 @@ paths:
             text/html:
               schema:
                 type: string
-  /v2/pages/code/{module}/{version}:
+  /v2/pages/mod/source/{module}/{version}:
     get:
       tags:
         - pages
-      summary: Get information about a module to render a code view of a root.
+      summary: Get information about a module to render a source view of a root.
       description: >
-        Responds with all the information needed to render a root code view of a
-        module.
-      operationId: getCodePageInfo
+        Responds with all the information needed to render a root source view of
+        a module.
+      operationId: getSourcePageInfo
       parameters:
         - name: module
           in: path
@@ -579,7 +579,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/CodePage"
+                $ref: "#/components/schemas/SourcePage"
         "400":
           description: Bad Request - the request was malformed.
           content:
@@ -627,15 +627,15 @@ paths:
             text/html:
               schema:
                 type: string
-  /v2/pages/code/{module}/{version}/{path}:
+  /v2/pages/mod/source/{module}/{version}/{path}:
     get:
       tags:
         - pages
-      summary: Get information about a module to render a code view.
+      summary: Get information about a module to render a source view.
       description: >
-        Responds with all the information needed to render a a code view of an
+        Responds with all the information needed to render a a source view of an
         entry of a module.
-      operationId: getCodePagePathInfo
+      operationId: getSourcePagePathInfo
       parameters:
         - name: module
           in: path
@@ -670,7 +670,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/CodePage"
+                $ref: "#/components/schemas/SourcePage"
         "400":
           description: Bad Request - the request was malformed.
           content:
@@ -1037,61 +1037,6 @@ paths:
                 $ref: "#/components/schemas/HttpError"
 components:
   schemas:
-    CodePage:
-      oneOf:
-        - $ref: "#/components/schemas/CodePageDir"
-        - $ref: "#/components/schemas/CodePageFile"
-        - $ref: "#/components/schemas/PageInvalidVersion"
-        - $ref: "#/components/schemas/PagePathNotFound"
-      discriminator:
-        propertyName: kind
-        mapping:
-          dir: "#/components/schemas/CodePageDir"
-          file: "#/components/schemas/CodePageFile"
-          invalid-version: "#/components/schemas/PageInvalidVersion"
-          notfound: "#/components/schemas/PagePathNotFound"
-    CodePageDir:
-      allOf:
-        - $ref: "#/components/schemas/PageBase"
-        - type: object
-          properties:
-            entries:
-              type: array
-              items:
-                $ref: "#/components/schemas/CodePageDirEntry"
-          required:
-            - "entries"
-    CodePageDirEntry:
-      type: object
-      properties:
-        path:
-          type: string
-          example: /mod.ts
-        kind:
-          type: string
-          enum:
-            - file
-            - dir
-        size:
-          type: number
-        docable:
-          type: boolean
-      required:
-        - "path"
-        - "kind"
-        - "size"
-    CodePageFile:
-      allOf:
-        - $ref: "#/components/schemas/PageBase"
-        - type: object
-          properties:
-            size:
-              type: number
-              example: 27234
-            docable:
-              type: boolean
-          required:
-            - "size"
     DocNode:
       type: object
       properties:
@@ -1566,6 +1511,45 @@ components:
           example: 2022-05-06T01:03:14.774Z
         upload_options:
           $ref: "#/components/schemas/UploadOptions"
+    IndexDoc:
+      type: object
+      properties:
+        index:
+          $ref: "#/components/schemas/IndexMap"
+        docs:
+          $ref: "#/components/schemas/JsDocMap"
+      required:
+        - "index"
+        - "docs"
+    IndexMap:
+      type: object
+      additionalProperties:
+        type: array
+        items:
+          type: string
+      example:
+        /: ["/mod.ts"]
+        /src: ["/src/lib.ts", "/src/util.js"]
+    LibDocPage:
+      oneOf:
+        - $ref: "#/components/schemas/DocPageLibrary"
+        - $ref: "#/components/schemas/DocPageLibrarySymbol"
+        - $ref: "#/components/schemas/DocPageLibraryInvalidVersion"
+      discriminator:
+        propertyName: kind
+        mapping:
+          library: "#/components/schemas/DocPageSymbol"
+          librarySymbol: "#/components/schemas/DocPageModule"
+          libraryInvalidVersion: "#/components/schemas/DocPageIndex"
+    ListBase:
+      type: object
+      properties:
+        next:
+          type: string
+          example: /modules?limit=100&page=3
+        previous:
+          type: string
+          example: /modules?limit=100&page=1
     PageBase:
       type: object
       properties:
@@ -1651,45 +1635,6 @@ components:
         - event
         - module
         - version
-    IndexDoc:
-      type: object
-      properties:
-        index:
-          $ref: "#/components/schemas/IndexMap"
-        docs:
-          $ref: "#/components/schemas/JsDocMap"
-      required:
-        - "index"
-        - "docs"
-    IndexMap:
-      type: object
-      additionalProperties:
-        type: array
-        items:
-          type: string
-      example:
-        /: ["/mod.ts"]
-        /src: ["/src/lib.ts", "/src/util.js"]
-    LibDocPage:
-      oneOf:
-        - $ref: "#/components/schemas/DocPageLibrary"
-        - $ref: "#/components/schemas/DocPageLibrarySymbol"
-        - $ref: "#/components/schemas/DocPageLibraryInvalidVersion"
-      discriminator:
-        propertyName: kind
-        mapping:
-          library: "#/components/schemas/DocPageSymbol"
-          librarySymbol: "#/components/schemas/DocPageModule"
-          libraryInvalidVersion: "#/components/schemas/DocPageIndex"
-    ListBase:
-      type: object
-      properties:
-        next:
-          type: string
-          example: /modules?limit=100&page=3
-        previous:
-          type: string
-          example: /modules?limit=100&page=1
     PopularityModuleTag:
       type: object
       properties:
@@ -1727,6 +1672,61 @@ components:
         - schemaVersion
         - label
         - message
+    SourcePage:
+      oneOf:
+        - $ref: "#/components/schemas/SourcePageDir"
+        - $ref: "#/components/schemas/SourcePageFile"
+        - $ref: "#/components/schemas/PageInvalidVersion"
+        - $ref: "#/components/schemas/PagePathNotFound"
+      discriminator:
+        propertyName: kind
+        mapping:
+          dir: "#/components/schemas/SourcePageDir"
+          file: "#/components/schemas/SourcePageFile"
+          invalid-version: "#/components/schemas/PageInvalidVersion"
+          notfound: "#/components/schemas/PagePathNotFound"
+    SourcePageDir:
+      allOf:
+        - $ref: "#/components/schemas/PageBase"
+        - type: object
+          properties:
+            entries:
+              type: array
+              items:
+                $ref: "#/components/schemas/SourcePageDirEntry"
+          required:
+            - "entries"
+    SourcePageDirEntry:
+      type: object
+      properties:
+        path:
+          type: string
+          example: /mod.ts
+        kind:
+          type: string
+          enum:
+            - file
+            - dir
+        size:
+          type: number
+        docable:
+          type: boolean
+      required:
+        - "path"
+        - "kind"
+        - "size"
+    SourcePageFile:
+      allOf:
+        - $ref: "#/components/schemas/PageBase"
+        - type: object
+          properties:
+            size:
+              type: number
+              example: 27234
+            docable:
+              type: boolean
+          required:
+            - "size"
     SymbolIndex:
       type: object
       properties:

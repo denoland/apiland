@@ -18,11 +18,11 @@ import {
 import { clear } from "./cache.ts";
 import {
   addNodes,
-  commitCodePage,
   commitDocNodes,
   commitDocPage,
   commitModuleIndex,
   commitNav,
+  commitSourcePage,
   commitSymbolIndex,
   type DocNode,
   type DocNodeNull,
@@ -46,11 +46,11 @@ import {
 } from "./modules.ts";
 import { getDatastore } from "./store.ts";
 import type {
-  CodePage,
   DocPage,
   DocPageNavItem,
   Module,
   ModuleVersion,
+  SourcePage,
 } from "./types.d.ts";
 import { assert } from "./util.ts";
 
@@ -91,12 +91,12 @@ interface CommitIndexTask extends TaskBase, ModuleIndexBase {
   kind: "commitIndex";
 }
 
-interface CommitCodePageTask extends TaskBase {
-  kind: "commitCodePage";
+interface CommitSourcePageTask extends TaskBase {
+  kind: "commitSourcePage";
   module: string;
   version: string;
   path: string;
-  codePage: CodePage;
+  sourcePage: SourcePage;
 }
 
 interface CommitDocPageTask extends TaskBase {
@@ -149,7 +149,7 @@ type TaskDescriptor =
   | LoadTask
   | CommitTask
   | AlgoliaTask
-  | CommitCodePageTask
+  | CommitSourcePageTask
   | CommitDocPageTask
   | CommitIndexTask
   | CommitLegacyIndex
@@ -282,7 +282,7 @@ function taskCommitSymbolIndex(
 
 function taskCommitCodePage(
   id: number,
-  { module, version, path, codePage }: CommitCodePageTask,
+  { module, version, path, sourcePage }: CommitSourcePageTask,
 ) {
   console.log(
     `[${id}]: %cCommitting%c code page for %c"${module}@${version}${path}"%c...`,
@@ -291,7 +291,7 @@ function taskCommitCodePage(
     "color:cyan",
     "color:none",
   );
-  return commitCodePage(id, module, version, path, codePage);
+  return commitSourcePage(id, module, version, path, sourcePage);
 }
 
 function taskCommitDocPage(
@@ -568,7 +568,7 @@ function process(id: number, task: TaskDescriptor): Promise<void> {
       return taskCommitMutations(id, task);
     case "commitSymbolIndex":
       return taskCommitSymbolIndex(id, task);
-    case "commitCodePage":
+    case "commitSourcePage":
       return taskCommitCodePage(id, task);
     case "commitDocPage":
       return taskCommitDocPage(id, task);

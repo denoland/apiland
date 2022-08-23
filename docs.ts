@@ -48,10 +48,6 @@ import {
 import { enqueue } from "./process.ts";
 import { getDatastore } from "./store.ts";
 import type {
-  CodePage,
-  CodePageDir,
-  CodePageDirEntry,
-  CodePageFile,
   DocPage,
   DocPageFile,
   DocPageIndex,
@@ -67,6 +63,10 @@ import type {
   PageBase,
   PageInvalidVersion,
   PagePathNotFound,
+  SourcePage,
+  SourcePageDir,
+  SourcePageDirEntry,
+  SourcePageFile,
 } from "./types.d.ts";
 import { assert } from "./util.ts";
 
@@ -321,7 +321,7 @@ export async function checkMaybeLoad(
   }
 }
 
-function getPageBase<Kind extends DocPage["kind"] | CodePage["kind"]>(
+function getPageBase<Kind extends DocPage["kind"] | SourcePage["kind"]>(
   kind: Kind,
   { star_count, versions, latest_version, tags }: Module,
   { name: module, version, uploaded_at, upload_options, description }:
@@ -501,42 +501,42 @@ function getPageInvalidVersion(
   };
 }
 
-function getCodePageFile(
+function getSourcePageFile(
   module: Module,
   version: ModuleVersion,
   entry: ModuleEntry,
-): CodePageFile {
-  const codePage = getPageBase(
+): SourcePageFile {
+  const sourcePage = getPageBase(
     "file",
     module,
     version,
     entry.path,
-  ) as CodePageFile;
-  codePage.size = entry.size;
-  codePage.docable = entry.docable;
-  return codePage;
+  ) as SourcePageFile;
+  sourcePage.size = entry.size;
+  sourcePage.docable = entry.docable;
+  return sourcePage;
 }
 
-async function getCodePageDir(
+async function getSourcePageDir(
   datastore: Datastore,
   module: Module,
   version: ModuleVersion,
   entry: ModuleEntry,
-): Promise<CodePageDir> {
+): Promise<SourcePageDir> {
   const entryPath = entry.path;
   const codePage = getPageBase(
     "dir",
     module,
     version,
     entryPath,
-  ) as CodePageDir;
+  ) as SourcePageDir;
   const query = datastore
     .createQuery("module_entry")
     .hasAncestor(datastore.key(
       ["module", module.name],
       ["module_version", version.version],
     ));
-  const entries: CodePageDirEntry[] = [];
+  const entries: SourcePageDirEntry[] = [];
   for await (const entity of datastore.streamQuery(query)) {
     const {
       type: kind,
@@ -553,12 +553,12 @@ async function getCodePageDir(
   return codePage;
 }
 
-export async function generateCodePage(
+export async function generateSourcePage(
   datastore: Datastore,
   module: string,
   version: string,
   path: string,
-): Promise<CodePage | undefined> {
+): Promise<SourcePage | undefined> {
   let [
     moduleItem,
     moduleVersion,
@@ -597,8 +597,8 @@ export async function generateCodePage(
   }
   if (moduleItem && moduleVersion && moduleEntry) {
     return moduleEntry.type === "file"
-      ? getCodePageFile(moduleItem, moduleVersion, moduleEntry)
-      : getCodePageDir(datastore, moduleItem, moduleVersion, moduleEntry);
+      ? getSourcePageFile(moduleItem, moduleVersion, moduleEntry)
+      : getSourcePageDir(datastore, moduleItem, moduleVersion, moduleEntry);
   }
 }
 
@@ -1495,12 +1495,12 @@ export async function commitModuleIndex(
   }
 }
 
-export async function commitCodePage(
+export async function commitSourcePage(
   id: number,
   module: string,
   version: string,
   path: string,
-  codePage: CodePage,
+  sourcePage: SourcePage,
 ) {
   const datastore = await getDatastore();
   const key = datastore.key(
@@ -1508,8 +1508,8 @@ export async function commitCodePage(
     ["module_version", version],
     ["code_page", path],
   );
-  objectSetKey(codePage, key);
-  const mutations = [{ upsert: objectToEntity(codePage) }];
+  objectSetKey(sourcePage, key);
+  const mutations = [{ upsert: objectToEntity(sourcePage) }];
   try {
     for await (
       const _result of datastore.commit(mutations, { transactional: false })

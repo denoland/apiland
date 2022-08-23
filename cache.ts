@@ -5,7 +5,6 @@ import type { Entity, Key } from "google_datastore/types";
 import { entityToDocPage, hydrateDocNodes } from "./docs.ts";
 import { getDatastore } from "./store.ts";
 import type {
-  CodePage,
   DocPage,
   InfoPage,
   LibDocPage,
@@ -15,6 +14,7 @@ import type {
   Module,
   ModuleEntry,
   ModuleVersion,
+  SourcePage,
 } from "./types.d.ts";
 import { assert } from "./util.ts";
 
@@ -27,7 +27,7 @@ const cachedVersions = new WeakMap<Module, Map<string, ModuleVersion>>();
 const cachedEntries = new WeakMap<ModuleVersion, Map<string, ModuleEntry>>();
 const cachedInfoPages = new WeakMap<Module, Map<string, InfoPage>>();
 const cachedDocPages = new WeakMap<ModuleEntry, Map<string, DocPage>>();
-const cachedCodePages = new WeakMap<ModuleVersion, Map<string, CodePage>>();
+const cachedSourcePages = new WeakMap<ModuleVersion, Map<string, SourcePage>>();
 
 const cachedLibs = new Map<string, Library>();
 const cachedLibVersions = new WeakMap<Library, Map<string, LibraryVersion>>();
@@ -115,15 +115,16 @@ export function clear(module?: string) {
   }
 }
 
-export async function lookupCodePage(
+export async function lookupSourcePage(
   module: string,
   version: string,
   path: string,
-): Promise<CodePage | undefined> {
+): Promise<SourcePage | undefined> {
   let moduleItem = cachedModules.get(module);
   let versionItem = moduleItem && cachedVersions.get(moduleItem)?.get(version);
-  let codePageItem = versionItem && cachedCodePages.get(versionItem)?.get(path);
-  if (!codePageItem) {
+  let sourcePageItem = versionItem &&
+    cachedSourcePages.get(versionItem)?.get(path);
+  if (!sourcePageItem) {
     datastore = datastore || await getDatastore();
     const keys: Key[] = [];
     if (!moduleItem) {
@@ -159,13 +160,13 @@ export async function lookupCodePage(
             break;
           }
           case "code_page": {
-            codePageItem = entityToObject(entity);
+            sourcePageItem = entityToObject(entity);
             assert(versionItem);
-            if (!cachedCodePages.has(versionItem)) {
-              cachedCodePages.set(versionItem, new Map());
+            if (!cachedSourcePages.has(versionItem)) {
+              cachedSourcePages.set(versionItem, new Map());
             }
-            const codePages = cachedCodePages.get(versionItem)!;
-            codePages.set(path, codePageItem);
+            const sourcePages = cachedSourcePages.get(versionItem)!;
+            sourcePages.set(path, sourcePageItem);
             break;
           }
           default:
@@ -178,7 +179,7 @@ export async function lookupCodePage(
     cachedModuleNames.add(module);
     enqueuePrune();
   }
-  return codePageItem;
+  return sourcePageItem;
 }
 
 export async function lookupInfoPage(
@@ -648,21 +649,21 @@ export function cacheLibDocPage(
   }
 }
 
-export function cacheCodePage(
+export function cacheSourcePage(
   module: string,
   version: string,
   path: string,
-  codePage: CodePage,
+  sourcePage: SourcePage,
 ): void {
   const moduleItem = cachedModules.get(module);
   if (moduleItem) {
     const versionItem = cachedVersions.get(moduleItem)?.get(version);
     if (versionItem) {
-      if (!cachedCodePages.has(versionItem)) {
-        cachedCodePages.set(versionItem, new Map());
+      if (!cachedSourcePages.has(versionItem)) {
+        cachedSourcePages.set(versionItem, new Map());
       }
-      const codePages = cachedCodePages.get(versionItem)!;
-      codePages.set(path, codePage);
+      const sourcePages = cachedSourcePages.get(versionItem)!;
+      sourcePages.set(path, sourcePage);
       cachedModuleNames.add(module);
     }
   }

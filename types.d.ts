@@ -274,14 +274,14 @@ export type LibDocPage =
   | DocPageLibrarySymbol
   | DocPageLibraryInvalidVersion;
 
-export interface CodePageFile extends PageBase {
+export interface SourcePageFile extends PageBase {
   kind: "file";
   size: number;
   /** Indicates if the page is docable or not. */
   docable?: boolean;
 }
 
-export interface CodePageDirEntry {
+export interface SourcePageDirEntry {
   path: string;
   kind: "file" | "dir";
   size: number;
@@ -289,14 +289,14 @@ export interface CodePageDirEntry {
   docable?: boolean;
 }
 
-export interface CodePageDir extends PageBase {
+export interface SourcePageDir extends PageBase {
   kind: "dir";
-  entries: CodePageDirEntry[];
+  entries: SourcePageDirEntry[];
 }
 
-export type CodePage =
-  | CodePageFile
-  | CodePageDir
+export type SourcePage =
+  | SourcePageFile
+  | SourcePageDir
   | PageInvalidVersion
   | PageNoVersions
   | PagePathNotFound;
