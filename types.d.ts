@@ -111,7 +111,7 @@ export interface PageBase {
   versions: string[];
   latest_version: string;
   uploaded_at: string;
-  upload_options?: {
+  upload_options: {
     type: string;
     repository: string;
     ref: string;
@@ -204,7 +204,7 @@ export interface ModInfoPage {
    * file. */
   import_map?: ModuleEntry;
   uploaded_at: string;
-  upload_options?: {
+  upload_options: {
     type: string;
     repository: string;
     ref: string;
