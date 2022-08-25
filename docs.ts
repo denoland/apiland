@@ -545,7 +545,10 @@ async function getSourcePageDir(
       path,
     } = entityToObject<ModuleEntry>(entity);
     const slice = entryPath !== "/" ? path.slice(entryPath.length) : path;
-    if (path.startsWith(entryPath) && slice.lastIndexOf("/") === 0) {
+    if (
+      path.startsWith(entryPath) && slice.lastIndexOf("/") === 0 &&
+      path !== entryPath
+    ) {
       entries.push({ path, kind, size, docable });
     }
   }
