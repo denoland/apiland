@@ -5,19 +5,33 @@ provides documentation of this.
 
 ## Indexes
 
+### `manual`
+
+| Attribute Name | Description                        |
+| -------------- | ---------------------------------- |
+| kind           | `"heading"`, `"content"`, `"code"` |
+| doc_path       |                                    |
+| doc_level      |                                    |
+| position       |                                    |
+| hierarchy      |                                    |
+| url            |                                    |
+| anchor         |                                    |
+| content        |                                    |
+
 ### `modules`
 
 #### Record attributes
 
 The `objectId` is the value of module's name.
 
-| Attribute Name   | Description                                                                                                                                                                        |
-| ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| name             | The name of the module. This is also the `objectId` of the record. It is searchable.                                                                                               |
-| description      | The description of the module. It is searchable.                                                                                                                                   |
-| list             | Either `true` or `false` if the module should be listed in the default module list without searching. This allows supression of `std` and `std` sub modules in the 3rd party list. |
-| popularity_score | The popularity score which is a weighted average of 30 days usage. It is used for ordering responses.                                                                              |
-| popularity_tag   | The popularity tag, if defined is `top_1_percent`, `top_5_percent`, or `top_10_percent`. It is a display facet.                                                                    |
+| Attribute Name   | Description                                                                                                     |
+| ---------------- | --------------------------------------------------------------------------------------------------------------- |
+| name             | The name of the module. This is also the `objectId` of the record. It is searchable.                            |
+| description      | The description of the module. It is searchable.                                                                |
+| third_party      | Either `true` or `false` if the module is a 3rd party module and should be listed as such.                      |
+| official         | Either `true` or `false` if the module is an official module                                                    |
+| popularity_score | The popularity score which is a weighted average of 30 days usage. It is used for ordering responses.           |
+| popularity_tag   | The popularity tag, if defined is `top_1_percent`, `top_5_percent`, or `top_10_percent`. It is a display facet. |
 
 ### `doc_nodes`
 

@@ -764,7 +764,7 @@ async function getDocPageSymbol(
 
 let datastore: Datastore | undefined;
 
-async function getModuleEntries(
+export async function getModuleEntries(
   module: string,
   version: string,
 ): Promise<ModuleEntry[]> {
