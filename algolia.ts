@@ -413,12 +413,82 @@ export function moduleToRequest(module: Module): MultipleBatchRequest {
       name: module.name,
       description: module.description,
       third_party: module.name !== "std",
-      source: module.name === "std" ? 200 : 400,
+      source: module.name === "std"
+        ? Source.StandardLibraryDefault
+        : Source.ThirdPartyDefault,
       popularity_score: module.popularity_score,
       popularity_tag: module.tags?.find(({ kind }) => kind === "popularity")
         ?.value,
     },
   };
+}
+
+async function appendStdSubModules(requests: MultipleBatchRequest[]) {
+  dax.logStep("Loading std sub modules...");
+  const [module] = await lookup("std");
+  assert(module);
+  assert(module.latest_version);
+  const [, version] = await lookup("std", module.latest_version);
+  assert(version);
+  const ancestor = objectGetKey(version);
+  assert(ancestor);
+  datastore = datastore ?? await getDatastore();
+  let query = datastore
+    .createQuery("module_entry")
+    .hasAncestor(ancestor);
+  const subModules: ModuleEntry[] = [];
+  for await (const entity of datastore.streamQuery(query)) {
+    const moduleEntry = entityToObject<ModuleEntry>(entity);
+    if (moduleEntry.type === "dir" && moduleEntry.path.lastIndexOf("/") === 0) {
+      subModules.push(moduleEntry);
+    }
+  }
+  const defaultModules = subModules
+    .flatMap(({ default: def }) => def ? [def] : []);
+  const modDoc = new Map<string, string>();
+  query = datastore
+    .createQuery("doc_node")
+    .filter("kind", "moduleDoc")
+    .hasAncestor(ancestor);
+  for await (const entity of datastore.streamQuery(query)) {
+    assert(entity.key);
+    // this ensure we only find moduleDoc for the module, not from a re-exported
+    // namespace which might have module doc as well.
+    if (entity.key.path.length !== 4) {
+      continue;
+    }
+    const modName = entity.key.path[2]?.name;
+    assert(modName);
+    if (defaultModules.includes(modName)) {
+      const docNode = entityToObject<DocNode>(entity);
+      const doc = docNode.jsDoc?.doc;
+      if (doc) {
+        modDoc.set(modName, doc.split("\n\n")[0]);
+      }
+    }
+  }
+  let count = 0;
+  for (const subModule of subModules) {
+    const name = `std${subModule.path}`;
+    const description = subModule.default
+      ? modDoc.get(subModule.default)
+      : undefined;
+    count++;
+    requests.push({
+      action: "updateObject",
+      indexName: MODULES_INDEX,
+      body: {
+        objectID: name,
+        name,
+        description,
+        third_party: false,
+        source: Source.StandardLibraryDefault,
+        popularity_score: 0,
+        popularity_tag: undefined,
+      },
+    });
+  }
+  dax.logLight(`  added ${count} std submodules.`);
 }
 
 async function updateModules() {
@@ -431,6 +501,7 @@ async function updateModules() {
       requests.push(moduleToRequest(module));
     }
   }
+  await appendStdSubModules(requests);
   dax.logStep(`Uploading ${requests.length} modules to algolia...`);
   await upload(requests);
   dax.logStep(`Success.`);
