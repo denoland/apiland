@@ -7,22 +7,25 @@ provides documentation of this.
 
 ### `manual`
 
-| Attribute Name | Description                        |
-| -------------- | ---------------------------------- |
-| kind           | `"heading"`, `"content"`, `"code"` |
-| doc_path       |                                    |
-| doc_level      |                                    |
-| position       |                                    |
-| hierarchy      |                                    |
-| url            |                                    |
-| anchor         |                                    |
-| content        |                                    |
+The `objectID` is the value of the path to the item appended with a `-` and a
+counter to make it unique.
+
+| Attribute Name | Description                                                                      |
+| -------------- | -------------------------------------------------------------------------------- |
+| kind           | `"heading"`, `"content"`, `"code"`, this is a filterable facet                   |
+| codeInfo       | If kind `"code"` then the info from the code block (e.g. `ts` or `yaml`)         |
+| docPath        | The path to the page that the markdown comes from. (e.g. `/manual/introduction`) |
+| level          | The level at which this item appears in the structure.                           |
+| position       | The position within a page this particular item occurred.                        |
+| hierarchy      | An object with keys of `lvl0` - `lvl6` of headers the item exists in.            |
+| anchor         | The nearest anchor which can be targeted to link to this item.                   |
+| content        | The text content of this item.                                                   |
 
 ### `modules`
 
 #### Record attributes
 
-The `objectId` is the value of module's name.
+The `objectID` is the value of module's name.
 
 | Attribute Name   | Description                                                                                                     |
 | ---------------- | --------------------------------------------------------------------------------------------------------------- |
