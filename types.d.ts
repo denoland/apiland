@@ -259,6 +259,7 @@ export interface DocPageLibrary extends DocPageLibraryBase {
 export interface DocPageLibrarySymbol extends DocPageLibraryBase {
   kind: "librarySymbol";
   items: SymbolItem[];
+  name: string;
   docNodes: DocNode[];
 }
 
