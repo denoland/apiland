@@ -1,6 +1,5 @@
 {
   "imports": {
-    "@algolia/client-account": "https://esm.sh/@algolia/client-account@4.14.2?pin=v90",
     "@algolia/client-search": "https://esm.sh/@algolia/client-search@4.14.2?pin=v90",
     "@algolia/requester-fetch": "https://esm.sh/@algolia/requester-fetch@4.14.2?pin=v90",
     "acorn": "https://deno.land/x/acorn@0.1.1/mod.ts",

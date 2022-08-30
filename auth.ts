@@ -25,7 +25,6 @@ export let keys: {
 };
 /** Algolia credentials required to upload docNodes to algolia. */
 export let algoliaKeys: { appId: string; apiKey: string };
-export let denoManualAlgoliaKeys: { appId: string; apiKey: string };
 
 let readyResolve: (value?: unknown) => void;
 export const readyPromise = new Promise((res) => {
@@ -49,10 +48,6 @@ export const readyPromise = new Promise((res) => {
   algoliaKeys = {
     appId: Deno.env.get("ALGOLIA_APP_ID") ?? "",
     apiKey: Deno.env.get("ALGOLIA_API_KEY") ?? "",
-  };
-  denoManualAlgoliaKeys = {
-    appId: Deno.env.get("MANUAL_ALGOLIA_APP_ID") ?? "",
-    apiKey: Deno.env.get("MANUAL_ALGOLIA_API_KEY") ?? "",
   };
 })();
 
