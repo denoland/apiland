@@ -213,7 +213,7 @@ export async function generateLibDocPage(
     ["doc_page", symbol],
   );
   const docPage = {
-    kind: "library",
+    kind: symbol !== ROOT_SYMBOL ? "librarySymbol" : "library",
     name: libItem.name,
     version: versionItem.version,
     versions: libItem.versions,
@@ -227,6 +227,9 @@ export async function generateLibDocPage(
       )
       : undefined,
   } as DocPageLibrary | DocPageLibrarySymbol;
+  if (docPage.kind === "librarySymbol") {
+    docPage.name = symbol;
+  }
   cacheLibDocPage(libItem.name, versionItem.version, symbol, docPage);
   mutations.push({ upsert: docPageToEntity(docPage, docPageKey) });
   enqueue({ kind: "commitMutations", mutations });
