@@ -40,7 +40,7 @@ import { redirectToLatest } from "./modules.ts";
 import { generateLibDocPage } from "./pages.ts";
 import { enqueue } from "./process.ts";
 import { getDatastore } from "./store.ts";
-import { Library } from "./types.d.ts";
+import { Library, Module, ModuleMetrics } from "./types.d.ts";
 
 interface PagedItems<T> {
   items: T[];
@@ -152,17 +152,35 @@ router.get("/v2/metrics/modules", async (ctx) => {
       `Parameter "page" cannot be specified without "limit" being specified.`,
     );
   }
-  query.order("popularity.sessions_30_day", true);
+  query.order("popularity.score", true);
   const response = await datastore.runQuery(query);
   if (response.batch.entityResults) {
     const hasNext = response.batch.moreResults !== "NO_MORE_RESULTS";
-    return pagedResults(
-      response.batch.entityResults.map(({ entity }) => entityToObject(entity)),
+    const lookups = new Map<string, ModuleMetrics & { description?: string }>();
+    const results = pagedResults<ModuleMetrics & { description?: string }>(
+      response.batch.entityResults.map(({ entity }) => {
+        const metric = entityToObject<ModuleMetrics>(entity);
+        lookups.set(metric.name, metric);
+        return metric;
+      }),
       ctx.url(),
       page,
       limit,
       hasNext,
     );
+    const lookupResult = await datastore.lookup(
+      [...lookups.keys()].map((name) => datastore!.key(["module", name])),
+    );
+    if (lookupResult.found) {
+      for (const { entity } of lookupResult.found) {
+        const module = entityToObject<Module>(entity);
+        const result = lookups.get(module.name);
+        if (result) {
+          result.description = module.description;
+        }
+      }
+    }
+    return results;
   }
 });
 router.get("/v2/metrics/modules/:module", async (ctx) => {

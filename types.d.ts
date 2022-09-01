@@ -60,6 +60,10 @@ export interface ModuleMetrics {
   popularity: {
     sessions_30_day: number;
     users_30_day: number;
+    score: number;
+    prev_sessions_30_day?: number;
+    prev_users_30_day?: number;
+    prev_score?: number;
   };
   quality: Record<string, never>;
 }

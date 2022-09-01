@@ -5,6 +5,7 @@
  * @module
  */
 
+import dax from "dax";
 import {
   Datastore,
   entityToObject,
@@ -21,14 +22,9 @@ await readyPromise;
 const auth = new GoogleAuth().fromJSON(keys);
 const reporter = new AnalyticsReporting(auth);
 
-console.log(
-  `%cRunning %c30 day sessions report%c...`,
-  "color:green",
-  "color:yellow",
-  "color:none",
-);
+dax.logStep("Running analytics last 30 day report...");
 
-const res = await reporter.reportsBatchGet({
+let res = await reporter.reportsBatchGet({
   reportRequests: [{
     viewId: "253817008",
     pageSize: 100_000,
@@ -55,6 +51,8 @@ const res = await reporter.reportsBatchGet({
   }],
 });
 
+dax.logLight(`  retrieved report.`);
+
 const metrics: Record<
   string,
   { sessions: number; users: number; score: number }
@@ -77,10 +75,78 @@ if (res.reports?.[0].data?.rows) {
       metrics[pkg].users += parseInt(row.metrics[0].values[1], 10);
     }
   }
+} else {
+  dax.logError("Unexpected report response.");
+  console.log(JSON.stringify(res, undefined, "  "));
+  Deno.exit(1);
 }
 
 // calculate the popularity score.
 for (const metric of Object.values(metrics)) {
+  metric.score = Math.trunc((metric.sessions * 0.6) + (metric.users * 0.4));
+}
+
+dax.logStep("Running analytics last 30-60 day report...");
+
+res = await reporter.reportsBatchGet({
+  reportRequests: [{
+    viewId: "253817008",
+    pageSize: 100_000,
+    dateRanges: [
+      {
+        startDate: "60daysAgo",
+        endDate: "30daysAgo",
+      },
+    ],
+    metrics: [
+      {
+        expression: "ga:sessions",
+      },
+      {
+        expression: "ga:users",
+      },
+    ],
+    filtersExpression: "ga:pagePathLevel1==/x/",
+    dimensions: [
+      {
+        name: "ga:pagePathLevel2",
+      },
+    ],
+  }],
+});
+
+dax.logLight(`  retrieved report.`);
+
+const metricsPrevious: Record<
+  string,
+  { sessions: number; users: number; score: number }
+> = {};
+
+if (res.reports?.[0].data?.rows) {
+  for (const row of res.reports[0].data.rows) {
+    if (row.dimensions?.[0] && row.metrics?.[0].values) {
+      let [pkg] = row.dimensions[0].slice(1).split("@");
+      if (!pkg || pkg.match(/^[$._\s]/)) {
+        continue;
+      }
+      if (pkg.endsWith("/")) {
+        pkg = pkg.slice(0, pkg.length - 1);
+      }
+      if (!(pkg in metricsPrevious)) {
+        metricsPrevious[pkg] = { sessions: 0, users: 0, score: 0 };
+      }
+      metricsPrevious[pkg].sessions += parseInt(row.metrics[0].values[0], 10);
+      metricsPrevious[pkg].users += parseInt(row.metrics[0].values[1], 10);
+    }
+  }
+} else {
+  dax.logError("Unexpected report response.");
+  console.log(JSON.stringify(res, undefined, "  "));
+  Deno.exit(1);
+}
+
+// calculate the popularity score for the previous range.
+for (const metric of Object.values(metricsPrevious)) {
   metric.score = Math.trunc((metric.sessions * 0.6) + (metric.users * 0.4));
 }
 
@@ -123,14 +189,31 @@ const updated = new Date();
 const mutations: Mutation[] = [];
 
 for (
-  const [name, { sessions: sessions_30_day, users: users_30_day }] of Object
-    .entries(metrics)
+  const [name, { sessions: sessions_30_day, users: users_30_day, score }]
+    of Object
+      .entries(metrics)
 ) {
+  let prev_sessions_30_day;
+  let prev_users_30_day;
+  let prev_score;
+  const prev = metricsPrevious[name];
+  if (prev) {
+    prev_sessions_30_day = prev.sessions;
+    prev_users_30_day = prev.users;
+    prev_score = prev.score;
+  }
   const metrics: ModuleMetrics = {
     name,
     updated,
     maintenance: {},
-    popularity: { sessions_30_day, users_30_day },
+    popularity: {
+      sessions_30_day,
+      users_30_day,
+      score,
+      prev_sessions_30_day,
+      prev_users_30_day,
+      prev_score,
+    },
     quality: {},
   };
   objectSetKey(metrics, { path: [{ kind: "module_metrics", name }] });
@@ -139,35 +222,20 @@ for (
 
 if (mutations.length) {
   let remaining = mutations.length;
-  console.log(
-    `%cCommitting %c${remaining}%c changes...`,
-    "color:green",
-    "color:yellow",
-    "color:none",
-  );
+  dax.logStep(`Committing ${remaining} changes...`);
   const datastore = new Datastore(keys);
   for await (
     const res of datastore.commit(mutations, { transactional: false })
   ) {
     remaining -= res.mutationResults.length;
-    console.log(
-      `%cCommitted %c${res.mutationResults.length}%c changes. %c${remaining}%c to go.`,
-      "color:green",
-      "color:yellow",
-      "color:none",
-      "color:yellow",
-      "color:none",
+    dax.logLight(
+      `  committed ${res.mutationResults.length} changes. ${remaining} to go.`,
     );
   }
 
   const moduleMutations: Mutation[] = [];
 
-  console.log(
-    "%cUpdate %cmodule scores%c...",
-    "color:green",
-    "color:yellow",
-    "color:none",
-  );
+  dax.logStep("Update module scores...");
 
   const query = datastore.createQuery("module");
   for await (const moduleEntity of datastore.streamQuery(query)) {
@@ -179,12 +247,7 @@ if (mutations.length) {
   }
 
   remaining = moduleMutations.length;
-  console.log(
-    `%cCommitting %c${remaining}%c changes...`,
-    "color:green",
-    "color:yellow",
-    "color:none",
-  );
+  dax.logStep(`Committing ${remaining} changes...`);
   for await (
     const res of datastore.commit(moduleMutations, { transactional: false })
   ) {

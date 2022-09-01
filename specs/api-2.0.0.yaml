@@ -1488,6 +1488,8 @@ components:
       properties:
         name:
           $ref: "#/components/schemas/ModuleName"
+        description:
+          type: string
         updated:
           type: string
           format: date-time
@@ -1500,8 +1502,30 @@ components:
               type: number
               format: integer
               example: 4792
+            users_30_day:
+              type: number
+              format: integer
+              example: 5421
+            score:
+              type: number
+              format: integer
+              example: 5042
+            prev_sessions_30_day:
+              type: number
+              format: integer
+              example: 4792
+            prev_users_30_day:
+              type: number
+              format: integer
+              example: 5421
+            prev_score:
+              type: number
+              format: integer
+              example: 5042
           required:
             - "session_30_day"
+            - "users_30_day"
+            - "score"
         quality:
           type: object
       required:
