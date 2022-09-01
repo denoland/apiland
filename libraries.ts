@@ -2,6 +2,7 @@
 
 import dax from "dax";
 import { doc } from "deno_doc";
+import type { JsDocTagTags } from "deno_doc/types";
 import {
   type Datastore,
   DatastoreError,
@@ -46,7 +47,7 @@ async function clear(
   mutations: Mutation[],
   keyInit: KeyInit[],
 ) {
-  const kinds = ["doc_node"];
+  const kinds = ["doc_node", "doc_page"];
   const ancestor = datastore.key(...keyInit);
 
   for (const kind of kinds) {
@@ -88,34 +89,58 @@ async function commit(datastore: Datastore, mutations: Mutation[]) {
   }
 }
 
+function addUnstable(docNodes: DocNode[]) {
+  for (const docNode of docNodes) {
+    if (!docNode.jsDoc) {
+      docNode.jsDoc = { tags: [{ kind: "tags", tags: ["unstable"] }] };
+    } else if (!docNode.jsDoc.tags) {
+      docNode.jsDoc.tags = [{ kind: "tags", tags: ["unstable"] }];
+    } else {
+      const tags = docNode.jsDoc.tags.find(({ kind }) => kind === "tags") as
+        | JsDocTagTags
+        | undefined;
+      if (tags) {
+        tags.tags.push("unstable");
+      } else {
+        docNode.jsDoc.tags.push({ kind: "tags", tags: ["unstable"] });
+      }
+    }
+    if (docNode.kind === "namespace") {
+      addUnstable(docNode.namespaceDef.elements);
+    }
+  }
+}
+
 async function docLibrary(
   datastore: Datastore,
   mutations: Mutation[],
-  sources: { url: string; contentType?: string }[],
+  sources: { url: string; contentType?: string; unstable?: boolean }[],
   keyInit: KeyInit[],
 ) {
   let items: DocNode[] = [];
-  for (const { url, contentType } of sources) {
-    items = items.concat(
-      await doc(url, {
-        includeAll: true,
-        async load(specifier) {
-          const res = await dax.request(specifier).noThrow();
-          if (res.status === 200) {
-            return {
-              specifier,
-              headers: {
-                "content-type": contentType ??
-                  res.headers.get("content-type") ??
-                  "application/typescript",
-              },
-              content: await res.text(),
-              kind: "module",
-            };
-          }
-        },
-      }),
-    );
+  for (const { url, contentType, unstable } of sources) {
+    const docNodes = await doc(url, {
+      includeAll: true,
+      async load(specifier) {
+        const res = await dax.request(specifier).noThrow();
+        if (res.status === 200) {
+          return {
+            specifier,
+            headers: {
+              "content-type": contentType ??
+                res.headers.get("content-type") ??
+                "application/typescript",
+            },
+            content: await res.text(),
+            kind: "module",
+          };
+        }
+      },
+    });
+    if (unstable) {
+      addUnstable(docNodes);
+    }
+    items = items.concat(docNodes);
   }
   const docNodes = mergeEntries(items);
   addNodes(datastore, mutations, docNodes, keyInit);
@@ -149,6 +174,7 @@ async function loadUnstableLibrary(reload: boolean) {
                   ? `https://raw.githubusercontent.com/denoland/deno/${release.tag_name}/cli/js/lib.deno.unstable.d.ts`
                   : `https://raw.githubusercontent.com/denoland/deno/${release.tag_name}/cli/dts/lib.deno.unstable.d.ts`,
                 contentType: "application/typescript",
+                unstable: true,
               },
             ],
           });

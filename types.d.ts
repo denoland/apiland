@@ -19,7 +19,7 @@ export interface Library {
 export interface LibraryVersion {
   name: string;
   version: string;
-  sources: { url: string; contentType?: string }[];
+  sources: { url: string; contentType?: string; unstable?: boolean }[];
 }
 
 export interface LibrarySymbolItems {
