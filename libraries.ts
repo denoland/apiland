@@ -280,12 +280,56 @@ function loadLibrary(name: string, reload: boolean) {
   }
 }
 
+async function forceLoadLibrary(
+  name: string,
+  versionName: string,
+  sources: string[],
+) {
+  if (!(name === "stable" || name === "unstable")) {
+    dax.logError(`Unsupported library: "${name}"`);
+  }
+  name = name === "stable" ? DENO_STABLE_NAME : DENO_UNSTABLE_NAME;
+  const datastore = await getDatastore();
+  dax.logStep(`Documenting ${name}@${versionName}...`);
+  const keyInit: KeyInit[] = [
+    [LIBRARY_KIND, name],
+    [LIBRARY_VERSION_KIND, versionName],
+  ];
+  const version: LibraryVersion = {
+    name,
+    version: versionName,
+    sources: sources.map((src) => ({
+      url: new URL(src, import.meta.url).toString(),
+      contentType: "application/typescript",
+    })),
+  };
+  const mutations: Mutation[] = [];
+  await clear(datastore, mutations, keyInit);
+  objectSetKey(version, datastore.key(...keyInit));
+  mutations.push({ upsert: objectToEntity(version) });
+  await docLibrary(datastore, mutations, version.sources, keyInit);
+  await commit(datastore, mutations);
+  dax.logStep("Success.");
+}
+
 function main() {
-  const args = parse(Deno.args, { boolean: ["reload"] });
+  const args = parse(Deno.args, { boolean: ["reload"], string: ["source"] });
   const subcommand = String(args["_"][0]);
   switch (subcommand) {
     case "load":
       return loadLibrary(String(args["_"][1]), args["reload"]);
+    case "forceload": {
+      const [, library, version, ...sources] = args["_"];
+      if (!library || !version || !sources.length) {
+        dax.logError("Invalid arguments for forceload command.");
+        Deno.exit(1);
+      }
+      return forceLoadLibrary(
+        String(library),
+        String(version),
+        sources.map((source) => String(source)),
+      );
+    }
     default:
       dax.logError(`Unsupported sub-command: "${subcommand}".`);
   }
