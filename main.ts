@@ -152,7 +152,8 @@ router.get("/v2/metrics/modules", async (ctx) => {
       `Parameter "page" cannot be specified without "limit" being specified.`,
     );
   }
-  query.order("popularity.score", true);
+  const orderBy = ctx.searchParams.orderBy ?? "score";
+  query.order(`popularity.${orderBy}`, true);
   const response = await datastore.runQuery(query);
   if (response.batch.entityResults) {
     const hasNext = response.batch.moreResults !== "NO_MORE_RESULTS";
