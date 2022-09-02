@@ -191,8 +191,15 @@ router.get("/v2/metrics/modules/:module", async (ctx) => {
     datastore.key(["module", ctx.params.module]),
   ]);
   if (response.found && response.found.length === 2) {
-    const metrics = entityToObject<ModuleMetrics>(response.found[0].entity);
-    const module = entityToObject<Module>(response.found[1].entity);
+    let module: Module | undefined;
+    let metrics: ModuleMetrics | undefined;
+    for (const { entity } of response.found) {
+      if (entity.key?.path[0].kind === "module") {
+        module = entityToObject(entity);
+      } else {
+        metrics = entityToObject(entity);
+      }
+    }
     return { module, metrics };
   }
 });
