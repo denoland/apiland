@@ -186,12 +186,14 @@ router.get("/v2/metrics/modules", async (ctx) => {
 });
 router.get("/v2/metrics/modules/:module", async (ctx) => {
   datastore = datastore ?? await getDatastore();
-  const response = await datastore.lookup(
+  const response = await datastore.lookup([
     datastore.key(["module_metrics", ctx.params.module]),
-  );
-  if (response.found) {
-    console.log(response.found[0].entity);
-    return entityToObject(response.found[0].entity);
+    datastore.key(["module", ctx.params.module]),
+  ]);
+  if (response.found && response.found.length === 2) {
+    const metrics = entityToObject<ModuleMetrics>(response.found[0].entity);
+    const module = entityToObject<Module>(response.found[1].entity);
+    return { module, metrics };
   }
 });
 
