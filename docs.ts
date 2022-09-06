@@ -250,8 +250,8 @@ export async function getImportMapSpecifier(
   }
   if (result?.kind === "module") {
     const { specifier, content } = result;
-    const configFileJson: ConfigFileJson = JSONC.parse(content);
-    if (configFileJson.importMap) {
+    const configFileJson: ConfigFileJson | undefined = JSONC.parse(content);
+    if (configFileJson && configFileJson.importMap) {
       return new URL(configFileJson.importMap, specifier).toString();
     }
     return undefined;

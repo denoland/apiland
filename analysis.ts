@@ -97,14 +97,31 @@ export const patterns = {
     }),
   ],
   "denopkg.com": [
-    new URLPattern(
-      "https://denopkg.com/:org(@[^/]+)?/:pkg([^@/]+){@:ver}?/:mod*",
-    ),
+    new URLPattern({
+      protocol: "https",
+      hostname: "denopkg.com",
+      pathname: "/:org(@[^/]+)?/:pkg([^@/]+){@:ver}?/:mod*",
+      search: "*",
+      hash: "*",
+    }),
   ],
   "denolib.com": [
-    new URLPattern(
-      "https://denolib.com/:org(@[^/]+)?/:pkg([^@/]+){@:ver}?/:mod*",
-    ),
+    new URLPattern({
+      protocol: "https",
+      hostname: "denolib.com",
+      pathname: "/:org(@[^/]+)?/:pkg([^@/]+){@:ver}?/:mod*",
+      search: "*",
+      hash: "*",
+    }),
+  ],
+  "lib.deno.dev": [
+    new URLPattern({
+      protocol: "https",
+      hostname: "lib.deno.dev",
+      pathname: "/x/:pkg([^@/]+){@:ver}?/:mod*",
+      search: "*",
+      hash: "*",
+    }),
   ],
   /** a github proxy */
   "pax.deno.dev": [
@@ -115,6 +132,10 @@ export const patterns = {
   "ghuc.cc": [
     // https://ghuc.cc/qwtel/kv-storage-interface/index.d.ts
     new URLPattern("https://ghuc.cc/:org/:pkg([^@/]+){@:ver}?/:mod*"),
+  ],
+  "ghc.deno.dev": [
+    // https://ghc.deno.dev/tbjgolden/deno-htmlparser2@1f76cdf/htmlparser2/Parser.ts
+    new URLPattern("https://ghc.deno.dev/:org/:pkg([^@/]+){@:ver}?/:mod*"),
   ],
   /** jspm.dev and jspm.io packages */
   "jspm.dev": [
