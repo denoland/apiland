@@ -59,7 +59,7 @@ export const patterns = {
   /** Modules/packages hosted on nest.land. */
   "nest.land": [new URLPattern("https://x.nest.land/:pkg([^@/]+)@:ver/:mod*")],
   /** Modules hosted on crux.land. */
-  "crux.land": [new URLPattern("https://crux.land/:pkg([^@/]+)@:ver")],
+  "crux.land": [new URLPattern("https://crux.land/:pkg([^@/]+){@:ver}?")],
   /** Content hosted on GitHub. */
   "github.com": [
     new URLPattern({
@@ -259,6 +259,22 @@ interface MappedModule {
   deps?: Map<string, MappedDependency>;
 }
 
+function resolveModule(
+  modules: Map<string, MappedModule>,
+  redirects: Record<string, string>,
+  errors: DependencyError[],
+  specifier: string,
+): MappedModule | undefined {
+  const resolved = resolveSpecifiers(specifier, redirects);
+  const mod = modules.get(resolved);
+  assert(mod, `cannot find module: ${resolved}`);
+  if (mod.error) {
+    errors.push({ specifier: resolved, error: mod.error });
+    return;
+  }
+  return mod;
+}
+
 function analyzeDeps(
   deps: Map<string, ModuleDependency>,
   modules: Map<string, MappedModule>,
@@ -271,14 +287,8 @@ function analyzeDeps(
     return;
   }
   seen.add(specifier);
-  const resolved = resolveSpecifiers(specifier, redirects);
-  const mod = modules.get(resolved);
-  assert(mod, `cannot find module: ${resolved}`);
-  if (mod.error) {
-    errors.push({ specifier: resolved, error: mod.error });
-    return;
-  }
-  if (mod.deps) {
+  const mod = resolveModule(modules, redirects, errors, specifier);
+  if (mod && mod.deps) {
     for (const [dep, { code, type }] of mod.deps) {
       if (code) {
         if (code.error) {
@@ -287,6 +297,7 @@ function analyzeDeps(
           if (isExternal(code.specifier, specifier)) {
             const parsedDep = parse(code.specifier);
             deps.set(depKey(parsedDep), parsedDep);
+            resolveModule(modules, redirects, errors, code.specifier);
           } else {
             analyzeDeps(deps, modules, redirects, errors, seen, code.specifier);
           }
@@ -299,6 +310,7 @@ function analyzeDeps(
           if (isExternal(type.specifier, specifier)) {
             const parsedDep = parse(type.specifier);
             deps.set(depKey(parsedDep), parsedDep);
+            resolveModule(modules, redirects, errors, type.specifier);
           } else {
             analyzeDeps(deps, modules, redirects, errors, seen, type.specifier);
           }
