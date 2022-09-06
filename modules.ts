@@ -61,8 +61,7 @@ interface PackageMetaListing {
   type: "file" | "dir";
 }
 
-const S3_BUCKET =
-  "http://deno-registry2-prod-storagebucket-b3a31d16.s3-website-us-east-1.amazonaws.com/";
+const DENO_CDN = "https://cdn.deno.land/";
 const DENO_API = "https://api.deno.land/modules/";
 export const RE_IGNORED_MODULE =
   /(\/[_.].|(test|.+_test)\.(js|jsx|mjs|cjs|ts|tsx|mts|cts)$)/i;
@@ -118,7 +117,7 @@ export async function getModuleData(
 export async function getModuleMetaVersions(
   module: string,
 ): Promise<ModuleMetaVersionsJson | undefined> {
-  const res = await fetch(`${S3_BUCKET}${module}/meta/versions.json`);
+  const res = await fetch(`${DENO_CDN}${module}/meta/versions.json`);
   if (res.status !== 200) {
     return undefined;
   }
@@ -144,7 +143,7 @@ export async function getVersionMeta(
   version: string,
 ): Promise<ModuleVersionMetaJson | undefined> {
   const res = await fetch(
-    `${S3_BUCKET}${module}/versions/${version}/meta/meta.json`,
+    `${DENO_CDN}${module}/versions/${version}/meta/meta.json`,
   );
   if (res.status !== 200) {
     return undefined;
@@ -210,7 +209,7 @@ const VERSION_KINDS = [
   "nav_index",
 ];
 
-async function clearAppend(
+export async function clearAppend(
   datastore: Datastore,
   mutations: Mutation[],
   kinds: string[],

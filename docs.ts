@@ -24,8 +24,8 @@ import {
   objectGetKey,
   objectSetKey,
   objectToEntity,
+  type Query,
 } from "google_datastore";
-import { type Query } from "google_datastore/query";
 import type {
   Entity,
   Key,
@@ -37,6 +37,7 @@ import type {
 } from "google_datastore/types";
 import * as JSONC from "jsonc-parser";
 import { errors } from "oak_commons/http_errors.ts";
+import { getAnalysis } from "./analysis.ts";
 
 import { cacheInfoPage, lookup } from "./cache.ts";
 import {
@@ -136,6 +137,11 @@ const cachedResources = new Map<string, LoadResponse | undefined>();
 let cacheCheckQueued = false;
 let cacheSize = 0;
 
+const DENO_LAND_X = new URLPattern(
+  "https://deno.land/x/:mod([^@/]+)@:ver/:path*",
+);
+const DENO_LAND_STD = new URLPattern("https://deno.land/std@:ver/:path*");
+
 export async function load(
   specifier: string,
 ): Promise<LoadResponse | undefined> {
@@ -145,7 +151,20 @@ export async function load(
     return cachedResources.get(specifier);
   }
   try {
-    const url = new URL(specifier);
+    let cdnSpecifier: string | undefined;
+    const matchStd = DENO_LAND_STD.exec(specifier);
+    if (matchStd) {
+      const { ver, path } = matchStd.pathname.groups;
+      cdnSpecifier = `https://cdn.deno.land/std/versions/${ver}/raw/${path}`;
+    } else {
+      const matchX = DENO_LAND_X.exec(specifier);
+      if (matchX) {
+        const { mod, ver, path } = matchX.pathname.groups;
+        cdnSpecifier =
+          `https://cdn.deno.land/${mod}/versions/${ver}/raw/${path}`;
+      }
+    }
+    const url = new URL(cdnSpecifier ?? specifier);
     if (url.protocol === "http:" || url.protocol === "https:") {
       const response = await fetch(url, { redirect: "follow" });
       if (response.status !== 200) {
@@ -161,7 +180,7 @@ export async function load(
       }
       const loadResponse: LoadResponse = {
         kind: "module",
-        specifier: response.url,
+        specifier: cdnSpecifier ? specifier : response.url,
         headers,
         content,
       };
@@ -804,11 +823,11 @@ function getReadme(entries: ModuleEntry[]): ModuleEntry | undefined {
   );
 }
 
-function getModInfoPage(
+async function getModInfoPage(
   moduleItem: Module,
   moduleVersion: ModuleVersion,
   entries: ModuleEntry[],
-): ModInfoPage {
+): Promise<ModInfoPage> {
   const {
     name: module,
     description,
@@ -821,10 +840,16 @@ function getModInfoPage(
   const defaultModule = getDefaultModule(entries);
   const config = getConfig(entries);
   const readme = getReadme(entries);
+  const [dependencies, dependency_errors] = await getAnalysis(
+    moduleItem,
+    moduleVersion,
+  );
   return {
     kind: "modinfo",
     module,
     description,
+    dependencies,
+    dependency_errors,
     version,
     versions,
     latest_version,
@@ -870,7 +895,11 @@ export async function generateInfoPage(
     return { kind: "no-versions", module: moduleItem.name };
   }
   moduleEntries = moduleEntries || await getModuleEntries(module, version);
-  const infoPage = getModInfoPage(moduleItem, moduleVersion, moduleEntries);
+  const infoPage = await getModInfoPage(
+    moduleItem,
+    moduleVersion,
+    moduleEntries,
+  );
   datastore = datastore || await getDatastore();
   objectSetKey(
     infoPage,
