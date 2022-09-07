@@ -138,7 +138,7 @@ let cacheCheckQueued = false;
 let cacheSize = 0;
 
 const DENO_LAND_X = new URLPattern(
-  "https://deno.land/x/:mod([^@/]+)@:ver/:path*",
+  "https://deno.land/x/:mod@:ver/:path*",
 );
 const DENO_LAND_STD = new URLPattern("https://deno.land/std@:ver/:path*");
 

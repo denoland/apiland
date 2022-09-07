@@ -36,7 +36,7 @@ export const patterns = {
     new URLPattern({
       protocol: "https",
       hostname: "deno.land",
-      pathname: "/x/:pkg([^@/]+){@:ver}?/:mod*",
+      pathname: "/x/:pkg{@:ver}?/:mod*",
       search: "*",
       hash: "*",
     }),
@@ -57,9 +57,9 @@ export const patterns = {
     }),
   ],
   /** Modules/packages hosted on nest.land. */
-  "nest.land": [new URLPattern("https://x.nest.land/:pkg([^@/]+)@:ver/:mod*")],
+  "nest.land": [new URLPattern("https://x.nest.land/:pkg@:ver/:mod*")],
   /** Modules hosted on crux.land. */
-  "crux.land": [new URLPattern("https://crux.land/:pkg([^@/]+){@:ver}?")],
+  "crux.land": [new URLPattern("https://crux.land/:pkg{@:ver}?")],
   /** Content hosted on GitHub. */
   "github.com": [
     new URLPattern({
@@ -84,15 +84,14 @@ export const patterns = {
     new URLPattern({
       protocol: "http{s}?",
       hostname: "{cdn.}?esm.sh",
-      pathname: "/:org(@[^/]+)?/:pkg([^@/]+){@:ver}?{/}?:mod*",
+      pathname: "/:org(@[^/]+)?/:pkg{@:ver}?{/}?:mod*",
       search: "*",
     }),
     // https://esm.sh/v92/preact@10.10.0/src/index.d.ts
     new URLPattern({
       protocol: "http{s}?",
       hostname: "{cdn.}?esm.sh",
-      pathname:
-        "/:regver(stable|v[0-9]+)/:org(@[^/]+)?/:pkg([^@/]+){@:ver}?{/}?:mod*",
+      pathname: "/:regver(stable|v[0-9]+)/:org(@[^/]+)?/:pkg{@:ver}?{/}?:mod*",
       search: "*",
     }),
   ],
@@ -100,7 +99,7 @@ export const patterns = {
     new URLPattern({
       protocol: "https",
       hostname: "denopkg.com",
-      pathname: "/:org(@[^/]+)?/:pkg([^@/]+){@:ver}?/:mod*",
+      pathname: "/:org(@[^/]+)?/:pkg{@:ver}?/:mod*",
       search: "*",
       hash: "*",
     }),
@@ -109,7 +108,7 @@ export const patterns = {
     new URLPattern({
       protocol: "https",
       hostname: "denolib.com",
-      pathname: "/:org(@[^/]+)?/:pkg([^@/]+){@:ver}?/:mod*",
+      pathname: "/:org(@[^/]+)?/:pkg{@:ver}?/:mod*",
       search: "*",
       hash: "*",
     }),
@@ -118,7 +117,7 @@ export const patterns = {
     new URLPattern({
       protocol: "https",
       hostname: "lib.deno.dev",
-      pathname: "/x/:pkg([^@/]+){@:ver}?/:mod*",
+      pathname: "/x/:pkg{@:ver}?/:mod*",
       search: "*",
       hash: "*",
     }),
@@ -126,26 +125,26 @@ export const patterns = {
   /** a github proxy */
   "pax.deno.dev": [
     // https://pax.deno.dev/windchime-yk/deno-util@v1.1.1/file.ts
-    new URLPattern("https://pax.deno.dev/:org/:pkg([^@/]+){@:ver}?/:mod*"),
+    new URLPattern("https://pax.deno.dev/:org/:pkg{@:ver}?/:mod*"),
   ],
   /** a github proxy */
   "ghuc.cc": [
     // https://ghuc.cc/qwtel/kv-storage-interface/index.d.ts
-    new URLPattern("https://ghuc.cc/:org/:pkg([^@/]+){@:ver}?/:mod*"),
+    new URLPattern("https://ghuc.cc/:org/:pkg{@:ver}?/:mod*"),
   ],
   "ghc.deno.dev": [
     // https://ghc.deno.dev/tbjgolden/deno-htmlparser2@1f76cdf/htmlparser2/Parser.ts
-    new URLPattern("https://ghc.deno.dev/:org/:pkg([^@/]+){@:ver}?/:mod*"),
+    new URLPattern("https://ghc.deno.dev/:org/:pkg{@:ver}?/:mod*"),
   ],
   /** jspm.dev and jspm.io packages */
   "jspm.dev": [
     // https://jspm.dev/@angular/compiler@11.0.5
     new URLPattern(
-      "https://jspm.dev/:org((?:npm:)?@[^/]+)?/:pkg([^@!/]+){@:ver([^!/]+)}?{(![^/]+)}?/:mod*",
+      "https://jspm.dev/:org((?:npm:)?@[^/]+)?/:pkg{@:ver([^!/]+)}?{(![^/]+)}?/:mod*",
     ),
     // https://dev.jspm.io/markdown-it@11.0.1
     new URLPattern(
-      "https://dev.jspm.io/:org((?:npm:)?@[^/]+)?/:pkg([^@!/]+){@:ver([^!/]+)}?{(![^/]+)}?/:mod*",
+      "https://dev.jspm.io/:org((?:npm:)?@[^/]+)?/:pkg{@:ver([^!/]+)}?{(![^/]+)}?/:mod*",
     ),
   ],
   /** Packages that are hosted on skypack.dev */
@@ -153,7 +152,7 @@ export const patterns = {
     new URLPattern({
       protocol: "https",
       hostname: "cdn.skypack.dev",
-      pathname: "/:org(@[^/]+)?/:pkg([^@/]+){@:ver}?/:mod*",
+      pathname: "/:org(@[^/]+)?/:pkg{@:ver}?/:mod*",
       search: "*",
     }),
     // https://cdn.shopstic.com/pin/ajv-formats@v2.1.1-vcFtNZ2SctUV93FmiL2Q/dist=es2020,mode=types/dist/index.d.ts
@@ -161,34 +160,34 @@ export const patterns = {
     new URLPattern({
       protocol: "https",
       hostname: "cdn.shopstic.com",
-      pathname: "/pin/:org(@[^/]+)?/:pkg([^@/]+){@:ver([^-/]+)}:hash/:mod*",
+      pathname: "/pin/:org(@[^/]+)?/:pkg{@:ver([^-/]+)}:hash/:mod*",
       search: "*",
     }),
     // https://cdn.skypack.dev/-/@firebase/firestore@v3.4.3-A3UEhS17OZ2Vgra7HCZF/dist=es2019,mode=types/dist/index.d.ts
     new URLPattern(
-      "https://cdn.skypack.dev/-/:org(@[^/]+)?/:pkg([^@/]+)@:ver([^-]+):hash/:mod*",
+      "https://cdn.skypack.dev/-/:org(@[^/]+)?/:pkg@:ver([^-]+):hash/:mod*",
     ),
     // https://cdn.pika.dev/class-transformer@^0.2.3
     new URLPattern({
       protocol: "https",
       hostname: "cdn.pika.dev",
-      pathname: "/:org(@[^/]+)?/:pkg([^@/]+){@:ver}?/:mod*",
+      pathname: "/:org(@[^/]+)?/:pkg{@:ver}?/:mod*",
       search: "*",
     }),
   ],
   /** Packages that are hosted on jsdeliver.net */
   "jsdeliver.net": [
     new URLPattern(
-      "https://cdn.jsdelivr.net/npm/:org(@[^/]+)?/:pkg([^@/]+){@:ver}?/:mod*",
+      "https://cdn.jsdelivr.net/npm/:org(@[^/]+)?/:pkg{@:ver}?/:mod*",
     ),
     new URLPattern(
-      "https://cdn.jsdelivr.net/gh/:org/:pkg([^@/]+){@:ver}?/:mod*",
+      "https://cdn.jsdelivr.net/gh/:org/:pkg{@:ver}?/:mod*",
     ),
   ],
   /** Packages that are hosted on unpkg.com */
   "unpkg.com": [
     new URLPattern(
-      "https://unpkg.com/:org(@[^/]+)?/:pkg([^@/]+){@:ver}?/:mod*",
+      "https://unpkg.com/:org(@[^/]+)?/:pkg{@:ver}?/:mod*",
     ),
   ],
 
