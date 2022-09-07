@@ -1044,6 +1044,16 @@ paths:
                 $ref: "#/components/schemas/HttpError"
 components:
   schemas:
+    DependencyError:
+      type: object
+      properties:
+        specifier:
+          type: string
+        error:
+          type: string
+      required:
+        - "specifier"
+        - "error"
     DocNode:
       type: object
       properties:
@@ -1339,24 +1349,6 @@ components:
             - typedef
             - type
             - unsupported
-    ModInfoDependency:
-      type: object
-      properties:
-        kind:
-          type: string
-          enum:
-            - denoland
-            - esm
-            - github
-            - skypack
-            - other
-          example: denoland
-        package:
-          type: string
-          example: std
-        version:
-          type: string
-          example: "0.152.0"
     ModInfoPage:
       type: object
       properties:
@@ -1385,7 +1377,11 @@ components:
         dependencies:
           type: array
           items:
-            $ref: "#/components/schemas/ModInfoDependency"
+            $ref: "#/components/schemas/ModuleDependency"
+        dependency_errors:
+          type: array
+          items:
+            $ref: "#/components/schemas/DependencyError"
         defaultModule: 
           $ref: "#/components/schemas/ModuleEntry"
         defaultExport:
@@ -1440,6 +1436,23 @@ components:
         - latest_version
         - versions
       description: Representation of a module
+    ModuleDependency:
+      type: object
+      properties:
+        src:
+          type: string
+          example: "deno.land/x"
+        org:
+          type: string
+        pkg:
+          type: string
+          example: "oak"
+        ver:
+          type: string
+          example: "v11.1.0"
+      required:
+        - "src"
+        - "pkg"
     ModuleMetricList:
       allOf:
         - $ref: "#/components/schemas/ListBase"

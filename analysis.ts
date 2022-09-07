@@ -84,7 +84,7 @@ export const patterns = {
     new URLPattern({
       protocol: "http{s}?",
       hostname: "{cdn.}?esm.sh",
-      pathname: "/:org(@[^/]+)?/:pkg([^@/]+){@:ver}?/:mod*",
+      pathname: "/:org(@[^/]+)?/:pkg([^@/]+){@:ver}?{/}?:mod*",
       search: "*",
     }),
     // https://esm.sh/v92/preact@10.10.0/src/index.d.ts
@@ -92,7 +92,7 @@ export const patterns = {
       protocol: "http{s}?",
       hostname: "{cdn.}?esm.sh",
       pathname:
-        "/:regver(stable|v[0-9]+)/:org(@[^/]+)?/:pkg([^@/]+){@:ver}?/:mod*",
+        "/:regver(stable|v[0-9]+)/:org(@[^/]+)?/:pkg([^@/]+){@:ver}?{/}?:mod*",
       search: "*",
     }),
   ],
@@ -154,6 +154,14 @@ export const patterns = {
       protocol: "https",
       hostname: "cdn.skypack.dev",
       pathname: "/:org(@[^/]+)?/:pkg([^@/]+){@:ver}?/:mod*",
+      search: "*",
+    }),
+    // https://cdn.shopstic.com/pin/ajv-formats@v2.1.1-vcFtNZ2SctUV93FmiL2Q/dist=es2020,mode=types/dist/index.d.ts
+    // this cdn simply redirects to skypack.dev
+    new URLPattern({
+      protocol: "https",
+      hostname: "cdn.shopstic.com",
+      pathname: "/pin/:org(@[^/]+)?/:pkg([^@/]+){@:ver([^-/]+)}:hash/:mod*",
       search: "*",
     }),
     // https://cdn.skypack.dev/-/@firebase/firestore@v3.4.3-A3UEhS17OZ2Vgra7HCZF/dist=es2019,mode=types/dist/index.d.ts
