@@ -1,6 +1,7 @@
 // Copyright 2018-2022 the Deno authors. All rights reserved. MIT license.
 
 import type { DocNode, DocNodeKind, JsDoc } from "deno_doc/types";
+import type { patterns } from "./analysis.ts";
 
 /**
  * Common types used for data structures within the project
@@ -71,6 +72,9 @@ export interface ModuleMetrics {
 /** Stored as kind `module_version` in datastore. */
 export interface ModuleVersion {
   name: string;
+  /** If assigned, contains a text string which indicates what version of
+   * analysis has been done on the content. */
+  analysis_version?: string;
   description: string;
   version: string;
   uploaded_at: Date;
@@ -98,6 +102,31 @@ export interface ModuleEntry {
   /** For `"dir"` entries, an array of docable child paths that are not
    * "ignored". */
   index?: string[];
+}
+
+type DependencySources = keyof typeof patterns | "other";
+
+/** Stored as kind `module_dependency` in datastore. */
+export interface ModuleDependency {
+  /** The source for the module. If the module is not a recognized source, then
+   * `"other"` is used and the `pkg` field will be set to the "raw" URL. */
+  src: DependencySources;
+  /** The optional "organization" associated with dependency. For example with
+   * npm or GitHub style dependency, the organization that the `pkg` belongs
+   * to. */
+  org?: string;
+  /** The package or module name associated with the dependency. */
+  pkg: string;
+  /** The optional version or tag associated with the dependency. */
+  ver?: string;
+}
+
+/** Stored as kind `dependency_error` in datastore. */
+export interface DependencyError {
+  /** The specifier the error was related to. */
+  specifier: string;
+  /** The error message. */
+  error: string;
 }
 
 /** Stores as kind `doc_structure` in datastore. */
@@ -181,12 +210,6 @@ export interface DocPageRedirect {
   path: string;
 }
 
-interface ModInfoDependency {
-  kind: "denoland" | "esm" | "github" | "skypack" | "other";
-  package: string;
-  version: string;
-}
-
 export interface ModInfoPage {
   kind: "modinfo";
   module: string;
@@ -194,8 +217,10 @@ export interface ModInfoPage {
   version: string;
   versions: string[];
   latest_version: string;
-  /** An array of dependencies identified for the module. */
-  dependencies?: ModInfoDependency[];
+  /** An optional array of dependencies identified for the module. */
+  dependencies?: ModuleDependency[];
+  /** An optional array of dependencies identified for the module. */
+  dependency_errors?: DependencyError[];
   /** The default module for the module. */
   defaultModule?: ModuleEntry;
   /** A flag that indicates if the default module has a default export. */

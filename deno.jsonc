@@ -9,11 +9,12 @@
   "importMap": "./import-map.json",
   "tasks": {
     "dev": "deno run --check --unstable --allow-net --allow-hrtime --allow-env --allow-read=. main.ts",
-    "load": "deno run --allow-net --allow-env --allow-read=.env,.env.defaults load.ts",
+    "algolia": "deno run --allow-net --allow-env --allow-read=.env,.env.defaults --allow-write algolia.ts",
+    "analytics": "deno run --allow-net --allow-env --allow-read=.env,.env.defaults analytics.ts",
     "indexes": "deno run --allow-net --allow-env --allow-read=.env,.env.defaults indexes.ts",
+    "load": "deno run --allow-net --allow-env --allow-read=.env,.env.defaults load.ts",
     "metrics": "deno run --allow-net --allow-env --allow-read=.env,.env.defaults metrics.ts",
     "test": "deno test --allow-net --allow-hrtime --allow-env --allow-read=.",
-    "tokens": "deno run --allow-net --allow-env --allow-read=.env,.env.defaults tokens.ts",
-    "algolia": "deno run --allow-net --allow-env --allow-read=.env,.env.defaults --allow-write algolia.ts"
+    "tokens": "deno run --allow-net --allow-env --allow-read=.env,.env.defaults tokens.ts"
   }
 }
