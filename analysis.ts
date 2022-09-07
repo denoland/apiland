@@ -368,7 +368,7 @@ async function isAnalyzed(module: string, version: string): Promise<boolean> {
   return moduleVersion.analysis_version === ANALYSIS_VERSION;
 }
 
-async function analyze(
+export async function analyze(
   module: string,
   version: string,
   force: boolean,

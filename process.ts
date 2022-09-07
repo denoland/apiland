@@ -15,6 +15,7 @@ import {
   moduleToRequest,
   upload,
 } from "./algolia.ts";
+import { analyze } from "./analysis.ts";
 import { clear } from "./cache.ts";
 import {
   addNodes,
@@ -514,6 +515,9 @@ async function taskLoadModule(
     );
   }
   clear(module);
+
+  // perform dependency analysis
+  await analyze(module, version, true);
 }
 
 async function taskAlgolia(
