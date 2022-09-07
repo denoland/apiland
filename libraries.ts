@@ -45,10 +45,21 @@ const GITHUB_API_HEADERS = {
 async function clear(
   datastore: Datastore,
   mutations: Mutation[],
-  keyInit: KeyInit[],
+  lib: string,
+  version: string,
 ) {
+  mutations.push({
+    delete: datastore.key(
+      ["library", lib],
+      ["symbol_items", version],
+    ),
+  });
+
   const kinds = ["doc_node", "doc_page"];
-  const ancestor = datastore.key(...keyInit);
+  const ancestor = datastore.key(
+    ["library", lib],
+    ["library_version", version],
+  );
 
   for (const kind of kinds) {
     const query = datastore
@@ -215,7 +226,7 @@ async function loadUnstableLibrary(reload: boolean) {
       [LIBRARY_KIND, DENO_UNSTABLE_NAME],
       [LIBRARY_VERSION_KIND, versionName],
     ];
-    await clear(datastore, mutations, keyInit);
+    await clear(datastore, mutations, DENO_UNSTABLE_NAME, versionName);
     objectSetKey(version, datastore.key(...keyInit));
     mutations.push({ upsert: objectToEntity(version) });
     await docLibrary(datastore, mutations, version.sources, keyInit);
@@ -285,7 +296,7 @@ async function loadStableLibrary(reload: boolean) {
       [LIBRARY_KIND, DENO_STABLE_NAME],
       [LIBRARY_VERSION_KIND, versionName],
     ];
-    await clear(datastore, mutations, keyInit);
+    await clear(datastore, mutations, DENO_STABLE_NAME, versionName);
     objectSetKey(version, datastore.key(...keyInit));
     mutations.push({ upsert: objectToEntity(version) });
     await docLibrary(datastore, mutations, version.sources, keyInit);
@@ -330,7 +341,7 @@ async function forceLoadLibrary(
     })),
   };
   const mutations: Mutation[] = [];
-  await clear(datastore, mutations, keyInit);
+  await clear(datastore, mutations, name, versionName);
   objectSetKey(version, datastore.key(...keyInit));
   mutations.push({ upsert: objectToEntity(version) });
   await docLibrary(datastore, mutations, version.sources, keyInit);
