@@ -151,7 +151,7 @@ export async function getVersionMeta(
   return res.json();
 }
 
-async function getModuleLatestVersion(
+export async function getModuleLatestVersion(
   module: string,
 ): Promise<string | null | undefined> {
   const datastore = await getDatastore();

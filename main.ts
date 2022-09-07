@@ -36,11 +36,11 @@ import {
   queryDocNodes,
   ROOT_SYMBOL,
 } from "./docs.ts";
-import { redirectToLatest } from "./modules.ts";
+import { getModuleLatestVersion, redirectToLatest } from "./modules.ts";
 import { generateLibDocPage } from "./pages.ts";
 import { enqueue } from "./process.ts";
 import { getDatastore } from "./store.ts";
-import { Library, Module, ModuleMetrics } from "./types.d.ts";
+import { InfoPage, Library, Module, ModuleMetrics } from "./types.d.ts";
 
 interface PagedItems<T> {
   items: T[];
@@ -186,21 +186,20 @@ router.get("/v2/metrics/modules", async (ctx) => {
 });
 router.get("/v2/metrics/modules/:module", async (ctx) => {
   datastore = datastore ?? await getDatastore();
-  const response = await datastore.lookup([
+  const res = await datastore.lookup(
     datastore.key(["module_metrics", ctx.params.module]),
-    datastore.key(["module", ctx.params.module]),
-  ]);
-  if (response.found && response.found.length === 2) {
-    let module: Module | undefined;
-    let metrics: ModuleMetrics | undefined;
-    for (const { entity } of response.found) {
-      if (entity.key?.path[0].kind === "module") {
-        module = entityToObject(entity);
-      } else {
-        metrics = entityToObject(entity);
+  );
+  if (res.found && res.found.length === 1) {
+    const metrics = entityToObject<ModuleMetrics>(res.found[0].entity);
+    const latest = await getModuleLatestVersion(ctx.params.module);
+    let info: InfoPage | undefined;
+    if (latest) {
+      info = await lookupInfoPage(ctx.params.module, latest);
+      if (!info) {
+        info = await generateInfoPage(ctx.params.module, latest);
       }
     }
-    return { module, metrics };
+    return { metrics, info };
   }
 });
 

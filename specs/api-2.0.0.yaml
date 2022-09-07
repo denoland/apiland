@@ -108,7 +108,7 @@ paths:
             content:
               application/json:
                 schema:
-                  $ref: "#/components/schemas/ModuleMetrics"
+                  $ref: "#/components/schemas/ModuleMetricsInfo"
           "404":
             description: Not found - the requested resource was not found
             content:
@@ -1554,6 +1554,15 @@ components:
         - "maintenance"
         - "popularity"
         - "quality"
+    ModuleMetricsInfo:
+      type: object
+      properties:
+        metrics:
+          $ref: "#/components/schemas/ModuleMetrics"
+        info:
+          $ref: "#/components/schemas/ModInfoPage"
+      required:
+        - "metrics"
     ModuleName:
       type: string
       pattern: "^[A-Za-z_]{3,}$"
