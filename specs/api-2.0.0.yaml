@@ -26,6 +26,84 @@ tags:
 - name: infrastructure
   description: APIs that relate to internal infrastructure.
 paths:
+  /v2/metrics/dependencies:
+    get:
+      tags:
+        - registry
+        - metrics
+      summary: List dependency metrics.
+      description: > 
+        Provides objects by dependency source containing metrics about what
+        deno.land/x modules depend on code at that source.
+      operationId: getDependencyMetrics
+      responses:
+        "200":
+          description: Success.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/DependencyMetrics"
+                required:
+                  - "items"
+        "404":
+          description: >
+            Not found - no resources for the given query were found. Try
+            changing the query parameters.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HttpError"
+            text/html:
+              schema:
+                type: string
+  /v2/metrics/dependencies/{source}:
+    get:
+      tags:
+        - registry
+        - metrics
+      summary: List dependency metrics for a source.
+      description: > 
+        Provides objects by dependency source containing metrics about what
+        deno.land/x modules depend on code at that source.
+      operationId: getDependencyMetricsSource
+      parameters:
+        - name: source
+          in: path
+          description: Source name
+          required: true
+          schema:
+            type: string
+            example: "deno.land/x"
+      responses:
+        "200":
+          description: Success.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/DependencyMetrics"
+                required:
+                  - "items"
+        "404":
+          description: >
+            Not found - no resources for the given query were found. Try
+            changing the query parameters.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HttpError"
+            text/html:
+              schema:
+                type: string
   /v2/metrics/modules:
     get:
       tags:
@@ -1054,6 +1132,41 @@ components:
       required:
         - "specifier"
         - "error"
+    DependencyMetrics:
+      type: object
+      properties:
+        source:
+          type: string
+          example: "deno.land/x"
+        count:
+          type: integer
+          example: 4521
+        mods:
+          type: object
+          additionalProperties:
+            $ref: "#/components/schemas/DependencyModuleMetrics"
+      required:
+        - "source"
+        - "count"
+        - "mods"
+    DependencyModuleMetrics:
+      type: object
+      properties:
+        count:
+          type: integer
+          example: 4251
+        dependents:
+          type: array
+          items:
+            type: string
+        dependent_versions:
+          type: array
+          items:
+            type: string
+        versions:
+          type: object
+          additionalProperties:
+            type: integer
     DocNode:
       type: object
       properties:

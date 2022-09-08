@@ -53,6 +53,31 @@ export interface PopularityModuleTag {
  * module. */
 export type ModuleTag = PopularityModuleTag;
 
+export interface DependencyModuleMetrics {
+  /** The count of deno.land/x module version that have a dependency on this
+   * module/package/repo */
+  count: number;
+  /** The deno.land/x module that has a dependency. */
+  dependents: string[];
+  /** The specific deno.land/x module and version that has a dependency. */
+  dependent_versions: string[];
+  /** A map of the version tags and the count of specific versions.
+   * Dependencies that are un-versioned have a key of `$$unpinned$$`. */
+  versions: Record<string, number>;
+}
+
+/** Stores as kind `dependency_metrics` in the datastore. */
+export interface DependencyMetrics {
+  /** The source label that the dependency is associated with */
+  source: DependencySources;
+  /** The count of deno_land/x module versions that have a dependency in this
+   * source. */
+  count: number;
+  /** A map of module/package/repo names from the source with a value of metrics
+   * about the */
+  mods: Record<string, DependencyModuleMetrics>;
+}
+
 /** Stores as kind `module_metrics` in the datastore. */
 export interface ModuleMetrics {
   name: string;

@@ -40,7 +40,13 @@ import { getModuleLatestVersion, redirectToLatest } from "./modules.ts";
 import { generateLibDocPage } from "./pages.ts";
 import { enqueue } from "./process.ts";
 import { getDatastore } from "./store.ts";
-import { InfoPage, Library, Module, ModuleMetrics } from "./types.d.ts";
+import {
+  DependencyMetrics,
+  InfoPage,
+  Library,
+  Module,
+  ModuleMetrics,
+} from "./types.d.ts";
 
 interface PagedItems<T> {
   items: T[];
@@ -99,6 +105,7 @@ router.all("/", () =>
           <li><code>/v2/pages/mod/info/:module/:version</code> - provides a structure to render a module info page - [<a href="/v2/pages/info/oak/v11.0.0">example</a>]</li>
           <li><code>/v2/modules</code> - Provide a list of modules in the registry - [<a href="/v2/modules" target="_blank">example</a>]</li>
           <li><code>/v2/metrics/modules/:module</code> - Provide metric information for a module -  [<a href="/v2/metrics/modules/oak" target="_blank">example</a>]</li>
+          <li><code>/v2/metrics/dependencies/:source*</code> - Provide metrics information for a dependency source -  [<a href="/v2/metrics/modules/deno.land/x" target="_blank">example</a>]</li>
           <li><code>/v2/modules/:module</code> - Provide information about a specific module - [<a href="/v2/modules/std" target="_blank">example</a>]</li>
           <li><code>/v2/modules/:module/:version</code> - Provide information about a specific module version - [<a href="/v2/modules/std/0.139.0" target="_blank">example</a>]</li>
           <li><code>/v2/modules/:module/:version/doc/:path*</code> - Provide documentation nodes for a specific path of a specific module version -  [<a href="/v2/modules/std/0.139.0/doc/archive/tar.ts" target="_blank">example</a>]</li>
@@ -200,6 +207,19 @@ router.get("/v2/metrics/modules/:module", async (ctx) => {
       }
     }
     return { metrics, info };
+  }
+});
+
+router.get("/v2/metrics/dependencies/:source*", async (ctx) => {
+  datastore = datastore ?? await getDatastore();
+  let query = datastore.createQuery("dependency_metrics");
+  const { source } = ctx.params;
+  if (source) {
+    query = query.filter("source", source);
+  }
+  const items = await datastore.query<DependencyMetrics>(query);
+  if (items.length) {
+    return { items };
   }
 });
 
