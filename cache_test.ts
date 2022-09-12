@@ -63,10 +63,10 @@ Deno.test({
   async fn() {
     clear();
     performance.mark("dp-gm1");
-    const dp1 = await lookupDocPage("std", "0.150.0", "/", "$$root$$");
+    const dp1 = await lookupDocPage("std", "0.155.0", "/", "$$root$$");
     assert(dp1);
     performance.mark("dp-dp1");
-    const dp2 = await lookupDocPage("std", "0.150.0", "/", "$$root$$");
+    const dp2 = await lookupDocPage("std", "0.155.0", "/", "$$root$$");
     performance.mark("dp-dp2");
     assertStrictEquals(dp1, dp2);
     const pass1 = performance.measure("dp-pass1", "dp-gm1", "dp-dp1");
