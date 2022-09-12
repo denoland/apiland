@@ -52,6 +52,8 @@ ID is a simple counter per path of symbols contained.
 | version          | The version of the module that the symbol belongs to.                                                                                     |
 | path             | The path to the module the symbol was exported from.                                                                                      |
 | doc              | Any JSDoc that was associated with the symbol. It is searchable.                                                                          |
+| category         | A test string associated with the `@category` associated with the symbol, if any.                                                         |
+| tags             | An array of `@tags` associated with the symbol, if any.                                                                                   |
 | kind             | The symbol kind. `class`, `function`, `variable`, `interface`, `typeAlias`, or `moduleDoc`. It is a display facet and used for filtering. |
 | location         | Used for linking to source code, but really shouldn't be used as it is the source definition, not the export location.                    |
 

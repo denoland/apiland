@@ -10,6 +10,7 @@ import { type MultipleBatchRequest } from "@algolia/client-search";
 import { createFetchRequester } from "@algolia/requester-fetch";
 import algoliasearch, { SearchClient } from "algoliasearch";
 import dax from "dax";
+import type { JsDocTagDoc, JsDocTagTags } from "deno_doc/types";
 import { parse } from "std/flags/mod.ts";
 import { type Datastore, entityToObject, objectGetKey } from "google_datastore";
 import { type Entity } from "google_datastore/types";
@@ -79,21 +80,12 @@ function main() {
   const module = args["_"][0] as string;
   if (module) {
     return loadModuleDocNodes(module);
-    // return loadModule(module);
   }
 }
 
 if (import.meta.main) {
   await main();
 }
-
-// TODO(@kitsonk) remove after finishing refactor
-// function getPath(docNode: DocNode): string | undefined {
-//   return objectGetKey(docNode)
-//     ?.path
-//     .find(({ kind }) => kind === "module_entry")
-//     ?.name;
-// }
 
 export function filteredDocNode(path: string, node: DocNode): boolean {
   return !ALLOWED_DOCNODES.includes(node.kind) ||
@@ -125,6 +117,22 @@ export function docNodeToRequest(
   };
 }
 
+function getCategory(docNode: DocNode): string | undefined {
+  if (docNode.jsDoc && docNode.jsDoc.tags) {
+    return docNode.jsDoc.tags.find((tag): tag is JsDocTagDoc =>
+      tag.kind === "category"
+    )?.doc;
+  }
+}
+
+function getTags(docNode: DocNode): string[] | undefined {
+  if (docNode.jsDoc && docNode.jsDoc.tags) {
+    return docNode.jsDoc.tags.find((tag): tag is JsDocTagTags =>
+      tag.kind === "tags"
+    )?.tags;
+  }
+}
+
 function docNodeToRequestNew(
   source: Source,
   sourceId: string,
@@ -148,6 +156,8 @@ function docNodeToRequestNew(
       popularity_score,
       version,
       path,
+      category: getCategory(docNode),
+      tags: getTags(docNode),
       doc: docNode.jsDoc?.doc,
       kind: docNode.kind,
       location: docNode.location,
@@ -155,64 +165,25 @@ function docNodeToRequestNew(
   };
 }
 
-// TODO(@kitsonk): remove when refactoring complete
-// async function loadModule(module: string, version?: string) {
-//   dax.logStep(`Loading doc nodes for module "${module}"...`);
-//   let moduleItem: Module | undefined;
-//   let moduleVersion: ModuleVersion | undefined;
-//   if (version) {
-//     [moduleItem, moduleVersion] = await lookup(module, version);
-//   } else {
-//     [moduleItem] = await lookup(module);
-//     if (moduleItem && moduleItem.latest_version) {
-//       version = moduleItem.latest_version;
-//       [, moduleVersion] = await lookup(module, version);
-//     }
-//   }
-//   if (version && moduleVersion && moduleItem) {
-//     dax.logLight(`  using version ${version}.`);
-//     datastore = datastore ?? await getDatastore();
-//     const ancestor = datastore.key(
-//       ["module", module],
-//       ["module_version", version],
-//     );
-//     const query = datastore
-//       .createQuery("doc_node")
-//       .hasAncestor(ancestor);
-//     const entities: Entity[] = [];
-//     for await (const entity of datastore.streamQuery(query)) {
-//       entities.push(entity);
-//     }
-//     const docNodes = entitiesToDocNodes(ancestor, entities);
-//     dax.logLight(`  loaded ${entities.length} doc nodes.`);
-//     const requests: MultipleBatchRequest[] = [];
-//     requests.push(moduleToRequest(moduleItem));
-//     const publishedAt = moduleVersion.uploaded_at.getTime();
-//     const popularityScore = moduleItem.name === "std"
-//       ? STD_POPULARITY_SCORE
-//       : moduleItem.popularity_score;
-//     for (const docNode of docNodes) {
-//       const path = getPath(docNode);
-//       if (path && !filteredDocNode(path, docNode)) {
-//         requests.push(
-//           docNodeToRequest(module, path, publishedAt, popularityScore, docNode),
-//         );
-//       }
-//     }
-//     dax.logStep(
-//       `Uploading ${requests.length} index items to algolia...`,
-//     );
-//     await upload(requests);
-//     dax.logStep(`Success.`);
-//     Deno.exit(0);
-//   } else {
-//     dax.logError("Unable to find latest version of module.");
-//   }
-// }
-
+/** Returns `true` if the JSDoc for the node indicates the symbol is
+ * deprecated, otherwise `false`. */
 function isDeprecated(docNode: DocNode): boolean {
   return docNode.jsDoc?.tags?.some(({ kind }) => kind === "deprecated") ??
     false;
+}
+
+/** Returns `true` if the source of the symbol is external to the source module,
+ * otherwise `false`.
+ */
+function isForeign(docNode: DocNode, sourceId: string): boolean {
+  if (sourceId === "mod/std") {
+    return false;
+  }
+  if (sourceId.startsWith("mod/")) {
+    const mod = sourceId.slice(4);
+    return !docNode.location.filename.startsWith(`https://deno.land/x/${mod}@`);
+  }
+  return false;
 }
 
 function appendDocNodes(
@@ -231,7 +202,8 @@ function appendDocNodes(
   for (const docNode of docNodes) {
     if (
       (ALLOWED_DOC_KINDS.includes(docNode.kind) ||
-        (!namespace && docNode.kind === "moduleDoc")) && !isDeprecated(docNode)
+        (!namespace && docNode.kind === "moduleDoc")) &&
+      !isDeprecated(docNode) && !isForeign(docNode, sourceId)
     ) {
       requests.push(
         docNodeToRequestNew(
@@ -343,7 +315,8 @@ async function loadModuleDocNodes(module: string, version?: string) {
       }
     }
     dax.logStep(`Uploading ${requests.length} doc nodes to algolia...`);
-    await upload(requests);
+    const count = await upload(requests);
+    dax.logStep(`Uploaded ${count} search records.`);
     dax.logStep(`Success.`);
     Deno.exit(0);
   } else {
@@ -518,12 +491,15 @@ function getDenoLandApp(): SearchClient {
 export async function clearDocNodes(module: string): Promise<void> {
   const denoLandApp = getDenoLandApp();
   const index = denoLandApp.initIndex(DOC_NODE_NEW_INDEX);
-  await index.deleteBy({ filters: `sourceId:${module}` });
+  await index.deleteBy({ filters: `sourceId:${module}` }).wait();
 }
 
 /** Upload batch requests to Algolia. */
-export async function upload(requests: MultipleBatchRequest[]): Promise<void> {
-  await getDenoLandApp().multipleBatch(requests);
+export async function upload(
+  requests: MultipleBatchRequest[],
+): Promise<number> {
+  return (await getDenoLandApp().multipleBatch(requests).wait()).objectIDs
+    .length;
 }
 
 /** Get all modules from Datastore. */
