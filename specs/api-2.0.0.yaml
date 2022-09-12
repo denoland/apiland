@@ -196,6 +196,64 @@ paths:
               text/html:
                 schema:
                   type: string
+  /v2/metrics/submodules/{submodule}:
+    get:
+      tags:
+      - registry
+      - metrics
+      summary: Lists sub-module metrics.
+      description: Provides a list of metrics for submodules for a module.
+      operationId: getSubModuleMetrics
+      parameters:
+        - name: submodule
+          in: path
+          required: true
+          schema:
+            $ref: "#/components/schemas/ModuleName"
+        - name: limit
+          in: query
+          description: The number of items to limit the response to.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+        - name: page
+          in: query
+          description: >
+            The page number to use as an offset for results. It is a 1 based
+            index. Must be used in conjunction with `limit`.
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        "200":
+          description: A JSON array of submodule metrics.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SubModuleMetricList"
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HttpError"
+            text/html:
+                schema:
+                  type: string
+        "404":
+          description: >
+            Not found - no resources for the given query were found. Try
+            changing the query parameters.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HttpError"
+            text/html:
+              schema:
+                type: string
   /v2/modules:
     get:
       tags:
@@ -1921,6 +1979,48 @@ components:
               type: boolean
           required:
             - "size"
+    SubModuleMetricList:
+      allOf:
+        - $ref: "#/components/schemas/ListBase"
+        - type: object
+          properties:
+            items:
+              type: array
+              items:
+                $ref: "#/components/schemas/SubModuleMetrics"
+    SubModuleMetrics:
+      type: object
+      properties:
+        module:
+          $ref: "#/components/schemas/ModuleName"
+        submodule:
+          type: string
+          example: "std"
+        updated:
+          type: string
+          format: data-time
+        popularity:
+          type: object
+          properties:
+            sessions_30_day:
+              type: number
+              example: 4792
+            users_30_day:
+              type: number
+              example: 5421
+            score:
+              type: number
+              format: integer
+              example: 5042
+          required:
+            - "session_30_day"
+            - "users_30_day"
+            - "score"
+      required:
+        - "module"
+        - "submodule"
+        - "updated"
+        - "popularity"
     SymbolIndex:
       type: object
       properties:

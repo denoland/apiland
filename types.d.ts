@@ -94,6 +94,18 @@ export interface ModuleMetrics {
   quality: Record<string, never>;
 }
 
+/** Stores as kind `submodule_metrics` in the datastore. */
+export interface SubModuleMetrics {
+  module: string;
+  submodule: string;
+  updated: Date;
+  popularity: {
+    sessions_30_day: number;
+    users_30_day: number;
+    score: number;
+  };
+}
+
 /** Stored as kind `module_version` in datastore. */
 export interface ModuleVersion {
   name: string;

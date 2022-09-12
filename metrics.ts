@@ -13,72 +13,107 @@ import {
   objectToEntity,
 } from "google_datastore";
 import type { Mutation } from "google_datastore/types";
-import { AnalyticsReporting, GoogleAuth } from "google_analytics_reporting";
+import {
+  AnalyticsReporting,
+  GoogleAuth,
+  type ReportRequest,
+  type ReportRow,
+} from "google_analytics_reporting";
 
 import { keys, readyPromise } from "./auth.ts";
-import type { Module, ModuleMetrics } from "./types.d.ts";
+import type { Module, ModuleMetrics, SubModuleMetrics } from "./types.d.ts";
 
 await readyPromise;
 const auth = new GoogleAuth().fromJSON(keys);
 const reporter = new AnalyticsReporting(auth);
 
-dax.logStep("Running analytics last 30 day report...");
+dax.logStep("Running analytics reports for last 30 days...");
 
-let res = await reporter.reportsBatchGet({
-  reportRequests: [{
-    viewId: "253817008",
-    pageSize: 100_000,
-    dateRanges: [
-      {
-        startDate: "30daysAgo",
-        endDate: "today",
-      },
-    ],
-    metrics: [
-      {
-        expression: "ga:sessions",
-      },
-      {
-        expression: "ga:users",
-      },
-    ],
-    filtersExpression: "ga:pagePathLevel1==/x/",
-    dimensions: [
-      {
-        name: "ga:pagePathLevel2",
-      },
-    ],
-  }],
+async function runReports(
+  ...reportRequests: ReportRequest[]
+): Promise<ReportRow[][]> {
+  const res = await reporter.reportsBatchGet({ reportRequests });
+  const rows = res.reports?.flatMap(({ data }) =>
+    data && data.rows ? [data.rows] : []
+  );
+  if (!rows || rows.length !== reportRequests.length) {
+    dax.logError("Unexpected report result:");
+    console.log(JSON.stringify(res, undefined, "  "));
+    Deno.exit(1);
+  }
+  return rows;
+}
+
+const [currentRows, currentStdRows] = await runReports({
+  viewId: "253817008",
+  pageSize: 100_000,
+  dateRanges: [
+    {
+      startDate: "30daysAgo",
+      endDate: "today",
+    },
+  ],
+  metrics: [
+    {
+      expression: "ga:sessions",
+    },
+    {
+      expression: "ga:users",
+    },
+  ],
+  filtersExpression: "ga:pagePathLevel1==/x/",
+  dimensions: [
+    {
+      name: "ga:pagePathLevel2",
+    },
+  ],
+}, {
+  viewId: "253817008",
+  pageSize: 100_000,
+  dateRanges: [
+    {
+      startDate: "30daysAgo",
+      endDate: "today",
+    },
+  ],
+  metrics: [
+    {
+      expression: "ga:sessions",
+    },
+    {
+      expression: "ga:users",
+    },
+  ],
+  filtersExpression: "ga:pagePathLevel1=~/std@.*",
+  dimensions: [
+    {
+      name: "ga:pagePathLevel2",
+    },
+  ],
 });
 
-dax.logLight(`  retrieved report.`);
+dax.logStep("Processing reports for last 30 days...");
 
 const metrics: Record<
   string,
   { sessions: number; users: number; score: number }
 > = {};
 
-if (res.reports?.[0].data?.rows) {
-  for (const row of res.reports[0].data.rows) {
-    if (row.dimensions?.[0] && row.metrics?.[0].values) {
-      let [pkg] = row.dimensions[0].slice(1).split("@");
-      if (!pkg || pkg.match(/^[$._\s]/)) {
-        continue;
-      }
-      if (pkg.endsWith("/")) {
-        pkg = pkg.slice(0, pkg.length - 1);
-      }
-      if (!(pkg in metrics)) {
-        metrics[pkg] = { sessions: 0, users: 0, score: 0 };
-      }
-      metrics[pkg].sessions += parseInt(row.metrics[0].values[0], 10);
-      metrics[pkg].users += parseInt(row.metrics[0].values[1], 10);
+for (const row of currentRows) {
+  if (row.dimensions?.[0] && row.metrics?.[0].values) {
+    let [pkg] = row.dimensions[0].slice(1).split("@");
+    if (!pkg || pkg.match(/^[$._\s]/)) {
+      continue;
     }
+    if (pkg.endsWith("/")) {
+      pkg = pkg.slice(0, pkg.length - 1);
+    }
+    if (!(pkg in metrics)) {
+      metrics[pkg] = { sessions: 0, users: 0, score: 0 };
+    }
+    metrics[pkg].sessions += parseInt(row.metrics[0].values[0], 10);
+    metrics[pkg].users += parseInt(row.metrics[0].values[1], 10);
   }
-} else {
-  dax.logError("Unexpected report response.");
-  console.log(JSON.stringify(res, undefined, "  "));
-  Deno.exit(1);
 }
 
 // calculate the popularity score.
@@ -86,63 +121,85 @@ for (const metric of Object.values(metrics)) {
   metric.score = Math.trunc((metric.sessions * 0.6) + (metric.users * 0.4));
 }
 
-dax.logStep("Running analytics last 30-60 day report...");
+const submoduleMetrics: Record<
+  string,
+  { sessions: number; users: number; score: number }
+> = {};
 
-res = await reporter.reportsBatchGet({
-  reportRequests: [{
-    viewId: "253817008",
-    pageSize: 100_000,
-    dateRanges: [
-      {
-        startDate: "60daysAgo",
-        endDate: "30daysAgo",
-      },
-    ],
-    metrics: [
-      {
-        expression: "ga:sessions",
-      },
-      {
-        expression: "ga:users",
-      },
-    ],
-    filtersExpression: "ga:pagePathLevel1==/x/",
-    dimensions: [
-      {
-        name: "ga:pagePathLevel2",
-      },
-    ],
-  }],
+for (const row of currentStdRows) {
+  if (row.dimensions?.[0] && row.metrics?.[0].values) {
+    const match = row.dimensions[0].match(/^\/([^@. _-]+)\/$/);
+    if (match) {
+      const [, submod] = match;
+      if (!(submod in submoduleMetrics)) {
+        submoduleMetrics[submod] = { sessions: 0, users: 0, score: 0 };
+      }
+      submoduleMetrics[submod].sessions += parseInt(
+        row.metrics[0].values[0],
+        10,
+      );
+      submoduleMetrics[submod].users += parseInt(row.metrics[0].values[1], 10);
+    }
+  }
+}
+
+for (const [submod, metric] of Object.entries(submoduleMetrics)) {
+  if (metric.sessions > 5) {
+    metric.score = Math.trunc((metric.sessions * 0.6) + (metric.users * 0.4));
+  } else {
+    delete submoduleMetrics[submod];
+  }
+}
+
+dax.logStep("Running analytics reports for 30-60 days...");
+
+const [previousRows] = await runReports({
+  viewId: "253817008",
+  pageSize: 100_000,
+  dateRanges: [
+    {
+      startDate: "60daysAgo",
+      endDate: "30daysAgo",
+    },
+  ],
+  metrics: [
+    {
+      expression: "ga:sessions",
+    },
+    {
+      expression: "ga:users",
+    },
+  ],
+  filtersExpression: "ga:pagePathLevel1==/x/",
+  dimensions: [
+    {
+      name: "ga:pagePathLevel2",
+    },
+  ],
 });
 
-dax.logLight(`  retrieved report.`);
+dax.logStep("Processing report for last 30-60 day...");
 
 const metricsPrevious: Record<
   string,
   { sessions: number; users: number; score: number }
 > = {};
 
-if (res.reports?.[0].data?.rows) {
-  for (const row of res.reports[0].data.rows) {
-    if (row.dimensions?.[0] && row.metrics?.[0].values) {
-      let [pkg] = row.dimensions[0].slice(1).split("@");
-      if (!pkg || pkg.match(/^[$._\s]/)) {
-        continue;
-      }
-      if (pkg.endsWith("/")) {
-        pkg = pkg.slice(0, pkg.length - 1);
-      }
-      if (!(pkg in metricsPrevious)) {
-        metricsPrevious[pkg] = { sessions: 0, users: 0, score: 0 };
-      }
-      metricsPrevious[pkg].sessions += parseInt(row.metrics[0].values[0], 10);
-      metricsPrevious[pkg].users += parseInt(row.metrics[0].values[1], 10);
+for (const row of previousRows) {
+  if (row.dimensions?.[0] && row.metrics?.[0].values) {
+    let [pkg] = row.dimensions[0].slice(1).split("@");
+    if (!pkg || pkg.match(/^[$._\s]/)) {
+      continue;
     }
+    if (pkg.endsWith("/")) {
+      pkg = pkg.slice(0, pkg.length - 1);
+    }
+    if (!(pkg in metricsPrevious)) {
+      metricsPrevious[pkg] = { sessions: 0, users: 0, score: 0 };
+    }
+    metricsPrevious[pkg].sessions += parseInt(row.metrics[0].values[0], 10);
+    metricsPrevious[pkg].users += parseInt(row.metrics[0].values[1], 10);
   }
-} else {
-  dax.logError("Unexpected report response.");
-  console.log(JSON.stringify(res, undefined, "  "));
-  Deno.exit(1);
 }
 
 // calculate the popularity score for the previous range.
@@ -188,6 +245,8 @@ function setModuleTags(module: Module) {
 const updated = new Date();
 const mutations: Mutation[] = [];
 
+dax.logStep("Generating module metrics...");
+
 for (
   const [name, { sessions: sessions_30_day, users: users_30_day, score }]
     of Object
@@ -218,6 +277,23 @@ for (
   };
   objectSetKey(metrics, { path: [{ kind: "module_metrics", name }] });
   mutations.push({ upsert: objectToEntity(metrics) });
+}
+
+dax.logStep("Generating sub-module metrics...");
+
+for (
+  const [submodule, { sessions: sessions_30_day, users: users_30_day, score }]
+    of Object.entries(submoduleMetrics)
+) {
+  const name = `std/${submodule}`;
+  const subModMetrics: SubModuleMetrics = {
+    module: "std",
+    submodule,
+    updated,
+    popularity: { sessions_30_day, users_30_day, score },
+  };
+  objectSetKey(subModMetrics, { path: [{ kind: "submodule_metrics", name }] });
+  mutations.push({ upsert: objectToEntity(subModMetrics) });
 }
 
 if (mutations.length) {

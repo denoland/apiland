@@ -8,7 +8,11 @@
 
 import { auth, type Context, Router } from "acorn";
 import { errors, isHttpError } from "oak_commons/http_errors.ts";
-import { type Datastore, entityToObject } from "google_datastore";
+import {
+  type Datastore,
+  DatastoreError,
+  entityToObject,
+} from "google_datastore";
 
 import { endpointAuth } from "./auth.ts";
 import {
@@ -46,6 +50,7 @@ import {
   Library,
   Module,
   ModuleMetrics,
+  SubModuleMetrics,
 } from "./types.d.ts";
 
 interface PagedItems<T> {
@@ -105,6 +110,7 @@ router.all("/", () =>
           <li><code>/v2/pages/mod/info/:module/:version</code> - provides a structure to render a module info page - [<a href="/v2/pages/info/oak/v11.0.0">example</a>]</li>
           <li><code>/v2/modules</code> - Provide a list of modules in the registry - [<a href="/v2/modules" target="_blank">example</a>]</li>
           <li><code>/v2/metrics/modules/:module</code> - Provide metric information for a module -  [<a href="/v2/metrics/modules/oak" target="_blank">example</a>]</li>
+          <li><code>/v2/metrics/submmodules/:submodule</code> - Provide metric information for a module's submodules -  [<a href="/v2/metrics/modules/std" target="_blank">example</a>]</li>
           <li><code>/v2/metrics/dependencies/:source*</code> - Provide metrics information for a dependency source -  [<a href="/v2/metrics/modules/deno.land/x" target="_blank">example</a>]</li>
           <li><code>/v2/modules/:module</code> - Provide information about a specific module - [<a href="/v2/modules/std" target="_blank">example</a>]</li>
           <li><code>/v2/modules/:module/:version</code> - Provide information about a specific module version - [<a href="/v2/modules/std/0.139.0" target="_blank">example</a>]</li>
@@ -207,6 +213,64 @@ router.get("/v2/metrics/modules/:module", async (ctx) => {
       }
     }
     return { metrics, info };
+  }
+});
+
+router.get("/v2/metrics/submodules/:mod", async (ctx) => {
+  const { mod } = ctx.params;
+  datastore = datastore ?? await getDatastore();
+  const query = datastore
+    .createQuery("submodule_metrics")
+    .filter("module", mod);
+  let limit = 100;
+  let page = 1;
+  if (ctx.searchParams.limit) {
+    limit = parseInt(ctx.searchParams.limit, 10);
+    if (limit < 1 || limit > 100) {
+      throw new errors.BadRequest(
+        `Parameter "limit" must be between 1 and 100, received ${limit}.`,
+      );
+    }
+    query.limit(limit);
+    if (ctx.searchParams.page) {
+      page = parseInt(ctx.searchParams.page, 10);
+      if (page < 1) {
+        throw new errors.BadRequest(
+          `Parameter "page" must be 1 or greater, received ${page}.`,
+        );
+      }
+      if (page > 1) {
+        query.offset((page - 1) * limit);
+      }
+    }
+  } else if (ctx.searchParams.page) {
+    throw new errors.BadRequest(
+      `Parameter "page" cannot be specified without "limit" being specified.`,
+    );
+  }
+  // TODO(@kitsonk) - datastore is complaining there is no index
+  // const orderBy = ctx.searchParams.orderBy ?? "score";
+  // query.order(`popularity.${orderBy}`, true);
+  try {
+    const response = await datastore.runQuery(query);
+    if (response.batch.entityResults) {
+      const hasNext = response.batch.moreResults !== "NO_MORE_RESULTS";
+      return pagedResults<SubModuleMetrics>(
+        response.batch.entityResults.map(({ entity }) =>
+          entityToObject<SubModuleMetrics>(entity)
+        ),
+        ctx.url(),
+        page,
+        limit,
+        hasNext,
+      );
+    }
+  } catch (error) {
+    if (error instanceof DatastoreError) {
+      console.error(JSON.stringify(error.statusInfo, undefined, "  "));
+    } else {
+      throw error;
+    }
   }
 });
 
