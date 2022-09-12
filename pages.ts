@@ -50,20 +50,14 @@ function getId(path: PathElement[]): string {
     .flatMap(({ kind, id }) => kind === "doc_node" ? [id!] : []).join(".");
 }
 
-function stabilityFlag(node: DocNode): "stable" | "unstable" {
-  if (
-    node.jsDoc?.tags?.some((tag) =>
-      tag.kind === "tags" && tag.tags.includes("unstable")
-    )
-  ) {
-    return "unstable";
-  }
-  return "stable";
+function isUnstable(node: DocNode): boolean {
+  return !!node.jsDoc?.tags?.some((tag) =>
+    tag.kind === "tags" && tag.tags.includes("unstable")
+  );
 }
 
 function entitiesToSymbolItems(entities: Entity[]): SymbolItem[] {
-  const symbolItems: SymbolItem[] = [];
-  const seen = new Set<string>();
+  const collection = new Map<string, SymbolItem>();
   const namespaces = new Map<string, string>();
   for (const entity of entities) {
     const docNode = entityToObject<DocNode>(entity);
@@ -76,14 +70,13 @@ function entitiesToSymbolItems(entities: Entity[]): SymbolItem[] {
     if (docNode.kind === "namespace") {
       namespaces.set(id, name);
     }
-    const itemId = `${name}_${docNode.kind}_${stabilityFlag(docNode)}`;
-    if (!seen.has(itemId)) {
-      seen.add(itemId);
+    const itemId = `${name}_${docNode.kind}`;
+    if (isUnstable(docNode) || !collection.has(itemId)) {
       const { kind, jsDoc } = docNode;
-      symbolItems.push(jsDoc ? { name, kind, jsDoc } : { name, kind });
+      collection.set(itemId, jsDoc ? { name, kind, jsDoc } : { name, kind });
     }
   }
-  return symbolItems;
+  return [...collection.values()];
 }
 
 async function createSymbolItems(
