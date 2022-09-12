@@ -50,8 +50,14 @@ function getId(path: PathElement[]): string {
     .flatMap(({ kind, id }) => kind === "doc_node" ? [id!] : []).join(".");
 }
 
+function isUnstable(node: DocNode): boolean {
+  return !!node.jsDoc?.tags?.some((tag) =>
+    tag.kind === "tags" && tag.tags.includes("unstable")
+  );
+}
+
 function entitiesToSymbolItems(entities: Entity[]): SymbolItem[] {
-  const symbolItems: SymbolItem[] = [];
+  const collection = new Map<string, SymbolItem>();
   const namespaces = new Map<string, string>();
   for (const entity of entities) {
     const docNode = entityToObject<DocNode>(entity);
@@ -64,10 +70,13 @@ function entitiesToSymbolItems(entities: Entity[]): SymbolItem[] {
     if (docNode.kind === "namespace") {
       namespaces.set(id, name);
     }
-    const { kind, jsDoc } = docNode;
-    symbolItems.push(jsDoc ? { name, kind, jsDoc } : { name, kind });
+    const itemId = `${name}_${docNode.kind}`;
+    if (isUnstable(docNode) || !collection.has(itemId)) {
+      const { kind, jsDoc } = docNode;
+      collection.set(itemId, jsDoc ? { name, kind, jsDoc } : { name, kind });
+    }
   }
-  return symbolItems;
+  return [...collection.values()];
 }
 
 async function createSymbolItems(
