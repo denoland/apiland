@@ -128,7 +128,7 @@ const submoduleMetrics: Record<
 
 for (const row of currentStdRows) {
   if (row.dimensions?.[0] && row.metrics?.[0].values) {
-    const match = row.dimensions[0].match(/^\/([^@. _-]+)\/$/);
+    const match = row.dimensions[0].match(/^\/([^@. _-][^@. -]*)\/$/);
     if (match) {
       const [, submod] = match;
       if (!(submod in submoduleMetrics)) {
