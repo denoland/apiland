@@ -1,5 +1,6 @@
 // Copyright 2018-2022 the Deno authors. All rights reserved. MIT license.
 
+import type { JsDocTagDoc } from "deno_doc/types";
 import {
   type Datastore,
   DatastoreError,
@@ -45,6 +46,11 @@ function getAncestorId(path: PathElement[]): string | undefined {
   return ancestorPath.length ? ancestorPath.join(".") : undefined;
 }
 
+function getCategory(node: DocNode): string | undefined {
+  return node.jsDoc?.tags
+    ?.find((tag): tag is JsDocTagDoc => tag.kind === "category")?.doc;
+}
+
 function getId(path: PathElement[]): string {
   return path
     .flatMap(({ kind, id }) => kind === "doc_node" ? [id!] : []).join(".");
@@ -71,9 +77,18 @@ function entitiesToSymbolItems(entities: Entity[]): SymbolItem[] {
       namespaces.set(id, name);
     }
     const itemId = `${name}_${docNode.kind}`;
+    const category = getCategory(docNode);
+    const { kind, jsDoc } = docNode;
     if (isUnstable(docNode) || !collection.has(itemId)) {
-      const { kind, jsDoc } = docNode;
-      collection.set(itemId, jsDoc ? { name, kind, jsDoc } : { name, kind });
+      collection.set(itemId, { name, kind, jsDoc, category });
+    } else if (collection.has(itemId)) {
+      const item = collection.get(itemId)!;
+      if (category) {
+        item.category = category;
+      }
+      if (!item.jsDoc && jsDoc) {
+        item.jsDoc = jsDoc;
+      }
     }
   }
   return [...collection.values()];
