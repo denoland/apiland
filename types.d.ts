@@ -200,6 +200,7 @@ interface DocPageDirItem {
 export interface SymbolItem {
   name: string;
   kind: DocNodeKind;
+  category?: string;
   jsDoc?: JsDoc | null;
 }
 
