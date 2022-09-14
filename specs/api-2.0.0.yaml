@@ -12,6 +12,8 @@ info:
 servers:
   - url: https://apiland.deno.dev
     description: The latest deployment of this repository on Deploy.
+security:
+  - bearerAuth: []
 tags:
 - name: registry
   description: Information about the module registry.
@@ -1179,6 +1181,10 @@ paths:
               schema:
                 $ref: "#/components/schemas/HttpError"
 components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
   schemas:
     DependencyError:
       type: object

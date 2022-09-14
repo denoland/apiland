@@ -79,15 +79,15 @@ function entitiesToSymbolItems(entities: Entity[]): SymbolItem[] {
     const itemId = `${name}_${docNode.kind}`;
     const category = getCategory(docNode);
     const { kind, jsDoc } = docNode;
-    if (isUnstable(docNode) || !collection.has(itemId)) {
+    if (!collection.has(itemId)) {
       collection.set(itemId, { name, kind, jsDoc, category });
-    } else if (collection.has(itemId)) {
+    } else {
       const item = collection.get(itemId)!;
+      if (isUnstable(docNode) || (!item.jsDoc && jsDoc)) {
+        item.jsDoc = jsDoc;
+      }
       if (category) {
         item.category = category;
-      }
-      if (!item.jsDoc && jsDoc) {
-        item.jsDoc = jsDoc;
       }
     }
   }
