@@ -274,6 +274,15 @@ router.get("/v2/metrics/submodules/:mod", async (ctx) => {
   }
 });
 
+router.get("/v2/metrics/usage/:mod", async (ctx) => {
+  datastore = datastore ?? await getDatastore();
+  const res = await datastore
+    .lookup(datastore.key(["metric_usage", ctx.params.mod]));
+  if (res.found) {
+    return entityToObject(res.found[0].entity);
+  }
+});
+
 router.get("/v2/metrics/dependencies/:source*", async (ctx) => {
   datastore = datastore ?? await getDatastore();
   let query = datastore.createQuery("dependency_metrics");

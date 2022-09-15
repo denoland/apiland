@@ -211,7 +211,8 @@ paths:
           in: path
           required: true
           schema:
-            $ref: "#/components/schemas/ModuleName"
+            type: string
+            example: "oak"
         - name: limit
           in: query
           description: The number of items to limit the response to.
@@ -236,6 +237,47 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/SubModuleMetricList"
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HttpError"
+            text/html:
+                schema:
+                  type: string
+        "404":
+          description: >
+            Not found - no resources for the given query were found. Try
+            changing the query parameters.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HttpError"
+            text/html:
+              schema:
+                type: string
+  /v2/metrics/usage/{module}:
+    get:
+      tags:
+      - registry
+      - metrics
+      summary: Provides usage metrics.
+      description: For a given module, return the usage metrics for that module.
+      operationId: getUsageMetrics
+      parameters:
+        - name: module
+          in: path
+          required: true
+          schema:
+            $ref: "#/components/schemas/ModuleName"
+      responses:
+        "200":
+          description: An object containing usage information.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ModuleUsage"
         "400":
           description: Bad request
           content:
@@ -1751,6 +1793,26 @@ components:
         propertyName: kind
         mapping:
           popularity: "#/components/schemas/PopularityModuleTag"
+    ModuleUsage:
+      type: object
+      properties:
+        total:
+          $ref: "#/components/schemas/UsageMetric"
+        daily:
+          type: array
+          items:
+            $ref: "#/components/schemas/UsageMetric"
+        versions:
+          type: object
+          additionalProperties:
+            $ref: "#/components/schemas/UsageMetric"
+        updated:
+          type: string
+          format: date-time
+      required:
+        - "total"
+        - "daily"
+        - "updated"
     ModuleVersion:
       type: object
       properties:
@@ -2086,6 +2148,18 @@ components:
         - type
         - repository
         - ref
+    UsageMetric:
+      type: object
+      properties:
+        sessions:
+          type: integer
+          example: 12345
+        users:
+          type: integer
+          example: 4562
+      required:
+        - "sessions"
+        - "users"
     WebhookResponse:
       type: object
       properties:
