@@ -28,18 +28,9 @@ import type {
 } from "./types.d.ts";
 import { assert } from "./util.ts";
 
-const DOC_NODE_INDEX = "doc_nodes";
-const DOC_NODE_NEW_INDEX = "doc_nodes_new";
+const SYMBOL_INDEX = "doc_nodes";
 const MODULES_INDEX = "modules";
 
-const ALLOWED_DOCNODES = [
-  "function",
-  "variable",
-  "enum",
-  "class",
-  "typeAlias",
-  "interface",
-];
 const ALLOWED_DOC_KINDS: DocNodeKind[] = [
   "class",
   "enum",
@@ -63,66 +54,12 @@ enum Source {
   ThirdPartyOther = 540,
 }
 
-function main() {
-  const args = parse(Deno.args, {
-    boolean: [
-      "update-modules",
-      "update-library",
-    ],
-  });
-  if (args["update-modules"]) {
-    return updateModules();
-  }
-  if (args["update-library"]) {
-    return updateLibrary();
-  }
-  const module = args["_"][0] as string;
-  if (module) {
-    return loadModuleDocNodes(module);
-    // return loadModule(module);
-  }
-}
-
-if (import.meta.main) {
-  await main();
-}
-
-// TODO(@kitsonk) remove after finishing refactor
-// function getPath(docNode: DocNode): string | undefined {
-//   return objectGetKey(docNode)
-//     ?.path
-//     .find(({ kind }) => kind === "module_entry")
-//     ?.name;
-// }
-
-export function filteredDocNode(path: string, node: DocNode): boolean {
-  return !ALLOWED_DOCNODES.includes(node.kind) ||
-    !node.location.filename.endsWith(path);
-}
-
-/** Convert a doc node to a batch request for algolia. */
-export function docNodeToRequest(
-  module: string,
-  path: string,
-  publishedAt: number,
-  popularityScore: number | undefined,
+export function filteredDocNode(
+  namespace: string | undefined,
   docNode: DocNode,
-): MultipleBatchRequest {
-  const objectID = `${module}${path}:${docNode.kind}:${docNode.name}`;
-  const { name, kind, jsDoc, location } = docNode;
-  return {
-    action: "updateObject",
-    indexName: DOC_NODE_INDEX,
-    body: {
-      name,
-      kind,
-      jsDoc,
-      location,
-      objectID,
-      publishedAt,
-      popularityScore,
-    },
-  };
+): boolean {
+  return (ALLOWED_DOC_KINDS.includes(docNode.kind) ||
+    (!namespace && docNode.kind === "moduleDoc")) && !isDeprecated(docNode);
 }
 
 function docNodeToRequestNew(
@@ -139,7 +76,7 @@ function docNodeToRequestNew(
   const objectID = `${sourceId}:${path}:${name}:${id}`;
   return {
     action: "updateObject",
-    indexName: DOC_NODE_NEW_INDEX,
+    indexName: SYMBOL_INDEX,
     body: {
       objectID,
       name,
@@ -154,61 +91,6 @@ function docNodeToRequestNew(
     },
   };
 }
-
-// TODO(@kitsonk): remove when refactoring complete
-// async function loadModule(module: string, version?: string) {
-//   dax.logStep(`Loading doc nodes for module "${module}"...`);
-//   let moduleItem: Module | undefined;
-//   let moduleVersion: ModuleVersion | undefined;
-//   if (version) {
-//     [moduleItem, moduleVersion] = await lookup(module, version);
-//   } else {
-//     [moduleItem] = await lookup(module);
-//     if (moduleItem && moduleItem.latest_version) {
-//       version = moduleItem.latest_version;
-//       [, moduleVersion] = await lookup(module, version);
-//     }
-//   }
-//   if (version && moduleVersion && moduleItem) {
-//     dax.logLight(`  using version ${version}.`);
-//     datastore = datastore ?? await getDatastore();
-//     const ancestor = datastore.key(
-//       ["module", module],
-//       ["module_version", version],
-//     );
-//     const query = datastore
-//       .createQuery("doc_node")
-//       .hasAncestor(ancestor);
-//     const entities: Entity[] = [];
-//     for await (const entity of datastore.streamQuery(query)) {
-//       entities.push(entity);
-//     }
-//     const docNodes = entitiesToDocNodes(ancestor, entities);
-//     dax.logLight(`  loaded ${entities.length} doc nodes.`);
-//     const requests: MultipleBatchRequest[] = [];
-//     requests.push(moduleToRequest(moduleItem));
-//     const publishedAt = moduleVersion.uploaded_at.getTime();
-//     const popularityScore = moduleItem.name === "std"
-//       ? STD_POPULARITY_SCORE
-//       : moduleItem.popularity_score;
-//     for (const docNode of docNodes) {
-//       const path = getPath(docNode);
-//       if (path && !filteredDocNode(path, docNode)) {
-//         requests.push(
-//           docNodeToRequest(module, path, publishedAt, popularityScore, docNode),
-//         );
-//       }
-//     }
-//     dax.logStep(
-//       `Uploading ${requests.length} index items to algolia...`,
-//     );
-//     await upload(requests);
-//     dax.logStep(`Success.`);
-//     Deno.exit(0);
-//   } else {
-//     dax.logError("Unable to find latest version of module.");
-//   }
-// }
 
 function isDeprecated(docNode: DocNode): boolean {
   return docNode.jsDoc?.tags?.some(({ kind }) => kind === "deprecated") ??
@@ -229,10 +111,7 @@ function appendDocNodes(
     uid = 0;
   }
   for (const docNode of docNodes) {
-    if (
-      (ALLOWED_DOC_KINDS.includes(docNode.kind) ||
-        (!namespace && docNode.kind === "moduleDoc")) && !isDeprecated(docNode)
-    ) {
+    if (filteredDocNode(namespace, docNode)) {
       requests.push(
         docNodeToRequestNew(
           source,
@@ -261,7 +140,7 @@ function appendDocNodes(
   }
 }
 
-function getSource(
+export function getSource(
   module: Module,
   version: ModuleVersion,
   entry: ModuleEntry,
@@ -281,7 +160,59 @@ function getSource(
   return isDefault ? Source.ThirdPartyDefault : Source.ThirdPartyOther;
 }
 
-async function loadModuleDocNodes(module: string, version?: string) {
+export async function loadDocNodes(
+  requests: MultipleBatchRequest[],
+  module: Module,
+  version: ModuleVersion,
+) {
+  dax.logStep(`Deleting old doc nodes...`);
+  await clearDocNodes(`mod/${module.name}`);
+  dax.logStep(`Retrieving module entries...`);
+  let entries = await getModuleEntries(module.name, version.version);
+  const defaultEntryPaths = entries
+    .flatMap(({ default: def }) => def ? [def] : []);
+  entries = entries.filter(({ docable, path }) =>
+    docable && !(path.includes("/_") || path.includes("/."))
+  );
+  dax.logLight(`  retrieved ${entries.length} docable modules.`);
+  datastore = datastore ?? await getDatastore();
+  for (const entry of entries) {
+    const ancestor = objectGetKey(entry);
+    if (ancestor) {
+      const query = datastore
+        .createQuery("doc_node")
+        .hasAncestor(ancestor);
+      const entities: Entity[] = [];
+      for await (const entity of datastore.streamQuery(query)) {
+        entities.push(entity);
+      }
+      const docNodes = entitiesToDocNodes(ancestor, entities);
+      if (!docNodes.length) {
+        continue;
+      }
+      dax.logLight(
+        `  loaded ${entities.length} doc nodes for ${entry.path}.`,
+      );
+      const source = getSource(
+        module,
+        version,
+        entry,
+        defaultEntryPaths,
+      );
+      appendDocNodes(
+        requests,
+        source,
+        `mod/${module.name}`,
+        docNodes,
+        module.popularity_score ?? 0,
+        version.version,
+        entry.path,
+      );
+    }
+  }
+}
+
+export async function loadModuleDocNodes(module: string, version?: string) {
   dax.logStep(`Loading doc nodes for module "${module}"...`);
   let moduleItem: Module | undefined;
   let moduleVersion: ModuleVersion | undefined;
@@ -296,52 +227,8 @@ async function loadModuleDocNodes(module: string, version?: string) {
   }
   if (version && moduleVersion && moduleItem) {
     dax.logLight(`  using version ${version}.`);
-    dax.logStep(`Deleting old doc nodes...`);
-    await clearDocNodes(`mod/${moduleItem.name}`);
-    dax.logStep(`Retrieving module entries...`);
-    let entries = await getModuleEntries(module, version);
-    const defaultEntryPaths = entries
-      .flatMap(({ default: def }) => def ? [def] : []);
-    entries = entries.filter(({ docable, path }) =>
-      docable && !(path.includes("/_") || path.includes("/."))
-    );
-    dax.logLight(`  retrieved ${entries.length} docable modules.`);
-    datastore = datastore ?? await getDatastore();
     const requests: MultipleBatchRequest[] = [];
-    for (const entry of entries) {
-      const ancestor = objectGetKey(entry);
-      if (ancestor) {
-        const query = datastore
-          .createQuery("doc_node")
-          .hasAncestor(ancestor);
-        const entities: Entity[] = [];
-        for await (const entity of datastore.streamQuery(query)) {
-          entities.push(entity);
-        }
-        const docNodes = entitiesToDocNodes(ancestor, entities);
-        if (!docNodes.length) {
-          continue;
-        }
-        dax.logLight(
-          `  loaded ${entities.length} doc nodes for ${entry.path}.`,
-        );
-        const source = getSource(
-          moduleItem,
-          moduleVersion,
-          entry,
-          defaultEntryPaths,
-        );
-        appendDocNodes(
-          requests,
-          source,
-          `mod/${moduleItem.name}`,
-          docNodes,
-          moduleItem.popularity_score ?? 0,
-          moduleVersion.version,
-          entry.path,
-        );
-      }
-    }
+    await loadDocNodes(requests, moduleItem, moduleVersion);
     dax.logStep(`Uploading ${requests.length} doc nodes to algolia...`);
     await upload(requests);
     dax.logStep(`Success.`);
@@ -517,7 +404,7 @@ function getDenoLandApp(): SearchClient {
 
 export async function clearDocNodes(module: string): Promise<void> {
   const denoLandApp = getDenoLandApp();
-  const index = denoLandApp.initIndex(DOC_NODE_NEW_INDEX);
+  const index = denoLandApp.initIndex(SYMBOL_INDEX);
   await index.deleteBy({ filters: `sourceId:${module}` });
 }
 
@@ -528,11 +415,65 @@ export async function upload(requests: MultipleBatchRequest[]): Promise<void> {
 
 /** Get all modules from Datastore. */
 async function getAllModules() {
-  const modules: Module[] = [];
   datastore = datastore ?? await getDatastore();
   const query = datastore.createQuery("module");
-  for await (const entity of datastore.streamQuery(query)) {
-    modules.push(entityToObject(entity));
+  return datastore.query<Module>(query);
+}
+
+async function loadLatest(cache: string) {
+  dax.logStep(`Loading cache "${cache}"...`);
+  const uploadCache: string[] = JSON.parse(await Deno.readTextFile(cache));
+  dax.logStep("Loading all modules...");
+  const modules = (await getAllModules())
+    .filter(({ latest_version }) => !!latest_version);
+  dax.logLight(`  loaded ${modules.length} modules.`);
+  for (const moduleItem of modules) {
+    if (uploadCache.includes(moduleItem.name)) {
+      dax.logWarn(`Skipping ${moduleItem.name}.`);
+      continue;
+    }
+    const [, moduleVersion] = await lookup(
+      moduleItem.name,
+      moduleItem.latest_version!,
+    );
+    if (moduleVersion) {
+      dax.logStep(
+        `Uploading ${moduleItem.name}@${moduleItem.latest_version}...`,
+      );
+      const requests: MultipleBatchRequest[] = [];
+      await loadDocNodes(requests, moduleItem, moduleVersion);
+      dax.logLight(`  ${requests.length} search records to upload.`);
+      await upload(requests);
+      dax.logStep(`Completed ${moduleItem.name}@${moduleItem.latest_version}.`);
+    }
+    uploadCache.push(moduleItem.name);
+    await Deno.writeTextFile(cache, JSON.stringify(uploadCache));
   }
-  return modules;
+}
+
+function main() {
+  const args = parse(Deno.args, {
+    boolean: [
+      "update-modules",
+      "update-library",
+    ],
+    string: ["load-latest"],
+  });
+  if (args["update-modules"]) {
+    return updateModules();
+  }
+  if (args["update-library"]) {
+    return updateLibrary();
+  }
+  if (args["load-latest"]) {
+    return loadLatest(args["load-latest"]);
+  }
+  const module = args["_"][0] as string;
+  if (module) {
+    return loadModuleDocNodes(module);
+  }
+}
+
+if (import.meta.main) {
+  await main();
 }

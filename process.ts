@@ -9,12 +9,7 @@ import {
 } from "google_datastore";
 import type { Mutation } from "google_datastore/types";
 
-import {
-  docNodeToRequest,
-  filteredDocNode,
-  moduleToRequest,
-  upload,
-} from "./algolia.ts";
+import { loadDocNodes, moduleToRequest, upload } from "./algolia.ts";
 import { analyze } from "./analysis.ts";
 import { clear } from "./cache.ts";
 import {
@@ -143,7 +138,6 @@ interface AlgoliaTask extends TaskBase {
   kind: "algolia";
   module: Module;
   version: ModuleVersion;
-  docNodes: Map<string, DocNode[]>;
 }
 
 type TaskDescriptor =
@@ -485,14 +479,6 @@ async function taskLoadModule(
   }
 
   // Upload doc nodes to algolia.
-  if (docNodes.size) {
-    enqueue({
-      kind: "algolia",
-      module: moduleItem,
-      version: moduleVersion,
-      docNodes,
-    });
-  }
 
   remaining = docMutations.length;
   console.log(
@@ -518,11 +504,18 @@ async function taskLoadModule(
 
   // perform dependency analysis
   await analyze(module, version, true);
+  if (docNodes.size) {
+    enqueue({
+      kind: "algolia",
+      module: moduleItem,
+      version: moduleVersion,
+    });
+  }
 }
 
 async function taskAlgolia(
   id: number,
-  { module, version, docNodes }: AlgoliaTask,
+  { module, version }: AlgoliaTask,
 ) {
   console.log(
     `[${id}]: %cUploading%c %c"${version.name}@${version.version}"%c doc nodes to algolia...`,
@@ -533,21 +526,7 @@ async function taskAlgolia(
   );
   const requests: MultipleBatchRequest[] = [];
   requests.push(moduleToRequest(module));
-  const publishedAt = version.uploaded_at.getTime();
-  const popularityScore = module.popularity_score;
-  for (const [path, nodes] of docNodes) {
-    for (const docNode of nodes) {
-      if (!filteredDocNode(path, docNode)) {
-        requests.push(docNodeToRequest(
-          module.name,
-          path,
-          publishedAt,
-          popularityScore,
-          docNode,
-        ));
-      }
-    }
-  }
+  await loadDocNodes(requests, module, version);
   await upload(requests);
   console.log(
     `[${id}]: %cUploaded%c %c${requests.length}%c items to algolia.`,
