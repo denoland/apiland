@@ -188,6 +188,7 @@ export async function loadDocNodes(
       }
       const docNodes = entitiesToDocNodes(ancestor, entities);
       if (!docNodes.length) {
+        dax.logLight(`  skipping ${entry.path}, no nodes.`);
         continue;
       }
       dax.logLight(
@@ -405,12 +406,22 @@ function getDenoLandApp(): SearchClient {
 export async function clearDocNodes(module: string): Promise<void> {
   const denoLandApp = getDenoLandApp();
   const index = denoLandApp.initIndex(SYMBOL_INDEX);
-  await index.deleteBy({ filters: `sourceId:${module}` });
+  await index.deleteBy({ filters: `sourceId:${module}` }).wait();
 }
 
 /** Upload batch requests to Algolia. */
-export async function upload(requests: MultipleBatchRequest[]): Promise<void> {
-  await getDenoLandApp().multipleBatch(requests);
+export async function upload(
+  requests: MultipleBatchRequest[],
+): Promise<unknown> {
+  try {
+    return await getDenoLandApp().multipleBatch(requests).wait();
+  } catch (err) {
+    if (err instanceof Error) {
+      dax.logError(err.message);
+    } else {
+      throw err;
+    }
+  }
 }
 
 /** Get all modules from Datastore. */
@@ -447,7 +458,10 @@ async function loadLatest(cache: string) {
       dax.logStep(`Completed ${moduleItem.name}@${moduleItem.latest_version}.`);
     }
     uploadCache.push(moduleItem.name);
-    await Deno.writeTextFile(cache, JSON.stringify(uploadCache));
+    await Deno.writeTextFile(
+      cache,
+      JSON.stringify(uploadCache, undefined, "  "),
+    );
   }
 }
 
