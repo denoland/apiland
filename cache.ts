@@ -268,6 +268,9 @@ export async function lookupDocPage(
 
     const res = await datastore.lookup(keys);
     if (res.found) {
+      let foundModuleVersion: ModuleVersion | undefined;
+      let foundModuleEntry: ModuleEntry | undefined;
+      let foundModuleDocPage: DocPage | undefined;
       for (const { entity } of res.found) {
         assert(entity.key);
         const entityKind = entity.key.path[entity.key.path.length - 1].kind;
@@ -277,38 +280,45 @@ export async function lookupDocPage(
             cachedModules.set(module, moduleItem);
             break;
           case "module_version": {
-            versionItem = entityToObject(entity);
-            assert(moduleItem);
-            if (!cachedVersions.has(moduleItem)) {
-              cachedVersions.set(moduleItem, new Map());
-            }
-            const versions = cachedVersions.get(moduleItem)!;
-            versions.set(version, versionItem);
+            foundModuleVersion = versionItem = entityToObject(entity);
             break;
           }
           case "module_entry": {
-            entryItem = entityToObject(entity);
-            assert(versionItem);
-            if (!cachedEntries.has(versionItem)) {
-              cachedEntries.set(versionItem, new Map());
-            }
-            const entries = cachedEntries.get(versionItem)!;
-            entries.set(path, entryItem);
+            foundModuleEntry = entryItem = entityToObject(entity);
             break;
           }
           case "doc_page": {
-            docPageItem = entityToDocPage(entity);
-            assert(entryItem);
-            if (!cachedDocPages.has(entryItem)) {
-              cachedDocPages.set(entryItem, new Map());
-            }
-            const docPages = cachedDocPages.get(entryItem)!;
-            docPages.set(symbol, docPageItem);
+            foundModuleDocPage = docPageItem = entityToDocPage(entity);
             break;
           }
           default:
             throw new TypeError(`Unexpected kind "${entityKind}".`);
         }
+      }
+
+      if (foundModuleVersion) {
+        assert(moduleItem);
+        if (!cachedVersions.has(moduleItem)) {
+          cachedVersions.set(moduleItem, new Map());
+        }
+        const versions = cachedVersions.get(moduleItem)!;
+        versions.set(version, foundModuleVersion);
+      }
+      if (foundModuleEntry) {
+        assert(versionItem);
+        if (!cachedEntries.has(versionItem)) {
+          cachedEntries.set(versionItem, new Map());
+        }
+        const entries = cachedEntries.get(versionItem)!;
+        entries.set(path, foundModuleEntry);
+      }
+      if (foundModuleDocPage) {
+        assert(entryItem);
+        if (!cachedDocPages.has(entryItem)) {
+          cachedDocPages.set(entryItem, new Map());
+        }
+        const docPages = cachedDocPages.get(entryItem)!;
+        docPages.set(symbol, foundModuleDocPage);
       }
     }
   }
