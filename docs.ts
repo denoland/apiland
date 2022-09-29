@@ -369,8 +369,13 @@ function appendIndex(
       continue;
     }
     const name = namespace ? `${namespace}.${docNode.name}` : docNode.name;
-    const { kind, declarationKind, location: { filename } } = docNode;
-    items.push({ name, kind, declarationKind, filename });
+    if (docNode.kind === "import") {
+      const { kind, declarationKind, importDef: { src: filename } } = docNode;
+      items.push({ name, kind, declarationKind, filename });
+    } else {
+      const { kind, declarationKind, location: { filename } } = docNode;
+      items.push({ name, kind, declarationKind, filename });
+    }
     if (docNode.kind === "namespace") {
       appendIndex(items, docNode.namespaceDef.elements, name);
     }
