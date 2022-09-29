@@ -288,7 +288,13 @@ export async function lookupDocPage(
             break;
           }
           case "doc_page": {
-            foundModuleDocPage = docPageItem = entityToDocPage(entity);
+            const docPage = entityToDocPage(entity);
+            if (
+              !((docPage.kind === "module" || docPage.kind === "symbol") &&
+                !docPage.symbols)
+            ) {
+              foundModuleDocPage = docPageItem = entityToDocPage(entity);
+            }
             break;
           }
           default:

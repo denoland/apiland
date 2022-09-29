@@ -27,7 +27,6 @@ import {
   isDocable,
   type LegacyIndex,
   type ModuleIndex,
-  type SymbolIndex,
 } from "./docs.ts";
 import {
   clearModule,
@@ -47,6 +46,7 @@ import type {
   Module,
   ModuleVersion,
   SourcePage,
+  SymbolIndexItem,
 } from "./types.d.ts";
 import { assert } from "./util.ts";
 
@@ -109,15 +109,12 @@ interface CommitMutations extends TaskBase {
   mutations: Mutation[];
 }
 
-interface SymbolIndexBase {
+interface CommitSymbolIndexTask extends TaskBase {
+  kind: "commitSymbolIndex";
   module: string;
   version: string;
   path: string;
-  index: SymbolIndex;
-}
-
-interface CommitSymbolIndexTask extends TaskBase, SymbolIndexBase {
-  kind: "commitSymbolIndex";
+  items: SymbolIndexItem[];
 }
 
 interface CommitNavTask extends TaskBase {
@@ -261,20 +258,6 @@ async function taskCommitMutations(id: number, { mutations }: CommitMutations) {
   }
 }
 
-function taskCommitSymbolIndex(
-  id: number,
-  { module, version, path, index }: CommitSymbolIndexTask,
-) {
-  console.log(
-    `[${id}]: %cCommitting%c symbol index for %c"${module}@${version}${path}"%c...`,
-    "color:green",
-    "color:none",
-    "color:cyan",
-    "color:none",
-  );
-  return commitSymbolIndex(id, module, version, path, index);
-}
-
 function taskCommitCodePage(
   id: number,
   { module, version, path, sourcePage }: CommitSourcePageTask,
@@ -301,6 +284,20 @@ function taskCommitDocPage(
     "color:none",
   );
   return commitDocPage(id, module, version, path, symbol, docPage);
+}
+
+function taskCommitSymbolIndex(
+  id: number,
+  { module, version, path, items }: CommitSymbolIndexTask,
+) {
+  console.log(
+    `[${id}]: %cCommitting%c symbol index for %c"${module}@${version}${path}"%c...`,
+    "color:green",
+    "color:none",
+    "color:cyan",
+    "color:none",
+  );
+  return commitSymbolIndex(id, module, version, path, items);
 }
 
 function taskCommitNav(
@@ -549,14 +546,14 @@ function process(id: number, task: TaskDescriptor): Promise<void> {
       return taskCommitLegacyIndex(id, task);
     case "commitMutations":
       return taskCommitMutations(id, task);
-    case "commitSymbolIndex":
-      return taskCommitSymbolIndex(id, task);
     case "commitSourcePage":
       return taskCommitCodePage(id, task);
     case "commitDocPage":
       return taskCommitDocPage(id, task);
     case "commitNav":
       return taskCommitNav(id, task);
+    case "commitSymbolIndex":
+      return taskCommitSymbolIndex(id, task);
     case "load":
       return taskLoadModule(id, task);
     default:

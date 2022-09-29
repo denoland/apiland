@@ -205,8 +205,8 @@ const MODULE_KINDS = [
 const VERSION_KINDS = [
   "doc_node",
   "module_index",
-  "symbol_index",
   "nav_index",
+  "symbol_index",
 ];
 
 export async function clearAppend(

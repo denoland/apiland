@@ -68,6 +68,8 @@ import type {
   SourcePageDir,
   SourcePageDirEntry,
   SourcePageFile,
+  SymbolIndex,
+  SymbolIndexItem,
 } from "./types.d.ts";
 import { assert } from "./util.ts";
 
@@ -97,19 +99,6 @@ export interface ModuleIndex {
   docs: Record<string, JsDoc>;
 }
 
-interface SymbolIndexDir {
-  path: string;
-  kind: "dir";
-}
-
-interface SymbolIndexModule {
-  path: string;
-  kind: "module";
-  items: SymbolItem[];
-}
-
-type SymbolIndexItem = SymbolIndexDir | SymbolIndexModule;
-
 interface SymbolItem {
   name: string;
   kind: DocNodeKind;
@@ -117,10 +106,6 @@ interface SymbolItem {
 }
 
 type NullableSymbolItem = SymbolItem | { kind: "null" };
-
-export interface SymbolIndex {
-  items: SymbolIndexItem[];
-}
 
 type DocNode = DenoDocNode | DocNodeNull;
 
@@ -374,6 +359,54 @@ async function dbLookup<Value>(
   return entityToObject(result.found[0].entity);
 }
 
+function appendIndex(
+  items: SymbolIndexItem[],
+  docNodes: DenoDocNode[],
+  namespace?: string,
+) {
+  for (const docNode of docNodes) {
+    if (docNode.kind === "moduleDoc") {
+      continue;
+    }
+    const name = namespace ? `${namespace}.${docNode.name}` : docNode.name;
+    const { kind, declarationKind, location: { filename } } = docNode;
+    items.push({ name, kind, declarationKind, filename });
+    if (docNode.kind === "namespace") {
+      appendIndex(items, docNode.namespaceDef.elements, name);
+    }
+  }
+}
+
+async function getSymbolIndex(
+  datastore: Datastore,
+  module: string,
+  version: string,
+  path: string,
+  docNodes?: DenoDocNode[],
+): Promise<SymbolIndexItem[]> {
+  const indexKey = datastore.key(
+    ["module", module],
+    ["module_version", version],
+    ["symbol_index", path],
+  );
+  const symbolIndex = await dbLookup<SymbolIndex>(datastore, indexKey);
+  if (symbolIndex) {
+    return symbolIndex.items;
+  }
+  const items: SymbolIndexItem[] = [];
+  docNodes = docNodes ?? await queryDocNodes(
+    datastore,
+    datastore.key(
+      ["module", module],
+      ["module_version", version],
+      ["module_entry", path],
+    ),
+  );
+  appendIndex(items, docNodes);
+  enqueue({ kind: "commitSymbolIndex", module, version, path, items });
+  return items;
+}
+
 export async function getNav(
   datastore: Datastore,
   module: string,
@@ -385,7 +418,7 @@ export async function getNav(
     ["module_version", version],
     ["nav_index", path],
   );
-  const navIndex: { nav: DocPageNavItem[] } | undefined = await dbLookup(
+  const navIndex = await dbLookup<{ nav: DocPageNavItem[] }>(
     datastore,
     navKey,
   );
@@ -648,6 +681,13 @@ async function getDocPageModule(
   const dirPath = entry.path.slice(0, entry.path.lastIndexOf("/")) || "/";
   docPage.nav = await getNav(datastore, version.name, version.version, dirPath);
   docPage.docNodes = await queryDocNodes(datastore, entryKey);
+  docPage.symbols = await getSymbolIndex(
+    datastore,
+    version.name,
+    version.version,
+    entry.path,
+    docPage.docNodes,
+  );
   return docPage;
 }
 
@@ -777,6 +817,12 @@ async function getDocPageSymbol(
     symbol,
   );
   if (docPage.docNodes.length) {
+    docPage.symbols = await getSymbolIndex(
+      datastore,
+      version.name,
+      version.version,
+      entry.path,
+    );
     return docPage;
   }
 }
@@ -1081,116 +1127,6 @@ function docNodesToSymbolItems(
     }
   }
   return results;
-}
-
-export async function generateSymbolIndex(
-  datastore: Datastore,
-  module: string,
-  version: string,
-  path: string,
-): Promise<SymbolIndex | undefined> {
-  const moduleKey = datastore.key(
-    ["module", module],
-    ["module_version", version],
-    ["module_entry", path],
-  );
-  let result = await datastore.lookup(moduleKey);
-  if (!result.found) {
-    if (!await checkMaybeLoad(datastore, module, version, path)) {
-      return undefined;
-    }
-    result = await datastore.lookup(moduleKey);
-    if (!result.found) {
-      return undefined;
-    }
-  }
-  if (result.found.length !== 1) {
-    throw new errors.InternalServerError(
-      "Unexpected length of results when looking up module entry.",
-    );
-  }
-  const entry = entityToObject<ModuleEntry>(result.found[0].entity);
-  if (!entry.index || !entry.dirs) {
-    return;
-  }
-  const missing: string[] = [];
-  const items: SymbolIndexItem[] = [];
-  for (const path of entry.dirs) {
-    items.push({
-      path,
-      kind: "dir",
-    });
-  }
-  for (const path of entry.index) {
-    const ancestor = datastore.key(
-      ["module", module],
-      ["module_version", version],
-      ["module_entry", path],
-    );
-    const query = datastore
-      .createQuery("doc_node")
-      .hasAncestor(ancestor);
-    const entities: Entity[] = [];
-    try {
-      for await (const entity of datastore.streamQuery(query)) {
-        entities.push(entity);
-      }
-    } catch (e) {
-      if (e instanceof DatastoreError) {
-        console.log(JSON.stringify(e.statusInfo, undefined, "  "));
-      }
-      throw e;
-    }
-    if (entities.length) {
-      items.push({
-        path,
-        kind: "module",
-        items: entitiesToSymbolItems(ancestor, entities),
-      });
-    } else {
-      missing.push(path);
-    }
-  }
-  if (missing.length) {
-    const importMap = await getImportMapSpecifier(module, version);
-    for (const path of missing) {
-      try {
-        const docNodes = await generateDocNodes(
-          module,
-          version,
-          path,
-          importMap,
-        );
-        // if a module doesn't generate any doc nodes, we need to commit a null
-        // node to the datastore, see we don't continue to try to generate doc
-        // nodes for a module that doesn't export anything.
-        enqueue({
-          kind: "commit",
-          module,
-          version,
-          path,
-          docNodes: docNodes.length ? docNodes : [{ kind: "null" }],
-        });
-        const ancestor = datastore.key(
-          ["module", module],
-          ["module_version", version],
-          ["module_entry", path],
-        );
-        items.push({
-          path,
-          kind: "module",
-          items: docNodesToSymbolItems(ancestor, docNodes),
-        });
-      } catch {
-        // just swallow errors here
-      }
-    }
-  }
-  if (items.length) {
-    return { items };
-  } else {
-    return undefined;
-  }
 }
 
 /** Namespaces and interfaces are open ended. This function will merge these
@@ -1604,20 +1540,20 @@ export async function commitDocPage(
   }
 }
 
-export async function commitNav(
+export async function commitSymbolIndex(
   id: number,
   module: string,
   version: string,
   path: string,
-  nav: DocPageNavItem[],
+  items: SymbolIndexItem[],
 ) {
   const datastore = await getDatastore();
   const key = datastore.key(
     ["module", module],
     ["module_version", version],
-    ["nav_index", path],
+    ["symbol_index", path],
   );
-  const obj = { nav };
+  const obj = { items };
   objectSetKey(obj, key);
   const mutations = [{ upsert: objectToEntity(obj) }];
   try {
@@ -1645,21 +1581,22 @@ export async function commitNav(
   }
 }
 
-export async function commitSymbolIndex(
+export async function commitNav(
   id: number,
   module: string,
   version: string,
   path: string,
-  index: SymbolIndex,
+  nav: DocPageNavItem[],
 ) {
   const datastore = await getDatastore();
   const key = datastore.key(
     ["module", module],
     ["module_version", version],
-    ["symbol_index", path],
+    ["nav_index", path],
   );
-  objectSetKey(index, key);
-  const mutations = [{ upsert: objectToEntity(index) }];
+  const obj = { nav };
+  objectSetKey(obj, key);
+  const mutations = [{ upsert: objectToEntity(obj) }];
   try {
     for await (
       const _result of datastore.commit(mutations, { transactional: false })
