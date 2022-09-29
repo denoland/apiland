@@ -33,7 +33,6 @@ import {
   generateInfoPage,
   generateModuleIndex,
   generateSourcePage,
-  generateSymbolIndex,
   getDocNodes,
   getImportMapSpecifier,
   isDocable,
@@ -485,29 +484,6 @@ router.get("/v2/modules/:module/:version/index/:path*{/}?", async (ctx) => {
   const index = await generateModuleIndex(datastore, module, version, path);
   if (index) {
     enqueue({ kind: "commitIndex", module, version, path, index });
-  }
-  return index;
-});
-
-router.get("/v2/modules/:module/:version/symbols/:path*{/}?", async (ctx) => {
-  const { module, version, path: paramPath } = ctx.params;
-  if (version === "__latest__") {
-    return redirectToLatest(ctx.url(), module);
-  }
-  const path = `/${paramPath}`;
-  datastore = datastore ?? await getDatastore();
-  const indexKey = datastore.key(
-    ["module", module],
-    ["module_version", version],
-    ["symbol_index", path],
-  );
-  const response = await datastore.lookup(indexKey);
-  if (response.found) {
-    return entityToObject(response.found[0].entity);
-  }
-  const index = await generateSymbolIndex(datastore, module, version, path);
-  if (index) {
-    enqueue({ kind: "commitSymbolIndex", module, version, path, index });
   }
   return index;
 });

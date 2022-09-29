@@ -1,6 +1,11 @@
 // Copyright 2018-2022 the Deno authors. All rights reserved. MIT license.
 
-import type { DocNode, DocNodeKind, JsDoc } from "deno_doc/types";
+import type {
+  DeclarationKind,
+  DocNode,
+  DocNodeKind,
+  JsDoc,
+} from "deno_doc/types";
 import type { patterns } from "./analysis.ts";
 
 /**
@@ -226,12 +231,14 @@ export interface DocPageSymbol extends PageBase {
   nav: DocPageNavItem[];
   name: string;
   docNodes: DocNode[];
+  symbols?: SymbolIndexItem[];
 }
 
 export interface DocPageModule extends PageBase {
   kind: "module";
   nav: DocPageNavItem[];
   docNodes: DocNode[];
+  symbols?: SymbolIndexItem[];
 }
 
 export interface DocPageIndex extends PageBase {
@@ -368,3 +375,14 @@ export type SourcePage =
   | PageInvalidVersion
   | PageNoVersions
   | PagePathNotFound;
+
+export interface SymbolIndex {
+  items: SymbolIndexItem[];
+}
+
+export interface SymbolIndexItem {
+  name: string;
+  kind: DocNodeKind;
+  declarationKind: DeclarationKind;
+  filename: string;
+}
