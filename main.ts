@@ -20,6 +20,7 @@ import {
   cacheSourcePage,
   lookup,
   lookupDocPage,
+  lookupGlobalSymbols,
   lookupInfoPage,
   lookupLibDocPage,
   lookupSourcePage,
@@ -114,6 +115,7 @@ router.all("/", () =>
           <li><code>/v2/modules/:module</code> - Provide information about a specific module - [<a href="/v2/modules/std" target="_blank">example</a>]</li>
           <li><code>/v2/modules/:module/:version</code> - Provide information about a specific module version - [<a href="/v2/modules/std/0.139.0" target="_blank">example</a>]</li>
           <li><code>/v2/modules/:module/:version/doc/:path*</code> - Provide documentation nodes for a specific path of a specific module version -  [<a href="/v2/modules/std/0.139.0/doc/archive/tar.ts" target="_blank">example</a>]</li>
+          <li><code>/v2/symbols/global</code> - Provide a list of symbols that are in the global scope of the Deno CLI runtime - [<a href="/v2/symbols/global" target="_blank">example</a>]</li>
           <li><code>/ping</code> - A health endpoint for the server - [<a href="/ping" target="_blank">example</a>]</li>
         <ul>
       </div>
@@ -464,6 +466,8 @@ router.get("/v2/modules/:module/:version/doc/:path*", async (ctx) => {
     return undefined;
   }
 });
+
+router.get("/v2/symbols/global", (_ctx) => lookupGlobalSymbols());
 
 router.get("/v2/modules/:module/:version/index/:path*{/}?", async (ctx) => {
   const { module, version, path: paramPath } = ctx.params;

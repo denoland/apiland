@@ -16,6 +16,16 @@ import type { patterns } from "./analysis.ts";
 
 export type { DocNode } from "deno_doc/types";
 
+export interface GlobalSymbolItem {
+  name: string;
+  library: "deno" | "esnext";
+  unstable?: boolean;
+}
+
+export interface GlobalSymbols {
+  items: GlobalSymbolItem[];
+}
+
 export interface Library {
   name: string;
   versions: string[];

@@ -4,8 +4,10 @@ import { type Datastore, entityToObject } from "google_datastore";
 import type { Entity, Key } from "google_datastore/types";
 import { entityToDocPage, hydrateDocNodes } from "./docs.ts";
 import { getDatastore } from "./store.ts";
-import type {
+import {
   DocPage,
+  GlobalSymbolItem,
+  GlobalSymbols,
   InfoPage,
   LibDocPage,
   Library,
@@ -491,6 +493,26 @@ export async function lookupLibDocPage(
     }
   }
   return docPageItem;
+}
+
+let globalSymbols: GlobalSymbolItem[] | undefined;
+
+export async function lookupGlobalSymbols() {
+  if (globalSymbols) {
+    return globalSymbols;
+  }
+  datastore = datastore ?? await getDatastore();
+  const res = await datastore.lookup(datastore.key(
+    ["global_symbols", "$$root$$"],
+  ));
+  if (!res.found || res.found.length !== 1) {
+    throw new Error(
+      "Unexpected result returned from datastore.",
+      { cause: res },
+    );
+  }
+  const { items } = entityToObject<GlobalSymbols>(res.found[0].entity);
+  return globalSymbols = items;
 }
 
 export async function lookup(
