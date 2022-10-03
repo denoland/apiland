@@ -6,7 +6,11 @@
  */
 
 import dax from "dax";
-import { DatastoreError, entityToObject } from "google_datastore";
+import {
+  DatastoreError,
+  entityToObject,
+  objectToEntity,
+} from "google_datastore";
 import type { Mutation } from "google_datastore/types";
 import {
   addNodes,
@@ -17,7 +21,7 @@ import {
 } from "./docs.ts";
 import { loadModule } from "./modules.ts";
 import { getDatastore } from "./store.ts";
-import type { Module, ModuleEntry } from "./types.d.ts";
+import type { Module, ModuleEntry, ModuleVersion } from "./types.d.ts";
 import { assert } from "./util.ts";
 
 const toReload = new Set<string>();
@@ -83,20 +87,28 @@ async function doc(
   }
 }
 
-for (const moduleVersion of toReload) {
-  const [module, ...rest] = moduleVersion.split("@");
+for (const ver of toReload) {
+  const [module, ...rest] = ver.split("@");
   const version = rest.join("@");
   let mutations: Mutation[];
   let toDoc: [string, string, Set<string>][];
   let moduleItem: Module | undefined;
+  let moduleVersion: ModuleVersion | undefined;
   try {
-    [mutations, moduleItem, , , toDoc] = await loadModule(module, version);
+    [mutations, moduleItem, moduleVersion, , toDoc] = await loadModule(
+      module,
+      version,
+    );
   } catch (err) {
     dax.logWarn(`Skipping module "${module}@${version}", cannot load.`, err);
     continue;
   }
   if (toDoc && toDoc.length && moduleItem.latest_version === version) {
     await doc(toDoc, mutations);
+    if (moduleVersion) {
+      moduleVersion.has_doc = true;
+      mutations.push({ upsert: objectToEntity(moduleVersion) });
+    }
   } else {
     dax.logLight(`  not documenting...`);
   }

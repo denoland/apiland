@@ -473,6 +473,8 @@ async function taskLoadModule(
         ["module_entry", path],
       ],
     );
+    moduleVersion.has_doc = true;
+    docMutations.push({ upsert: objectToEntity(moduleVersion) });
   }
 
   // Upload doc nodes to algolia.

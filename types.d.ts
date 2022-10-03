@@ -127,6 +127,9 @@ export interface ModuleVersion {
   /** If assigned, contains a text string which indicates what version of
    * analysis has been done on the content. */
   analysis_version?: string;
+  /** A flag that indicates that the module version has all its applicable
+   * entries doc'ed. */
+  has_doc?: boolean;
   description: string;
   version: string;
   uploaded_at: Date;

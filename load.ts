@@ -12,6 +12,7 @@
  * @module
  */
 
+import { objectToEntity } from "https://deno.land/x/google_datastore@0.0.17/util.ts";
 import { parse } from "std/flags/mod.ts";
 import {
   addNodes,
@@ -44,7 +45,8 @@ console.log(
   "color:none",
 );
 
-const [mutations, , , , toDoc] = await loadModule(module, version);
+const [mutations, , moduleVersion, , toDoc] = await loadModule(module, version);
+assert(moduleVersion);
 
 if (args["dry-run"]) {
   console.log(toDoc);
@@ -95,6 +97,8 @@ if (!args["no-doc"]) {
       );
     }
   }
+  moduleVersion.has_doc = true;
+  mutations.push({ upsert: objectToEntity(moduleVersion) });
 }
 
 let remaining = mutations.length;
