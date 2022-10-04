@@ -25,6 +25,7 @@ import {
   lookupLibDocPage,
   lookupSourcePage,
 } from "./cache.ts";
+import { kinds } from "./consts.ts";
 import {
   checkMaybeLoad,
   type DocNode,
@@ -52,6 +53,7 @@ import {
   ModuleMetrics,
   SubModuleMetrics,
 } from "./types.d.ts";
+import { assert } from "./util.ts";
 
 interface PagedItems<T> {
   items: T[];
@@ -109,12 +111,13 @@ router.all("/", () =>
           <li><code>/v2/pages/mod/source/:module/:version/:path*</code> - provides a structure to render a source view page - [<a href="/v2/pages/mod/source/std/0.150.0/testing/asserts.ts">example</a>]</li>
           <li><code>/v2/pages/mod/info/:module/:version</code> - provides a structure to render a module info page - [<a href="/v2/pages/info/oak/v11.0.0">example</a>]</li>
           <li><code>/v2/modules</code> - Provide a list of modules in the registry - [<a href="/v2/modules" target="_blank">example</a>]</li>
-          <li><code>/v2/metrics/modules/:module</code> - Provide metric information for a module -  [<a href="/v2/metrics/modules/oak" target="_blank">example</a>]</li>
-          <li><code>/v2/metrics/submmodules/:submodule</code> - Provide metric information for a module's submodules -  [<a href="/v2/metrics/modules/std" target="_blank">example</a>]</li>
-          <li><code>/v2/metrics/dependencies/:source*</code> - Provide metrics information for a dependency source -  [<a href="/v2/metrics/modules/deno.land/x" target="_blank">example</a>]</li>
           <li><code>/v2/modules/:module</code> - Provide information about a specific module - [<a href="/v2/modules/std" target="_blank">example</a>]</li>
           <li><code>/v2/modules/:module/:version</code> - Provide information about a specific module version - [<a href="/v2/modules/std/0.139.0" target="_blank">example</a>]</li>
           <li><code>/v2/modules/:module/:version/doc/:path*</code> - Provide documentation nodes for a specific path of a specific module version -  [<a href="/v2/modules/std/0.139.0/doc/archive/tar.ts" target="_blank">example</a>]</li>
+          <li><code>/v2/metrics/apis</code> - Provide metric information for builtin APIs -  [<a href="/v2/metrics/apis" target="_blank">example</a>]</li>
+          <li><code>/v2/metrics/modules/:module</code> - Provide metric information for a module -  [<a href="/v2/metrics/modules/oak" target="_blank">example</a>]</li>
+          <li><code>/v2/metrics/submmodules/:submodule</code> - Provide metric information for a module's submodules -  [<a href="/v2/metrics/modules/std" target="_blank">example</a>]</li>
+          <li><code>/v2/metrics/dependencies/:source*</code> - Provide metrics information for a dependency source -  [<a href="/v2/metrics/modules/deno.land/x" target="_blank">example</a>]</li>
           <li><code>/v2/symbols/global</code> - Provide a list of symbols that are in the global scope of the Deno CLI runtime - [<a href="/v2/symbols/global" target="_blank">example</a>]</li>
           <li><code>/ping</code> - A health endpoint for the server - [<a href="/ping" target="_blank">example</a>]</li>
         <ul>
@@ -273,6 +276,21 @@ router.get("/v2/metrics/submodules/:mod", async (ctx) => {
       throw error;
     }
   }
+});
+
+router.get("/v2/metrics/apis", async (_ctx) => {
+  const views: Record<string, unknown> = {};
+  datastore = datastore ?? await getDatastore();
+  for await (
+    const entity of datastore.streamQuery(
+      datastore.createQuery(kinds.API_STATS_KIND),
+    )
+  ) {
+    assert(entity.key);
+    assert(entity.key.path[0].name);
+    views[entity.key.path[0].name] = entityToObject(entity);
+  }
+  return views;
 });
 
 router.get("/v2/metrics/usage/:mod", async (ctx) => {

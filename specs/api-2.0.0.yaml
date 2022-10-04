@@ -28,6 +28,33 @@ tags:
 - name: infrastructure
   description: APIs that relate to internal infrastructure.
 paths:
+  /v2/metrics/apis:
+    get:
+      tags:
+        - metrics
+      summary: Get built-in API metrics.
+      description: >
+        Provides a object which contains metrics about the built-in APIs in
+        Deno CLI.
+      operationId: getAPIMetrics
+      responses:
+        "200":
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/APIMetrics"
+        "404":
+          description: >
+            Not found - no resources for the given query were found. Try
+            changing the query parameters.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HttpError"
+            text/html:
+              schema:
+                type: string
   /v2/metrics/dependencies:
     get:
       tags:
@@ -1175,6 +1202,22 @@ components:
       type: http
       scheme: bearer
   schemas:
+    APIMetrics:
+      type: object
+      additionalProperties:
+        $ref: "#/components/schemas/APIViews"
+    APIViews:
+      type: object
+      properties:
+        total:
+          $ref: "#/components/schemas/Views"
+        symbols:
+          type: object
+          additionalProperties:
+            $ref: "#/components/schemas/Views"
+      required:
+        - "total"
+        - "symbols"
     DeclarationKind:
       type: string
       enum:
@@ -2125,6 +2168,20 @@ components:
       required:
         - "sessions"
         - "users"
+    Views:
+      type: object
+      properties:
+        pageviews:
+          type: integer
+          example: 12345
+        uniquePageviews:
+          type: integer
+          example: 5423
+        unstable:
+          type: boolean
+      required:
+        - "pageviews"
+        - "uniquePageviews"
     WebhookResponse:
       type: object
       properties:
