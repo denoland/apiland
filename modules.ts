@@ -1,65 +1,39 @@
 // Copyright 2018-2022 the Deno authors. All rights reserved. MIT license.
 
+/** Functions for handling modules and other registry integrations.
+ *
+ * @module
+ */
+
 import {
   type Datastore,
   entityToObject,
+  objectGetKey,
   objectSetKey,
   objectToEntity,
 } from "google_datastore";
 import type { Key, Mutation } from "google_datastore/types";
+
+import { getDatastore } from "./auth.ts";
 import {
   cacheModule,
   cacheModuleEntry,
   cacheModuleVersion,
   lookup,
 } from "./cache.ts";
-import { isDocable } from "./docs.ts";
-
-import { getDatastore } from "./store.ts";
+import { kinds } from "./consts.ts";
+import { isDocable, isKeyEqual } from "./docs.ts";
 import type {
+  ApiModuleData,
   Module,
   ModuleEntry,
+  ModuleMetaVersionsJson,
   ModuleVersion,
+  ModuleVersionMetaJson,
+  PackageMetaListing,
   PageNoVersions,
 } from "./types.d.ts";
 import { assert } from "./util.ts";
-
-interface ApiModuleData {
-  data: {
-    name: string;
-    description: string;
-    star_count: number;
-  };
-}
-
-export interface ModuleMetaVersionsJson {
-  latest: string;
-  versions: string[];
-}
-
-interface ModuleVersionMetaJson {
-  uploaded_at: string;
-  upload_options: {
-    type: string;
-    repository: string;
-    ref: string;
-  };
-  directory_listing: {
-    path: string;
-    size: number;
-    type: "file" | "dir";
-    default?: string;
-    docable?: boolean;
-    dirs?: string[];
-    index?: string[];
-  }[];
-}
-
-interface PackageMetaListing {
-  path: string;
-  size: number;
-  type: "file" | "dir";
-}
 
 const DENO_CDN = "https://cdn.deno.land/";
 const DENO_API = "https://api.deno.land/modules/";
@@ -155,7 +129,9 @@ export async function getModuleLatestVersion(
   module: string,
 ): Promise<string | null | undefined> {
   const datastore = await getDatastore();
-  const result = await datastore.lookup(datastore.key(["module", module]));
+  const result = await datastore.lookup(
+    datastore.key([kinds.MODULE_KIND, module]),
+  );
   if (result.found && result.found.length) {
     const moduleItem = entityToObject<Module>(result.found[0].entity);
     return moduleItem.latest_version;
@@ -193,20 +169,24 @@ export async function redirectToLatest(
   });
 }
 
+export function isIgnoredPath(path: string): boolean {
+  return RE_IGNORED_MODULE.test(path) || RE_PRIVATE_PATH.test(path);
+}
+
 export function isIndexedDir(item: PackageMetaListing): boolean {
   return item.type === "dir" && !item.path.match(RE_PRIVATE_PATH);
 }
 
 const MODULE_KINDS = [
-  "doc_page",
-  "info_page",
-  "code_page",
+  kinds.DOC_PAGE_KIND,
+  kinds.INFO_PAGE_KIND,
+  kinds.CODE_PAGE_KIND,
 ];
 const VERSION_KINDS = [
-  "doc_node",
-  "module_index",
-  "nav_index",
-  "symbol_index",
+  kinds.DOC_NODE_KIND,
+  kinds.MODULE_INDEX_KIND,
+  kinds.NAV_INDEX_KIND,
+  kinds.SYMBOL_INDEX_KIND,
 ];
 
 export async function clearAppend(
@@ -240,18 +220,39 @@ export function clearModule(
     datastore,
     mutations,
     MODULE_KINDS,
-    datastore.key(["module", module]),
+    datastore.key([kinds.MODULE_KIND, module]),
   );
   const pVersions = clearAppend(
     datastore,
     mutations,
     VERSION_KINDS,
     datastore.key(
-      ["module", module],
-      ["module_version", version],
+      [kinds.MODULE_KIND, module],
+      [kinds.MODULE_VERSION_KIND, version],
     ),
   );
   return Promise.all([pModules, pVersions]);
+}
+
+export function replaceVersion(
+  mutations: Mutation[],
+  version: ModuleVersion,
+) {
+  const key = objectGetKey(version);
+  assert(key);
+  const idx = mutations.findIndex((mut) => {
+    if ("upsert" in mut) {
+      assert(mut.upsert.key);
+      if (isKeyEqual(key, mut.upsert.key)) {
+        return true;
+      }
+    }
+    return false;
+  });
+  if (idx >= 0) {
+    mutations.splice(idx, 1);
+  }
+  mutations.push({ upsert: objectToEntity(version) });
 }
 
 export async function loadModule(
@@ -275,7 +276,7 @@ export async function loadModule(
 
   const mutations: Mutation[] = [];
   const datastore = await getDatastore();
-  const moduleKey = datastore.key(["module", module]);
+  const moduleKey = datastore.key([kinds.MODULE_KIND, module]);
 
   let [moduleItem] = await lookup(module);
   if (moduleItem) {
@@ -333,8 +334,8 @@ export async function loadModule(
         upload_options: versionMeta.upload_options,
       };
       const versionKey = datastore.key(
-        ["module", moduleItem.name],
-        ["module_version", version],
+        [kinds.MODULE_KIND, moduleItem.name],
+        [kinds.MODULE_VERSION_KIND, version],
       );
       objectSetKey(moduleVersion, versionKey);
       cacheModuleVersion(module, version, moduleVersion);
@@ -350,10 +351,7 @@ export async function loadModule(
           moduleEntry.dirs = getSubdirs(moduleEntry.path, listing);
         } else if (isDocable(moduleEntry.path)) {
           moduleEntry.docable = true;
-          if (
-            !RE_IGNORED_MODULE.test(moduleEntry.path) &&
-            !RE_PRIVATE_PATH.test(moduleEntry.path)
-          ) {
+          if (!isIgnoredPath(moduleEntry.path)) {
             toDocPaths.add(moduleEntry.path);
           }
         }
@@ -368,9 +366,9 @@ export async function loadModule(
         objectSetKey(
           moduleEntry,
           datastore.key(
-            ["module", moduleItem.name],
-            ["module_version", version],
-            ["module_entry", moduleEntry.path],
+            [kinds.MODULE_KIND, moduleItem.name],
+            [kinds.MODULE_VERSION_KIND, version],
+            [kinds.MODULE_ENTRY_KIND, moduleEntry.path],
           ),
         );
         cacheModuleEntry(module, version, moduleEntry.path, moduleEntry);

@@ -1,12 +1,54 @@
 // Copyright 2018-2022 the Deno authors. All rights reserved. MIT license.
 
+/** Types that are shared across apiland.
+ *
+ * @module
+ */
+
 import type {
   DeclarationKind,
   DocNode,
   DocNodeKind,
   JsDoc,
 } from "deno_doc/types";
-import type { patterns } from "./analysis.ts";
+import type { patterns } from "./consts.ts";
+
+export interface ApiModuleData {
+  data: {
+    name: string;
+    description: string;
+    star_count: number;
+  };
+}
+
+export interface ModuleMetaVersionsJson {
+  latest: string;
+  versions: string[];
+}
+
+export interface ModuleVersionMetaJson {
+  uploaded_at: string;
+  upload_options: {
+    type: string;
+    repository: string;
+    ref: string;
+  };
+  directory_listing: {
+    path: string;
+    size: number;
+    type: "file" | "dir";
+    default?: string;
+    docable?: boolean;
+    dirs?: string[];
+    index?: string[];
+  }[];
+}
+
+export interface PackageMetaListing {
+  path: string;
+  size: number;
+  type: "file" | "dir";
+}
 
 /**
  * Common types used for data structures within the project
@@ -268,6 +310,13 @@ export interface DocPageRedirect {
   path: string;
 }
 
+export interface ModuleUsage {
+  total: UsageMetric;
+  daily: UsageMetric[];
+  versions: Record<string, UsageMetric>;
+  updated: Date;
+}
+
 export interface ModInfoPage {
   kind: "modinfo";
   module: string;
@@ -398,4 +447,9 @@ export interface SymbolIndexItem {
   kind: DocNodeKind;
   declarationKind: DeclarationKind;
   filename: string;
+}
+
+export interface UsageMetric {
+  users: number;
+  sessions: number;
 }

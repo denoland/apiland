@@ -1,5 +1,10 @@
 // Copyright 2018-2022 the Deno authors. All rights reserved. MIT license.
 
+/** Functions related to documenting modules.
+ *
+ * @module
+ */
+
 import { doc, type LoadResponse } from "deno_doc";
 import type {
   DocNode as DenoDocNode,
@@ -36,10 +41,12 @@ import type {
   ValueString,
 } from "google_datastore/types";
 import * as JSONC from "jsonc-parser";
-import { errors } from "oak_commons/http_errors.ts";
-import { getAnalysis } from "./analysis.ts";
+import { errors } from "std/http/http_errors.ts";
 
+import { getAnalysis } from "./analysis.ts";
+import { getDatastore } from "./auth.ts";
 import { cacheInfoPage, lookup } from "./cache.ts";
+import { kinds, ROOT_SYMBOL } from "./consts.ts";
 import {
   getIndexModule,
   loadModule,
@@ -47,7 +54,6 @@ import {
   RE_PRIVATE_PATH,
 } from "./modules.ts";
 import { enqueue } from "./process.ts";
-import { getDatastore } from "./store.ts";
 import type {
   DocPage,
   DocPageFile,
@@ -115,7 +121,6 @@ interface ConfigFileJson {
 
 const MAX_CACHE_SIZE = parseInt(Deno.env.get("MAX_CACHE_SIZE") ?? "", 10) ||
   25_000_000;
-export const ROOT_SYMBOL = "$$root$$";
 
 const cachedSpecifiers = new Set<string>();
 const cachedResources = new Map<string, LoadResponse | undefined>();
@@ -289,8 +294,8 @@ export async function checkMaybeLoad(
   path?: string,
 ): Promise<boolean> {
   const moduleVersionKey = datastore.key(
-    ["module", module],
-    ["module_version", version],
+    [kinds.MODULE_KIND, module],
+    [kinds.MODULE_VERSION_KIND, version],
   );
   const result = await datastore.lookup(moduleVersionKey);
   const moduleVersionExists = !!result.found;
@@ -314,9 +319,9 @@ export async function checkMaybeLoad(
   }
   if (path) {
     const pathKey = datastore.key(
-      ["module", module],
-      ["module_version", version],
-      ["module_entry", `/${path}`],
+      [kinds.MODULE_KIND, module],
+      [kinds.MODULE_VERSION_KIND, version],
+      [kinds.MODULE_ENTRY_KIND, `/${path}`],
     );
     const result = await datastore.lookup(pathKey);
     return !!result.found;
@@ -390,9 +395,9 @@ async function getSymbolIndex(
   docNodes?: DenoDocNode[],
 ): Promise<SymbolIndexItem[]> {
   const indexKey = datastore.key(
-    ["module", module],
-    ["module_version", version],
-    ["symbol_index", path],
+    [kinds.MODULE_KIND, module],
+    [kinds.MODULE_VERSION_KIND, version],
+    [kinds.SYMBOL_INDEX_KIND, path],
   );
   const symbolIndex = await dbLookup<SymbolIndex>(datastore, indexKey);
   if (symbolIndex) {
@@ -402,9 +407,9 @@ async function getSymbolIndex(
   docNodes = docNodes ?? await queryDocNodes(
     datastore,
     datastore.key(
-      ["module", module],
-      ["module_version", version],
-      ["module_entry", path],
+      [kinds.MODULE_KIND, module],
+      [kinds.MODULE_VERSION_KIND, version],
+      [kinds.MODULE_ENTRY_KIND, path],
     ),
   );
   appendIndex(items, docNodes);
@@ -419,9 +424,9 @@ export async function getNav(
   path: string,
 ): Promise<DocPageNavItem[]> {
   const navKey = datastore.key(
-    ["module", module],
-    ["module_version", version],
-    ["nav_index", path],
+    [kinds.MODULE_KIND, module],
+    [kinds.MODULE_VERSION_KIND, version],
+    [kinds.NAV_INDEX_KIND, path],
   );
   const navIndex = await dbLookup<{ nav: DocPageNavItem[] }>(
     datastore,
@@ -441,9 +446,9 @@ export async function getNav(
   if (entry.dirs && entry.dirs.length) {
     const keys = entry.dirs.map((path) =>
       datastore.key(
-        ["module", module],
-        ["module_version", version],
-        ["module_entry", path],
+        [kinds.MODULE_KIND, module],
+        [kinds.MODULE_VERSION_KIND, version],
+        [kinds.MODULE_ENTRY_KIND, path],
       )
     );
     const res = await datastore.lookup(keys);
@@ -463,11 +468,13 @@ export async function getNav(
   if (entry.index) {
     for (const path of entry.index) {
       const ancestor = datastore.key(
-        ["module", module],
-        ["module_version", version],
-        ["module_entry", path],
+        [kinds.MODULE_KIND, module],
+        [kinds.MODULE_VERSION_KIND, version],
+        [kinds.MODULE_ENTRY_KIND, path],
       );
-      const query = datastore.createQuery("doc_node").hasAncestor(ancestor);
+      const query = datastore.createQuery(kinds.DOC_NODE_KIND).hasAncestor(
+        ancestor,
+      );
       const entities: Entity[] = [];
       try {
         for await (const entity of datastore.streamQuery(query)) {
@@ -508,9 +515,9 @@ export async function getNav(
           docNodes: docNodes.length ? docNodes : [{ kind: "null" }],
         });
         const ancestor = datastore.key(
-          ["module", module],
-          ["module_version", version],
-          ["module_entry", path],
+          [kinds.MODULE_KIND, module],
+          [kinds.MODULE_VERSION_KIND, version],
+          [kinds.MODULE_ENTRY_KIND, path],
         );
         nav.push({
           path,
@@ -588,10 +595,10 @@ async function getSourcePageDir(
     entryPath,
   ) as SourcePageDir;
   const query = datastore
-    .createQuery("module_entry")
+    .createQuery(kinds.MODULE_ENTRY_KIND)
     .hasAncestor(datastore.key(
-      ["module", module.name],
-      ["module_version", version.version],
+      [kinds.MODULE_KIND, module.name],
+      [kinds.MODULE_VERSION_KIND, version.version],
     ));
   const entries: SourcePageDirEntry[] = [];
   for await (const entity of datastore.streamQuery(query)) {
@@ -710,11 +717,11 @@ async function getDocPageIndex(
   ) as DocPageIndex;
   const items: IndexItem[] = docPage.items = [];
   const ancestor = datastore.key(
-    ["module", version.name],
-    ["module_version", version.version],
+    [kinds.MODULE_KIND, version.name],
+    [kinds.MODULE_VERSION_KIND, version.version],
   );
   const query = datastore
-    .createQuery("module_entry")
+    .createQuery(kinds.MODULE_ENTRY_KIND)
     .hasAncestor(ancestor);
   const path = entry.path;
   const docMap = new Map<string, IndexItem[]>();
@@ -840,10 +847,10 @@ export async function getModuleEntries(
 ): Promise<ModuleEntry[]> {
   datastore = datastore || await getDatastore();
   const query = datastore
-    .createQuery("module_entry")
+    .createQuery(kinds.MODULE_ENTRY_KIND)
     .hasAncestor(datastore.key(
-      ["module", module],
-      ["module_version", version],
+      [kinds.MODULE_KIND, module],
+      [kinds.MODULE_VERSION_KIND, version],
     ));
   const entries: ModuleEntry[] = [];
   for await (const entity of datastore.streamQuery(query)) {
@@ -954,7 +961,7 @@ export async function generateInfoPage(
   datastore = datastore || await getDatastore();
   objectSetKey(
     infoPage,
-    datastore.key(["module", module], ["info_page", version]),
+    datastore.key([kinds.MODULE_KIND, module], ["info_page", version]),
   );
   const mutations: Mutation[] = [{ upsert: objectToEntity(infoPage) }];
   enqueue({ kind: "commitMutations", mutations });
@@ -1000,9 +1007,9 @@ export async function generateDocPage(
   }
   if (moduleEntry && moduleEntry.default) {
     const defaultKey = datastore.key(
-      ["module", module],
-      ["module_version", version],
-      ["module_entry", moduleEntry.default],
+      [kinds.MODULE_KIND, module],
+      [kinds.MODULE_VERSION_KIND, version],
+      [kinds.MODULE_ENTRY_KIND, moduleEntry.default],
     );
     const result = await datastore.lookup(defaultKey);
     if (result.found && result.found.length === 1) {
@@ -1019,9 +1026,9 @@ export async function generateDocPage(
           moduleVersion,
           moduleEntry,
           datastore.key(
-            ["module", module],
-            ["module_version", version],
-            ["module_entry", path],
+            [kinds.MODULE_KIND, module],
+            [kinds.MODULE_VERSION_KIND, version],
+            [kinds.MODULE_ENTRY_KIND, path],
           ),
         )
         : getDocPageSymbol(
@@ -1051,11 +1058,11 @@ export async function generateModuleIndex(
   path: string,
 ): Promise<ModuleIndex | undefined> {
   const moduleKey = datastore.key(
-    ["module", module],
-    ["module_version", version],
+    [kinds.MODULE_KIND, module],
+    [kinds.MODULE_VERSION_KIND, version],
   );
   const query = datastore
-    .createQuery("module_entry")
+    .createQuery(kinds.MODULE_ENTRY_KIND)
     .filter("type", "dir")
     .hasAncestor(moduleKey);
   const results: Record<string, string[]> = {};
@@ -1067,7 +1074,7 @@ export async function generateModuleIndex(
   }
   if (Object.keys(results).length) {
     const docNodeQuery = datastore
-      .createQuery("doc_node")
+      .createQuery(kinds.DOC_NODE_KIND)
       .filter("kind", "moduleDoc")
       .hasAncestor(moduleKey);
     const docs: Record<string, JsDoc> = {};
@@ -1392,9 +1399,9 @@ export async function commitDocNodes(
 ) {
   const mutations: Mutation[] = [];
   const keyInit = [
-    ["module", module],
-    ["module_version", version],
-    ["module_entry", `/${path}`],
+    [kinds.MODULE_KIND, module],
+    [kinds.MODULE_VERSION_KIND, version],
+    [kinds.MODULE_ENTRY_KIND, `/${path}`],
   ] as KeyInit[];
   const datastore = await getDatastore();
   addNodes(datastore, mutations, docNodes, keyInit);
@@ -1432,8 +1439,8 @@ export async function commitModuleIndex(
 ) {
   const datastore = await getDatastore();
   const key = datastore.key(
-    ["module", module],
-    ["module_version", version],
+    [kinds.MODULE_KIND, module],
+    [kinds.MODULE_VERSION_KIND, version],
     ["module_index", path],
   );
   objectSetKey(index, key);
@@ -1472,8 +1479,8 @@ export async function commitSourcePage(
 ) {
   const datastore = await getDatastore();
   const key = datastore.key(
-    ["module", module],
-    ["module_version", version],
+    [kinds.MODULE_KIND, module],
+    [kinds.MODULE_VERSION_KIND, version],
     ["code_page", path],
   );
   objectSetKey(sourcePage, key);
@@ -1513,9 +1520,9 @@ export async function commitDocPage(
 ) {
   const datastore = await getDatastore();
   const key = datastore.key(
-    ["module", module],
-    ["module_version", version],
-    ["module_entry", path],
+    [kinds.MODULE_KIND, module],
+    [kinds.MODULE_VERSION_KIND, version],
+    [kinds.MODULE_ENTRY_KIND, path],
     ["doc_page", symbol],
   );
   objectSetKey(docPage, key);
@@ -1554,9 +1561,9 @@ export async function commitSymbolIndex(
 ) {
   const datastore = await getDatastore();
   const key = datastore.key(
-    ["module", module],
-    ["module_version", version],
-    ["symbol_index", path],
+    [kinds.MODULE_KIND, module],
+    [kinds.MODULE_VERSION_KIND, version],
+    [kinds.SYMBOL_INDEX_KIND, path],
   );
   const obj = { items };
   objectSetKey(obj, key);
@@ -1595,9 +1602,9 @@ export async function commitNav(
 ) {
   const datastore = await getDatastore();
   const key = datastore.key(
-    ["module", module],
-    ["module_version", version],
-    ["nav_index", path],
+    [kinds.MODULE_KIND, module],
+    [kinds.MODULE_VERSION_KIND, version],
+    [kinds.NAV_INDEX_KIND, path],
   );
   const obj = { nav };
   objectSetKey(obj, key);
@@ -1815,12 +1822,12 @@ export async function getDocNodes(
 ): Promise<[entry: string, nodes: DenoDocNode[]] | undefined> {
   const datastore = await getDatastore();
   const ancestor = datastore.key(
-    ["module", module],
-    ["module_version", version],
-    ["module_entry", entry],
+    [kinds.MODULE_KIND, module],
+    [kinds.MODULE_VERSION_KIND, version],
+    [kinds.MODULE_ENTRY_KIND, entry],
   );
   const query = datastore
-    .createQuery("doc_node")
+    .createQuery(kinds.DOC_NODE_KIND)
     .hasAncestor(ancestor);
   const entities: Entity[] = [];
   for await (const entity of datastore.streamQuery(query)) {
@@ -1865,7 +1872,7 @@ export async function getNamespaceKeyInit(
 ): Promise<KeyInit | undefined> {
   const key = datastore.key(...keyInit);
   const query = datastore
-    .createQuery("doc_node")
+    .createQuery(kinds.DOC_NODE_KIND)
     .hasAncestor(key)
     .filter("name", namespace)
     .filter("kind", "namespace");
@@ -1889,7 +1896,7 @@ function isStringValue(value: Value): value is ValueString {
 
 export function isNamespace(entity: Entity): boolean {
   return !!(entity.key &&
-    entity.key.path[entity.key.path.length - 1].kind === "doc_node" &&
+    entity.key.path[entity.key.path.length - 1].kind === kinds.DOC_NODE_KIND &&
     entity.properties && entity.properties["kind"] &&
     isStringValue(entity.properties["kind"]) &&
     entity.properties["kind"].stringValue === "namespace");
@@ -1903,9 +1910,9 @@ async function queryDocNodesBySymbol(
   symbol: string,
 ): Promise<DenoDocNode[]> {
   const keyInit: KeyInit[] = [
-    ["module", module],
-    ["module_version", version],
-    ["module_entry", entry],
+    [kinds.MODULE_KIND, module],
+    [kinds.MODULE_VERSION_KIND, version],
+    [kinds.MODULE_ENTRY_KIND, entry],
   ];
   let name = symbol;
   if (symbol.includes(".")) {
@@ -1929,7 +1936,7 @@ async function queryDocNodesBySymbol(
   }
   const ancestor = datastore.key(...keyInit);
   const query = datastore
-    .createQuery("doc_node")
+    .createQuery(kinds.DOC_NODE_KIND)
     .hasAncestor(ancestor)
     .filter("name", name);
   const entities: Entity[] = [];
@@ -1944,7 +1951,7 @@ async function queryDocNodesBySymbol(
   if (namespaceKeys.length) {
     for (const key of namespaceKeys) {
       const query = datastore
-        .createQuery("doc_node")
+        .createQuery(kinds.DOC_NODE_KIND)
         .hasAncestor(key);
       for await (const entity of datastore.streamQuery(query)) {
         assert(entity.key);
@@ -1964,7 +1971,9 @@ export async function queryDocNodes(
   ancestor: Key,
   kind?: DocNodeKind,
 ): Promise<DenoDocNode[]> {
-  const query = datastore.createQuery("doc_node").hasAncestor(ancestor);
+  const query = datastore
+    .createQuery(kinds.DOC_NODE_KIND)
+    .hasAncestor(ancestor);
   if (kind) {
     query.filter("kind", kind);
   }

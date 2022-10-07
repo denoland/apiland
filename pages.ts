@@ -1,5 +1,10 @@
 // Copyright 2018-2022 the Deno authors. All rights reserved. MIT license.
 
+/** Utility functions to generate documentation pages.
+ *
+ * @module
+ */
+
 import type { JsDocTagDoc } from "deno_doc/types";
 import {
   type Datastore,
@@ -15,7 +20,10 @@ import type {
   Mutation,
   PathElement,
 } from "google_datastore/types";
+
+import { getDatastore } from "./auth.ts";
 import { cacheLibDocPage, cacheSymbolItems, lookupLib } from "./cache.ts";
+import { ROOT_SYMBOL } from "./consts.ts";
 import {
   dehydrateDocNodes,
   entitiesToDocNodes,
@@ -24,7 +32,6 @@ import {
   isNamespace,
 } from "./docs.ts";
 import { enqueue } from "./process.ts";
-import { getDatastore } from "./store.ts";
 import type {
   DocNode,
   DocPageLibrary,
@@ -33,8 +40,6 @@ import type {
   SymbolItem,
 } from "./types.d.ts";
 import { assert } from "./util.ts";
-
-export const ROOT_SYMBOL = "$$root$$";
 
 let datastore: Datastore | undefined;
 
@@ -208,6 +213,7 @@ function docPageToEntity(
   return objectToEntity(obj);
 }
 
+/** Generate a library documentation page. */
 export async function generateLibDocPage(
   lib: string,
   version: string,

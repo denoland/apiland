@@ -1,9 +1,17 @@
 // Copyright 2018-2022 the Deno authors. All rights reserved. MIT license.
 
+/** Utilities which cache information from the datastore in memory to help
+ * increase performance.
+ *
+ * @module
+ */
+
 import { type Datastore, entityToObject } from "google_datastore";
 import type { Entity, Key } from "google_datastore/types";
+
+import { getDatastore } from "./auth.ts";
+import { kinds, ROOT_SYMBOL } from "./consts.ts";
 import { entityToDocPage, hydrateDocNodes } from "./docs.ts";
-import { getDatastore } from "./store.ts";
 import {
   DocPage,
   GlobalSymbolItem,
@@ -130,15 +138,18 @@ export async function lookupSourcePage(
     datastore = datastore || await getDatastore();
     const keys: Key[] = [];
     if (!moduleItem) {
-      keys.push(datastore.key(["module", module]));
+      keys.push(datastore.key([kinds.MODULE_KIND, module]));
     }
     if (!versionItem) {
-      keys.push(datastore.key(["module", module], ["module_version", version]));
+      keys.push(datastore.key(
+        [kinds.MODULE_KIND, module],
+        [kinds.MODULE_VERSION_KIND, version],
+      ));
     }
     keys.push(datastore.key(
-      ["module", module],
-      ["module_version", version],
-      ["code_page", path],
+      [kinds.MODULE_KIND, module],
+      [kinds.MODULE_VERSION_KIND, version],
+      [kinds.CODE_PAGE_KIND, path],
     ));
 
     const res = await datastore.lookup(keys);
@@ -147,11 +158,11 @@ export async function lookupSourcePage(
         assert(entity.key);
         const entityKind = entity.key.path[entity.key.path.length - 1].kind;
         switch (entityKind) {
-          case "module":
+          case kinds.MODULE_KIND:
             moduleItem = entityToObject(entity);
             cachedModules.set(module, moduleItem);
             break;
-          case "module_version": {
+          case kinds.MODULE_VERSION_KIND: {
             versionItem = entityToObject(entity);
             assert(moduleItem);
             if (!cachedVersions.has(moduleItem)) {
@@ -161,7 +172,7 @@ export async function lookupSourcePage(
             versions.set(version, versionItem);
             break;
           }
-          case "code_page": {
+          case kinds.CODE_PAGE_KIND: {
             sourcePageItem = entityToObject(entity);
             assert(versionItem);
             if (!cachedSourcePages.has(versionItem)) {
@@ -195,9 +206,12 @@ export async function lookupInfoPage(
     datastore = datastore || await getDatastore();
     const keys: Key[] = [];
     if (!moduleItem) {
-      keys.push(datastore.key(["module", module]));
+      keys.push(datastore.key([kinds.MODULE_KIND, module]));
     }
-    keys.push(datastore.key(["module", module], ["info_page", version]));
+    keys.push(datastore.key(
+      [kinds.MODULE_KIND, module],
+      [kinds.INFO_PAGE_KIND, version],
+    ));
 
     const res = await datastore.lookup(keys);
     if (res.found) {
@@ -205,11 +219,11 @@ export async function lookupInfoPage(
         assert(entity.key);
         const entityKind = entity.key.path[entity.key.path.length - 1].kind;
         switch (entityKind) {
-          case "module":
+          case kinds.MODULE_KIND:
             moduleItem = entityToObject(entity);
             cachedModules.set(module, moduleItem);
             break;
-          case "info_page": {
+          case kinds.INFO_PAGE_KIND: {
             infoPageItem = entityToObject(entity);
             assert(moduleItem);
             if (!cachedInfoPages.has(moduleItem)) {
@@ -245,27 +259,27 @@ export async function lookupDocPage(
     const keys: Key[] = [];
     if (!moduleItem) {
       keys.push(datastore.key(
-        ["module", module],
+        [kinds.MODULE_KIND, module],
       ));
     }
     if (!versionItem) {
       keys.push(datastore.key(
-        ["module", module],
-        ["module_version", version],
+        [kinds.MODULE_KIND, module],
+        [kinds.MODULE_VERSION_KIND, version],
       ));
     }
     if (!entryItem) {
       keys.push(datastore.key(
-        ["module", module],
-        ["module_version", version],
-        ["module_entry", path],
+        [kinds.MODULE_KIND, module],
+        [kinds.MODULE_VERSION_KIND, version],
+        [kinds.MODULE_ENTRY_KIND, path],
       ));
     }
     keys.push(datastore.key(
-      ["module", module],
-      ["module_version", version],
-      ["module_entry", path],
-      ["doc_page", symbol],
+      [kinds.MODULE_KIND, module],
+      [kinds.MODULE_VERSION_KIND, version],
+      [kinds.MODULE_ENTRY_KIND, path],
+      [kinds.DOC_PAGE_KIND, symbol],
     ));
 
     const res = await datastore.lookup(keys);
@@ -277,19 +291,19 @@ export async function lookupDocPage(
         assert(entity.key);
         const entityKind = entity.key.path[entity.key.path.length - 1].kind;
         switch (entityKind) {
-          case "module":
+          case kinds.MODULE_KIND:
             moduleItem = entityToObject(entity);
             cachedModules.set(module, moduleItem);
             break;
-          case "module_version": {
+          case kinds.MODULE_VERSION_KIND: {
             foundModuleVersion = versionItem = entityToObject(entity);
             break;
           }
-          case "module_entry": {
+          case kinds.MODULE_ENTRY_KIND: {
             foundModuleEntry = entryItem = entityToObject(entity);
             break;
           }
-          case "doc_page": {
+          case kinds.DOC_PAGE_KIND: {
             const docPage = entityToDocPage(entity);
             if (
               !((docPage.kind === "module" || docPage.kind === "symbol") &&
@@ -367,18 +381,18 @@ export async function lookupLib(lib: string, version?: string) {
     version && libItem && cachedSymbolItems.get(libItem)?.get(version) ||
     undefined;
   if (!libItem) {
-    keys.push(datastore.key(["library", lib]));
+    keys.push(datastore.key([kinds.LIBRARY_KIND, lib]));
   }
   if (version && !versionItem) {
     keys.push(datastore.key(
-      ["library", lib],
-      ["library_version", version],
+      [kinds.LIBRARY_KIND, lib],
+      [kinds.LIBRARY_VERSION_KIND, version],
     ));
   }
   if (version && !symbolItems) {
     keys.push(datastore.key(
-      ["library", lib],
-      ["symbol_items", version],
+      [kinds.LIBRARY_KIND, lib],
+      [kinds.SYMBOL_ITEMS_KIND, version],
     ));
   }
   if (keys.length) {
@@ -388,11 +402,11 @@ export async function lookupLib(lib: string, version?: string) {
         assert(entity.key);
         const entityKind = entity.key.path[entity.key.path.length - 1].kind;
         switch (entityKind) {
-          case "library":
+          case kinds.LIBRARY_KIND:
             libItem = entityToObject(entity);
             cachedLibs.set(lib, libItem);
             break;
-          case "library_version": {
+          case kinds.LIBRARY_VERSION_KIND: {
             versionItem = entityToObject(entity);
             assert(libItem);
             assert(version);
@@ -403,7 +417,7 @@ export async function lookupLib(lib: string, version?: string) {
             versions.set(version, versionItem);
             break;
           }
-          case "symbol_items": {
+          case kinds.SYMBOL_ITEMS_KIND: {
             symbolItems = entityToObject(entity);
             assert(libItem);
             assert(version);
@@ -449,14 +463,14 @@ export async function lookupLibDocPage(
     const keys: Key[] = [];
     if (!versionItem) {
       keys.push(datastore.key(
-        ["library", lib],
-        ["library_version", version],
+        [kinds.LIBRARY_KIND, lib],
+        [kinds.LIBRARY_VERSION_KIND, version],
       ));
     }
     keys.push(datastore.key(
-      ["library", lib],
-      ["library_version", version],
-      ["doc_page", symbol],
+      [kinds.LIBRARY_KIND, lib],
+      [kinds.LIBRARY_VERSION_KIND, version],
+      [kinds.DOC_PAGE_KIND, symbol],
     ));
     const res = await datastore.lookup(keys);
     if (res.found) {
@@ -464,7 +478,7 @@ export async function lookupLibDocPage(
         assert(entity.key);
         const entityKind = entity.key.path[entity.key.path.length - 1].kind;
         switch (entityKind) {
-          case "library_version": {
+          case kinds.LIBRARY_VERSION_KIND: {
             versionItem = entityToObject(entity);
             if (!cachedLibVersions.has(libItem)) {
               cachedLibVersions.set(libItem, new Map());
@@ -473,7 +487,7 @@ export async function lookupLibDocPage(
             versions.set(version, versionItem);
             break;
           }
-          case "doc_page": {
+          case kinds.DOC_PAGE_KIND: {
             docPageItem = entityToLibDocPage(entity);
             queueMicrotask(() => {
               assert(docPageItem);
@@ -503,7 +517,7 @@ export async function lookupGlobalSymbols() {
   }
   datastore = datastore ?? await getDatastore();
   const res = await datastore.lookup(datastore.key(
-    ["global_symbols", "$$root$$"],
+    [kinds.GLOBAL_SYMBOLS_KIND, ROOT_SYMBOL],
   ));
   if (!res.found || res.found.length !== 1) {
     throw new Error(
@@ -543,21 +557,21 @@ export async function lookup(
   const keys: Key[] = [];
   if (!moduleItem) {
     keys.push(datastore.key(
-      ["module", module],
+      [kinds.MODULE_KIND, module],
     ));
   }
   if (version && !versionItem) {
     keys.push(datastore.key(
-      ["module", module],
-      ["module_version", version],
+      [kinds.MODULE_KIND, module],
+      [kinds.MODULE_VERSION_KIND, version],
     ));
   }
   if (path && !entryItem) {
     assert(version);
     keys.push(datastore.key(
-      ["module", module],
-      ["module_version", version],
-      ["module_entry", path],
+      [kinds.MODULE_KIND, module],
+      [kinds.MODULE_VERSION_KIND, version],
+      [kinds.MODULE_ENTRY_KIND, path],
     ));
   }
   if (keys.length) {
@@ -567,11 +581,11 @@ export async function lookup(
         assert(entity.key);
         const entityKind = entity.key.path[entity.key.path.length - 1].kind;
         switch (entityKind) {
-          case "module":
+          case kinds.MODULE_KIND:
             moduleItem = entityToObject(entity);
             cachedModules.set(module, moduleItem);
             break;
-          case "module_version": {
+          case kinds.MODULE_VERSION_KIND: {
             versionItem = entityToObject(entity);
             queueMicrotask(() => {
               assert(versionItem);
@@ -585,7 +599,7 @@ export async function lookup(
             });
             break;
           }
-          case "module_entry": {
+          case kinds.MODULE_ENTRY_KIND: {
             entryItem = entityToObject(entity);
             queueMicrotask(() => {
               assert(entryItem);
