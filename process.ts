@@ -1,5 +1,12 @@
 // Copyright 2018-2022 the Deno authors. All rights reserved. MIT license.
 
+/** Contains the "process" sub-system of the API server which maintains an in
+ * memory queue of long running tasks and orchestrates the execution of the
+ * tasks.
+ *
+ * @module
+ */
+
 import { type MultipleBatchRequest } from "@algolia/client-search";
 import {
   DatastoreError,
@@ -11,7 +18,9 @@ import type { Mutation } from "google_datastore/types";
 
 import { loadDocNodes, moduleToRequest, upload } from "./algolia.ts";
 import { analyze } from "./analysis.ts";
+import { getDatastore } from "./auth.ts";
 import { clear } from "./cache.ts";
+import { kinds } from "./consts.ts";
 import {
   addNodes,
   commitDocNodes,
@@ -38,8 +47,8 @@ import {
   isIndexedDir,
   RE_IGNORED_MODULE,
   RE_PRIVATE_PATH,
+  replaceVersion,
 } from "./modules.ts";
-import { getDatastore } from "./store.ts";
 import type {
   DocPage,
   DocPageNavItem,
@@ -70,10 +79,6 @@ interface LegacyIndexBase {
   version: string;
   path: string;
   index: LegacyIndex;
-}
-
-interface CommitLegacyIndex extends TaskBase, LegacyIndexBase {
-  kind: "commitLegacyIndex";
 }
 
 interface ModuleIndexBase {
@@ -144,7 +149,6 @@ type TaskDescriptor =
   | CommitSourcePageTask
   | CommitDocPageTask
   | CommitIndexTask
-  | CommitLegacyIndex
   | CommitMutations
   | CommitSymbolIndexTask
   | CommitNavTask;
@@ -167,50 +171,6 @@ function taskCommitDocNodes(
     "color:none",
   );
   return commitDocNodes(id, module, version, path, docNodes);
-}
-
-async function taskCommitLegacyIndex(
-  id: number,
-  { module, version, path, index }: CommitLegacyIndex,
-) {
-  console.log(
-    `[${id}]: %cCommitting%c legacy module index for %c"${module}@${version}${path}"%c...`,
-    "color:green",
-    "color:none",
-    "color:cyan",
-    "color:none",
-  );
-  const datastore = await getDatastore();
-  const key = datastore.key(
-    ["module", module],
-    ["module_version", version],
-    ["legacy_index", path],
-  );
-  objectSetKey(index, key);
-  const mutations = [{ upsert: objectToEntity(index) }];
-  try {
-    for await (
-      const _result of datastore.commit(mutations, { transactional: false })
-    ) {
-      console.log(
-        `[${id}]: %cCommitted %cbatch for %c${module}@${version}/${path}%c.`,
-        "color:green",
-        "color:none",
-        "color:yellow",
-        "color:none",
-      );
-    }
-  } catch (error) {
-    if (error instanceof DatastoreError) {
-      console.log(`[${id}] Datastore Error:`);
-      console.log(`${error.status} ${error.message}`);
-      console.log(error.statusInfo);
-    } else {
-      console.log("Unexpected Error:");
-      console.log(error);
-    }
-    return;
-  }
 }
 
 function taskCommitModuleIndex(
@@ -334,7 +294,7 @@ async function taskLoadModule(
   const datastore = await getDatastore();
 
   const moduleKey = datastore.key(
-    ["module", module],
+    [kinds.MODULE_KIND, module],
   );
 
   let moduleItem: Module;
@@ -368,8 +328,8 @@ async function taskLoadModule(
     upload_options: versionMeta.upload_options,
   };
   const versionKey = datastore.key(
-    ["module", moduleItem.name],
-    ["module_version", version],
+    [kinds.MODULE_KIND, moduleItem.name],
+    [kinds.MODULE_VERSION_KIND, version],
   );
   objectSetKey(moduleVersion, versionKey);
   mutations.push({ upsert: objectToEntity(moduleVersion) });
@@ -397,9 +357,9 @@ async function taskLoadModule(
       );
     }
     const moduleEntryKey = datastore.key(
-      ["module", moduleItem.name],
-      ["module_version", moduleVersion.version],
-      ["module_entry", moduleEntry.path],
+      [kinds.MODULE_KIND, moduleItem.name],
+      [kinds.MODULE_VERSION_KIND, moduleVersion.version],
+      [kinds.MODULE_ENTRY_KIND, moduleEntry.path],
     );
     objectSetKey(moduleEntry, moduleEntryKey);
     mutations.push({ upsert: objectToEntity(moduleEntry) });
@@ -468,13 +428,13 @@ async function taskLoadModule(
       docMutations,
       nodes.length ? nodes : [{ kind: "null" }],
       [
-        ["module", moduleItem.name],
-        ["module_version", moduleVersion.version],
-        ["module_entry", path],
+        [kinds.MODULE_KIND, moduleItem.name],
+        [kinds.MODULE_VERSION_KIND, moduleVersion.version],
+        [kinds.MODULE_ENTRY_KIND, path],
       ],
     );
     moduleVersion.has_doc = true;
-    docMutations.push({ upsert: objectToEntity(moduleVersion) });
+    replaceVersion(mutations, moduleVersion);
   }
 
   // Upload doc nodes to algolia.
@@ -544,8 +504,6 @@ function process(id: number, task: TaskDescriptor): Promise<void> {
       return taskCommitDocNodes(id, task);
     case "commitIndex":
       return taskCommitModuleIndex(id, task);
-    case "commitLegacyIndex":
-      return taskCommitLegacyIndex(id, task);
     case "commitMutations":
       return taskCommitMutations(id, task);
     case "commitSourcePage":

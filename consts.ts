@@ -5,6 +5,9 @@
  * @module
  */
 
+/** A symbol used to indicate the root of something. */
+export const ROOT_SYMBOL = "$$root$$";
+
 /** These constants represent the Google Datastore kinds that are used across
  * the API server. */
 export const kinds = {
@@ -60,6 +63,7 @@ export const kinds = {
   SYMBOL_ITEMS_KIND: "symbol_items",
 } as const;
 
+/** Different libraries are that are stored in the datastore. */
 export const libs = {
   /** The name of the stable built-in APIs */
   DENO_STABLE_NAME: "deno_stable",

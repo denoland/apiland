@@ -7,14 +7,14 @@
  */
 
 import { auth, type Context, Router } from "acorn";
-import { errors, isHttpError } from "oak_commons/http_errors.ts";
 import {
   type Datastore,
   DatastoreError,
   entityToObject,
 } from "google_datastore";
+import { errors, isHttpError } from "std/http/http_errors.ts";
 
-import { endpointAuth } from "./auth.ts";
+import { endpointAuth, getDatastore } from "./auth.ts";
 import {
   cacheDocPage,
   cacheSourcePage,
@@ -25,7 +25,7 @@ import {
   lookupLibDocPage,
   lookupSourcePage,
 } from "./cache.ts";
-import { kinds } from "./consts.ts";
+import { kinds, ROOT_SYMBOL } from "./consts.ts";
 import {
   checkMaybeLoad,
   type DocNode,
@@ -39,12 +39,10 @@ import {
   getImportMapSpecifier,
   isDocable,
   queryDocNodes,
-  ROOT_SYMBOL,
 } from "./docs.ts";
 import { getModuleLatestVersion, redirectToLatest } from "./modules.ts";
 import { generateLibDocPage } from "./pages.ts";
 import { enqueue } from "./process.ts";
-import { getDatastore } from "./store.ts";
 import {
   DependencyMetrics,
   InfoPage,
@@ -142,7 +140,7 @@ router.get("/ping", () => ({ pong: true }));
 
 router.get("/v2/metrics/modules", async (ctx) => {
   datastore = datastore ?? await getDatastore();
-  const query = datastore.createQuery("module_metrics");
+  const query = datastore.createQuery(kinds.MODULE_METRICS_KIND);
   let limit = 100;
   let page = 1;
   if (ctx.searchParams.limit) {
@@ -187,7 +185,9 @@ router.get("/v2/metrics/modules", async (ctx) => {
       hasNext,
     );
     const lookupResult = await datastore.lookup(
-      [...lookups.keys()].map((name) => datastore!.key(["module", name])),
+      [...lookups.keys()].map((name) =>
+        datastore!.key([kinds.MODULE_KIND, name])
+      ),
     );
     if (lookupResult.found) {
       for (const { entity } of lookupResult.found) {
@@ -204,7 +204,7 @@ router.get("/v2/metrics/modules", async (ctx) => {
 router.get("/v2/metrics/modules/:module", async (ctx) => {
   datastore = datastore ?? await getDatastore();
   const res = await datastore.lookup(
-    datastore.key(["module_metrics", ctx.params.module]),
+    datastore.key([kinds.MODULE_METRICS_KIND, ctx.params.module]),
   );
   if (res.found && res.found.length === 1) {
     const metrics = entityToObject<ModuleMetrics>(res.found[0].entity);
@@ -224,7 +224,7 @@ router.get("/v2/metrics/submodules/:mod", async (ctx) => {
   const { mod } = ctx.params;
   datastore = datastore ?? await getDatastore();
   const query = datastore
-    .createQuery("submodule_metrics")
+    .createQuery(kinds.SUBMODULE_METRICS_KIND)
     .filter("module", mod);
   let limit = 100;
   let page = 1;
@@ -296,7 +296,7 @@ router.get("/v2/metrics/apis", async (_ctx) => {
 router.get("/v2/metrics/usage/:mod", async (ctx) => {
   datastore = datastore ?? await getDatastore();
   const res = await datastore
-    .lookup(datastore.key(["metric_usage", ctx.params.mod]));
+    .lookup(datastore.key([kinds.METRIC_USAGE_KIND, ctx.params.mod]));
   if (res.found) {
     return entityToObject(res.found[0].entity);
   }
@@ -304,7 +304,7 @@ router.get("/v2/metrics/usage/:mod", async (ctx) => {
 
 router.get("/v2/metrics/dependencies/:source*", async (ctx) => {
   datastore = datastore ?? await getDatastore();
-  let query = datastore.createQuery("dependency_metrics");
+  let query = datastore.createQuery(kinds.DEP_METRICS_KIND);
   const { source } = ctx.params;
   if (source) {
     query = query.filter("source", source);
@@ -319,7 +319,7 @@ router.get("/v2/metrics/dependencies/:source*", async (ctx) => {
 
 router.get("/v2/modules", async (ctx) => {
   datastore = datastore ?? await getDatastore();
-  const query = datastore.createQuery("module");
+  const query = datastore.createQuery(kinds.MODULE_KIND);
   let limit = 100;
   let page = 1;
   if (ctx.searchParams.limit) {
@@ -364,7 +364,7 @@ router.get(
   async (ctx) => {
     datastore = datastore ?? await getDatastore();
     const response = await datastore.lookup(
-      datastore.key(["module", ctx.params.module]),
+      datastore.key([kinds.MODULE_KIND, ctx.params.module]),
     );
     if (response.found) {
       return entityToObject(response.found[0].entity);
@@ -379,13 +379,10 @@ router.get(
     }
     datastore = datastore ?? await getDatastore();
     const response = await datastore.lookup(
-      datastore.key([
-        "module",
-        ctx.params.module,
-      ], [
-        "module_version",
-        ctx.params.version,
-      ]),
+      datastore.key(
+        [kinds.MODULE_KIND, ctx.params.module],
+        [kinds.MODULE_VERSION_KIND, ctx.params.version],
+      ),
     );
     if (response.found) {
       return entityToObject(response.found[0].entity);
@@ -424,7 +421,9 @@ router.get("/v2/libs/:lib/:version/doc{/}?", async (ctx) => {
   let { lib, version } = ctx.params;
   datastore = datastore ?? await getDatastore();
   if (version === "latest") {
-    const res = await datastore.lookup(datastore.key(["library", lib]));
+    const res = await datastore.lookup(
+      datastore.key([kinds.LIBRARY_KIND, lib]),
+    );
     if (res.found && res.found.length) {
       const libItem = entityToObject<Library>(res.found[0].entity);
       version = libItem.latest_version;
@@ -435,8 +434,8 @@ router.get("/v2/libs/:lib/:version/doc{/}?", async (ctx) => {
   const results = await queryDocNodes(
     datastore,
     datastore.key(
-      ["library", lib],
-      ["library_version", version],
+      [kinds.LIBRARY_KIND, lib],
+      [kinds.LIBRARY_VERSION_KIND, version],
     ),
     ctx.searchParams.kind as DocNodeKind,
   );
@@ -455,9 +454,9 @@ router.get("/v2/modules/:module/:version/doc/:path*", async (ctx) => {
   }
   datastore = datastore ?? await getDatastore();
   const moduleEntryKey = datastore.key(
-    ["module", module],
-    ["module_version", version],
-    ["module_entry", `/${path}`],
+    [kinds.MODULE_KIND, module],
+    [kinds.MODULE_VERSION_KIND, version],
+    [kinds.MODULE_ENTRY_KIND, `/${path}`],
   );
   // attempt to retrieve the doc nodes from the datastore
   const results = await queryDocNodes(
@@ -495,9 +494,9 @@ router.get("/v2/modules/:module/:version/index/:path*{/}?", async (ctx) => {
   const path = `/${paramPath}`;
   datastore = datastore ?? await getDatastore();
   const indexKey = datastore.key(
-    ["module", module],
-    ["module_version", version],
-    ["module_index", path],
+    [kinds.MODULE_KIND, module],
+    [kinds.MODULE_VERSION_KIND, version],
+    [kinds.MODULE_INDEX_KIND, path],
   );
   const response = await datastore.lookup(indexKey);
   if (response.found) {

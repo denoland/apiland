@@ -2,7 +2,7 @@
 
 import { assertEquals, assertStringIncludes } from "std/testing/asserts.ts";
 import { type RouterListenEvent } from "acorn";
-import { getDatastore } from "./store.ts";
+import { getDatastore } from "./auth.ts";
 
 import { router } from "./main.ts";
 

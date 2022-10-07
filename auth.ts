@@ -8,13 +8,15 @@
 
 import { type Context } from "acorn";
 import {
+  Datastore,
   DatastoreError,
   entityToObject,
   objectSetKey,
   objectToEntity,
 } from "google_datastore";
 import { config } from "std/dotenv/mod.ts";
-import { getDatastore } from "./store.ts";
+
+import { kinds, ROOT_SYMBOL } from "./consts.ts";
 
 /** The service account keys used when connecting to the Google Datastore. */
 export let keys: {
@@ -27,9 +29,10 @@ export let keys: {
 export let algoliaKeys: { appId: string; apiKey: string };
 
 let readyResolve: (value?: unknown) => void;
-export const readyPromise = new Promise((res) => {
-  readyResolve = res;
-});
+
+/** A promise that is resolved when auth keys are properly set. This allows for
+ * async resolution of environment variables. */
+export const readyPromise = new Promise((res) => readyResolve = res);
 
 (async () => {
   await config({ export: true });
@@ -135,11 +138,32 @@ class TokenManager {
     this.#dirty = false;
     return { data: Object.fromEntries(this.#ids) };
   }
+
+  *[Symbol.iterator](): IterableIterator<[string, Date]> {
+    for (const [string, { created }] of this.#ids) {
+      yield [string, created];
+    }
+  }
 }
 
+let datastore: Datastore | undefined;
+
+/** Return an instance of the datastore configured to be authorized using the
+ * environmental configuration. */
+export async function getDatastore(): Promise<Datastore> {
+  if (datastore) {
+    return datastore;
+  }
+  await readyPromise;
+  return datastore = new Datastore(keys);
+}
+
+/** Load API tokens from the datastore. */
 export async function loadTokens(): Promise<TokenManager> {
   const datastore = await getDatastore();
-  const result = await datastore.lookup(datastore.key(["config", "$$root$$"]));
+  const result = await datastore.lookup(
+    datastore.key([kinds.CONFIG_KIND, ROOT_SYMBOL]),
+  );
   let init: TokenManagerJson | undefined;
   if (result && result.found && result.found.length === 1) {
     console.log(
@@ -163,7 +187,7 @@ export async function saveTokens(tokenManager: TokenManager): Promise<void> {
   }
   const datastore = await getDatastore();
   const config = tokenManager.toJSON();
-  objectSetKey(config, datastore.key(["config", "$$root$$"]));
+  objectSetKey(config, datastore.key([kinds.CONFIG_KIND, ROOT_SYMBOL]));
   const entity = objectToEntity(config);
   try {
     for await (
