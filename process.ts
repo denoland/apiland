@@ -47,11 +47,11 @@ import {
   isIndexedDir,
   RE_IGNORED_MODULE,
   RE_PRIVATE_PATH,
-  replaceVersion,
 } from "./modules.ts";
 import type {
   DocPage,
   DocPageNavItem,
+  DocWorkItem,
   Module,
   ModuleVersion,
   SourcePage,
@@ -372,6 +372,17 @@ async function taskLoadModule(
     moduleVersion.version,
   );
 
+  const docWorkItem: DocWorkItem = {
+    module: moduleItem.name,
+    version: moduleVersion.version,
+    to_doc: [...toDoc],
+  };
+  objectSetKey(
+    docWorkItem,
+    datastore.key([kinds.DOC_WORK_ITEM, moduleItem.name]),
+  );
+  mutations.push({ upsert: objectToEntity(docWorkItem) });
+
   let remaining = mutations.length;
   console.log(
     `[${id}]: %cCommitting %c${remaining}%c changes...`,
@@ -389,6 +400,16 @@ async function taskLoadModule(
       "color:yellow",
       "color:none",
       "color:yellow",
+      "color:none",
+    );
+  }
+
+  if (toDoc.size >= 2000) {
+    // the module has too many modules, skipping, will be processed via batch
+    // later.
+    console.warn(
+      `[${id}]: %cToo many%c modules. Skipping.`,
+      "color:red",
       "color:none",
     );
   }
@@ -433,11 +454,13 @@ async function taskLoadModule(
         [kinds.MODULE_ENTRY_KIND, path],
       ],
     );
-    moduleVersion.has_doc = true;
-    replaceVersion(mutations, moduleVersion);
   }
 
-  // Upload doc nodes to algolia.
+  docMutations.push({
+    delete: datastore.key([kinds.DOC_WORK_ITEM, moduleItem.name]),
+  });
+
+  // Upload doc nodes to datastore.
 
   remaining = docMutations.length;
   console.log(

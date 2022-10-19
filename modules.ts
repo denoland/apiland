@@ -8,7 +8,6 @@
 import {
   type Datastore,
   entityToObject,
-  objectGetKey,
   objectSetKey,
   objectToEntity,
 } from "google_datastore";
@@ -22,7 +21,7 @@ import {
   lookup,
 } from "./cache.ts";
 import { kinds } from "./consts.ts";
-import { isDocable, isKeyEqual } from "./docs.ts";
+import { isDocable } from "./docs.ts";
 import type {
   ApiModuleData,
   Module,
@@ -232,27 +231,6 @@ export function clearModule(
     ),
   );
   return Promise.all([pModules, pVersions]);
-}
-
-export function replaceVersion(
-  mutations: Mutation[],
-  version: ModuleVersion,
-) {
-  const key = objectGetKey(version);
-  assert(key);
-  const idx = mutations.findIndex((mut) => {
-    if ("upsert" in mut) {
-      assert(mut.upsert.key);
-      if (isKeyEqual(key, mut.upsert.key)) {
-        return true;
-      }
-    }
-    return false;
-  });
-  if (idx >= 0) {
-    mutations.splice(idx, 1);
-  }
-  mutations.push({ upsert: objectToEntity(version) });
 }
 
 export async function loadModule(
