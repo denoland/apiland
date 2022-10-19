@@ -169,9 +169,6 @@ export interface ModuleVersion {
   /** If assigned, contains a text string which indicates what version of
    * analysis has been done on the content. */
   analysis_version?: string;
-  /** A flag that indicates that the module version has all its applicable
-   * entries doc'ed. */
-  has_doc?: boolean;
   description: string;
   version: string;
   uploaded_at: Date;
@@ -404,6 +401,17 @@ export interface DocPageLibraryInvalidVersion {
   name: string;
   versions: string[];
   latest_version: string;
+}
+
+/** An interface representing a doc work item. Typically the doc work item
+ * is processed at the time of module publish, but if for various reasons it
+ * cannot be processed, then the doc work item will remain in the datastore to
+ * be processed at a later point in time. */
+export interface DocWorkItem {
+  module: string;
+  version: string;
+  /** The paths of the module entries that need to be doc'ed. */
+  to_doc: string[];
 }
 
 export type LibDocPage =

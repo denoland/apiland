@@ -28,6 +28,8 @@ export const kinds = {
   DOC_NODE_KIND: "doc_node",
   /** Cached version of the meta data related to a documentation page. */
   DOC_PAGE_KIND: "doc_page",
+  /** A doc work item, which indicates a module that needs to be doc'ed. */
+  DOC_WORK_ITEM: "doc_work_item",
   /** Cached information about global symbols that are available in Deno CLI. */
   GLOBAL_SYMBOLS_KIND: "global_symbols",
   /** Cached version of the meta data for an info page of a module. */
