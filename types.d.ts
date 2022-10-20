@@ -412,6 +412,10 @@ export interface DocWorkItem {
   version: string;
   /** The paths of the module entries that need to be doc'ed. */
   to_doc: string[];
+  /** The number of attempts that have been made to try to document the module.
+   * This is used to detect issues with modules that are having issues being
+   * documented. */
+  attempts?: number;
 }
 
 export type LibDocPage =
