@@ -246,8 +246,17 @@ export async function clearDocNodes(module: string): Promise<void> {
 export async function upload(
   requests: MultipleBatchRequest[],
 ): Promise<unknown> {
+  requests = requests.slice(0);
+  let remaining = requests.length;
   try {
     const denoLandApp = await getDenoLandApp();
+    while (remaining > 1000) {
+      const batch = requests.slice(0, 1000);
+      requests = requests.slice(1000);
+      remaining = requests.length;
+      dax.logLight(`uploading batch (remaining: ${remaining})...`);
+      await denoLandApp.multipleBatch(batch).wait();
+    }
     return await denoLandApp.multipleBatch(requests).wait();
   } catch (err) {
     if (err instanceof Error) {
