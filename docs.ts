@@ -121,6 +121,7 @@ interface ConfigFileJson {
 
 const MAX_CACHE_SIZE = parseInt(Deno.env.get("MAX_CACHE_SIZE") ?? "", 10) ||
   25_000_000;
+const MAX_ENTITY_SIZE = 1_048_000;
 
 const cachedSpecifiers = new Set<string>();
 const cachedResources = new Map<string, LoadResponse | undefined>();
@@ -1349,16 +1350,51 @@ export function addNodes(
       case "class": {
         const { classDef, ...rest } = docNode;
         node = { classDef: JSON.stringify(classDef), ...rest };
+        if (node.classDef.length > MAX_ENTITY_SIZE) {
+          node.classDef = JSON.stringify({
+            isAbstract: false,
+            constructors: [],
+            properties: [],
+            indexSignatures: [],
+            methods: [],
+            implements: [],
+            typeParams: [],
+            superTypeParams: [],
+          });
+          node.jsDoc = {
+            doc: "**WARNING** this class was too large to document.",
+            tags: node.jsDoc?.tags,
+          };
+        }
         break;
       }
       case "enum": {
         const { enumDef, ...rest } = docNode;
         node = { enumDef: JSON.stringify(enumDef), ...rest };
+        if (node.enumDef.length > MAX_ENTITY_SIZE) {
+          node.enumDef = JSON.stringify({ members: [] });
+          node.jsDoc = {
+            doc: "**WARNING** this enum was too large to document.",
+            tags: node.jsDoc?.tags,
+          };
+        }
         break;
       }
       case "function": {
         const { functionDef, ...rest } = docNode;
         node = { functionDef: JSON.stringify(functionDef), ...rest };
+        if (node.functionDef.length > MAX_ENTITY_SIZE) {
+          node.functionDef = JSON.stringify({
+            params: [],
+            isAsync: false,
+            isGenerator: false,
+            typeParams: [],
+          });
+          node.jsDoc = {
+            doc: "**WARNING** this function was too large to document.",
+            tags: node.jsDoc?.tags,
+          };
+        }
         break;
       }
       case "import": {
@@ -1369,16 +1405,51 @@ export function addNodes(
       case "interface": {
         const { interfaceDef, ...rest } = docNode;
         node = { interfaceDef: JSON.stringify(interfaceDef), ...rest };
+        if (node.interfaceDef.length > MAX_ENTITY_SIZE) {
+          node.interfaceDef = JSON.stringify({
+            extends: [],
+            methods: [],
+            properties: [],
+            callSignatures: [],
+            indexSignatures: [],
+            typeParams: [],
+          });
+          node.jsDoc = {
+            doc: "**WARNING** this interface was too large to document.",
+            tags: node.jsDoc?.tags,
+          };
+        }
         break;
       }
       case "typeAlias": {
         const { typeAliasDef, ...rest } = docNode;
         node = { typeAliasDef: JSON.stringify(typeAliasDef), ...rest };
+        if (node.typeAliasDef.length > MAX_ENTITY_SIZE) {
+          node.typeAliasDef = JSON.stringify({
+            tsType: {
+              repr: "[UNSUPPORTED]",
+              kind: "keyword",
+              keyword: "[UNSUPPORTED]",
+            },
+            typeParams: [],
+          });
+          node.jsDoc = {
+            doc: "**WARNING** this type alias was too large to document.",
+            tags: node.jsDoc?.tags,
+          };
+        }
         break;
       }
       case "variable": {
         const { variableDef, ...rest } = docNode;
         node = { variableDef: JSON.stringify(variableDef), ...rest };
+        if (node.variableDef.length > MAX_ENTITY_SIZE) {
+          node.variableDef = JSON.stringify({ kind: variableDef.kind });
+          node.jsDoc = {
+            doc: "**WARNING** this variable was too large to document.",
+            tags: node.jsDoc?.tags,
+          };
+        }
         break;
       }
     }
