@@ -21,6 +21,8 @@ tags:
   description: Endpoints for rendering pages.
 - name: metrics
   description: Metric information.
+- name: completions
+  description: Endpoints for intelligent editor completions.
 - name: badges
   description: Endpoints providing badge information.
 - name: webhooks
@@ -28,6 +30,238 @@ tags:
 - name: infrastructure
   description: APIs that relate to internal infrastructure.
 paths:
+  /completions/items/{mod}:
+    get:
+      tags:
+        - completions
+      summary: Get module completion items.
+      description: >
+        Return a list of modules from the registry which can be imported.
+      operationId: getCompletionItemsMod
+      parameters:
+        - name: mod
+          in: path
+          description: The module name or search term
+          required: false
+          schema:
+            $ref: "#/components/schemas/ModuleName"
+      responses:
+        "200":
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CompletionItems"
+        "404":
+          description: >
+            Not found - no resources for the given query were found. Try
+            changing the query parameters.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HttpError"
+            text/html:
+              schema:
+                type: string
+  /completions/items/{mod}/{ver}:
+    get:
+      tags:
+        - completions
+      summary: Get module version completion items.
+      description: >
+        Return a list of module versions from the registry which can be
+        imported.
+      operationId: getCompletionItemsModVer
+      parameters:
+        - name: mod
+          in: path
+          description: The module name
+          required: true
+          schema:
+            $ref: "#/components/schemas/ModuleName"
+        - name: ver
+          in: path
+          description: The version or partial version
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CompletionItems"
+        "404":
+          description: >
+            Not found - no resources for the given query were found. Try
+            changing the query parameters.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HttpError"
+            text/html:
+              schema:
+                type: string
+  /completions/items/{mod}/{ver}/{path}:
+    get:
+      tags:
+        - completions
+      summary: Get path completion items.
+      description: >
+        Return a list of paths from the registry which can be
+        imported or directories which contain paths which can be imported.
+      operationId: getCompletionItemsPath
+      parameters:
+        - name: mod
+          in: path
+          description: The module name
+          required: true
+          schema:
+            $ref: "#/components/schemas/ModuleName"
+        - name: ver
+          in: path
+          description: The version or partial version
+          required: true
+          schema:
+            type: string
+        - name: path
+          in: path
+          description: The path or partial path.
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CompletionItems"
+        "404":
+          description: >
+            Not found - no resources for the given query were found. Try
+            changing the query parameters.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HttpError"
+            text/html:
+              schema:
+                type: string
+  /completions/resolve/{mod}:
+    get:
+      tags:
+        - completions
+      summary: Get module completion docs.
+      description: Return documentation, if any, for a module.
+      operationId: getCompletionItemDocMod
+      parameters:
+        - name: mod
+          in: path
+          required: true
+          schema:
+            $ref: "#/components/schemas/ModuleName"
+      responses:
+        "200":
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CompletionItemDoc"
+        "404":
+          description: >
+            Not found - no resources for the given query were found. Try
+            changing the query parameters.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HttpError"
+            text/html:
+              schema:
+                type: string
+  /completions/resolve/{mod}/{ver}:
+    get:
+      tags:
+        - completions
+      summary: Get module completion docs.
+      description: Return documentation, if any, for a module.
+      operationId: getCompletionItemDocModVer
+      parameters:
+        - name: mod
+          in: path
+          required: true
+          schema:
+            $ref: "#/components/schemas/ModuleName"
+        - name: ver
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CompletionItemDoc"
+        "404":
+          description: >
+            Not found - no resources for the given query were found. Try
+            changing the query parameters.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HttpError"
+            text/html:
+              schema:
+                type: string
+  /completions/resolve/{mod}/{ver}/{path}:
+    get:
+      tags:
+        - completions
+      summary: Get documentation for a path.
+      description: >
+        If found, return any documentation associated with a path for display
+        in a client.
+      operationId: getCompletionItemDocPath
+      parameters:
+        - name: mod
+          in: path
+          description: The module name
+          required: true
+          schema:
+            $ref: "#/components/schemas/ModuleName"
+        - name: ver
+          in: path
+          description: The version or partial version
+          required: true
+          schema:
+            type: string
+        - name: path
+          in: path
+          description: The path or partial path.
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CompletionItemDoc"
+        "404":
+          description: >
+            Not found - no resources for the given query were found. Try
+            changing the query parameters.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HttpError"
+            text/html:
+              schema:
+                type: string
   /v2/metrics/apis:
     get:
       tags:
@@ -1218,6 +1452,33 @@ components:
       required:
         - "total"
         - "symbols"
+    CompletionItemDoc:
+      type: object
+      properties:
+        kind:
+          type: string
+          enum:
+            - "markdown"
+            - "text"
+        value:
+          type: string
+      required:
+        - "kind"
+        - "value"
+    CompletionItems:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            type: string
+        isIncomplete:
+          type: boolean
+        preselect:
+          type: string
+      required:
+        - items
+        - isIncomplete
     DeclarationKind:
       type: string
       enum:

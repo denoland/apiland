@@ -15,6 +15,7 @@
     "import_map": "https://raw.githubusercontent.com/denoland/import_map/main/mod.ts",
     "jsonc-parser": "https://esm.sh/jsonc-parser@3.1.0?pin=v90",
     "std/": "https://deno.land/std@0.159.0/",
+    "twas": "https://esm.sh/twas@2.1.2?pin=v90",
     "https://deno.land/x/jose@v4.8.1/": "https://deno.land/x/jose@v4.9.2/",
     "https://deno.land/std@0.151.0/": "https://deno.land/std@0.159.0/",
     "https://deno.land/std@0.152.0/": "https://deno.land/std@0.159.0/",
