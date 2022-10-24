@@ -789,9 +789,13 @@ router.get("/completions/items/:mod/:ver/:path*{/}?", async (ctx) => {
         }
       }
       if (pathCompletion.default && items.includes(pathCompletion.default)) {
-        preselect = pathCompletion.default;
+        preselect = pathCompletion.default.slice(1);
       }
-      return Response.json({ items, preselect, isIncomplete: hasDir }, {
+      return Response.json({
+        items: items.map((path) => path.slice(1)),
+        preselect,
+        isIncomplete: hasDir,
+      }, {
         headers: {
           "cache-control": IMMUTABLE,
           "content-type": "application/json",
