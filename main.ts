@@ -796,20 +796,18 @@ router.get("/completions/resolve/:mod/:ver/:path*{/}?", async (ctx) => {
     const parts = path.split("/");
     const last = parts.pop();
     const dir = last ? `${parts.join("/")}/` : path;
-    let value = await getPathDoc(completions, dir, path);
-    if (value != null) {
-      if (value) {
-        value += "\n\n---\n\n";
-      }
-      const { mod, ver } = ctx.params;
-      value += `[doc](https://deno.land/${mod !== "std" ? "x/" : ""}${mod}${
-        ver !== "__latest__" ? `@${ver}` : ""
-      }${path}) | [source](${mod !== "std" ? "x/" : ""}${mod}${
-        ver !== "__latest__" ? `@${ver}` : ""
-      }${path}?source) | [info](${mod !== "std" ? "x/" : ""}${mod}${
-        ver !== "__latest__" ? `@${ver}` : ""
-      }/)`;
+    let value = await getPathDoc(completions, dir, path) ?? "";
+    if (value) {
+      value += "\n\n---\n\n";
     }
+    const { mod, ver } = ctx.params;
+    value += `[doc](https://deno.land/${mod !== "std" ? "x/" : ""}${mod}${
+      ver !== "__latest__" ? `@${ver}` : ""
+    }${path}) | [source](https://deno.land/${mod !== "std" ? "x/" : ""}${mod}${
+      ver !== "__latest__" ? `@${ver}` : ""
+    }${path}?source) | [info](https://deno.land/${
+      mod !== "std" ? "x/" : ""
+    }${mod}${ver !== "__latest__" ? `@${ver}` : ""}/)`;
     return Response.json({
       kind: "markdown",
       value,
