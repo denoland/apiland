@@ -55,6 +55,8 @@ export const kinds = {
   MODULE_VERSION_KIND: "module_version",
   /** A cached version of the navigation index for a module dir. */
   NAV_INDEX_KIND: "nav_index",
+  /** A cached version of an index of paths used for generating completions. */
+  PATH_COMPLETIONS_KIND: "path_completions",
   /** Represents dependency metric information by source type. */
   SOURCE_METRIC_KIND: "dependency_metrics",
   /** Metrics for a submodule. */

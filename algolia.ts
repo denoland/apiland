@@ -8,7 +8,7 @@
 
 import { type MultipleBatchRequest } from "@algolia/client-search";
 import { createFetchRequester } from "@algolia/requester-fetch";
-import algoliasearch, { SearchClient } from "algoliasearch";
+import algoliasearch, { type SearchClient } from "algoliasearch";
 import dax from "dax";
 import { JsDocTagTags } from "deno_doc/types";
 import { type Datastore, objectGetKey } from "google_datastore";
@@ -30,6 +30,7 @@ const ALLOWED_DOC_KINDS: DocNodeKind[] = [
 
 let datastore: Datastore | undefined;
 let denoLandApp: SearchClient | undefined;
+let searchOnlyClient: SearchClient | undefined;
 let uid = 0;
 
 export enum Source {
@@ -232,6 +233,20 @@ async function getDenoLandApp(): Promise<SearchClient> {
   return denoLandApp = algoliasearch(
     algoliaKeys.appId,
     algoliaKeys.apiKey,
+    { requester },
+  );
+}
+
+/** Resolves with a search only client against algolia */
+export async function getSearchClient(): Promise<SearchClient> {
+  if (searchOnlyClient) {
+    return searchOnlyClient;
+  }
+  const requester = createFetchRequester();
+  await readyPromise;
+  return searchOnlyClient = algoliasearch(
+    algoliaKeys.appId,
+    algoliaKeys.searchApiKey,
     { requester },
   );
 }

@@ -465,3 +465,22 @@ export interface UsageMetric {
   users: number;
   sessions: number;
 }
+
+export interface CompletionItems {
+  items: string[];
+  isIncomplete: boolean;
+  preselect?: string;
+}
+
+export interface PathCompletion {
+  path: string;
+  default?: string;
+  dirs?: string[];
+  modules: { path: string; doc?: string }[];
+}
+
+export interface PathCompletions {
+  name: string;
+  version: string;
+  items: PathCompletion[];
+}

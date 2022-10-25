@@ -7,13 +7,16 @@
  */
 
 import { auth, type Context, Router } from "acorn";
+import { type SearchIndex } from "algoliasearch";
 import {
   type Datastore,
   DatastoreError,
   entityToObject,
 } from "google_datastore";
 import { errors, isHttpError } from "std/http/http_errors.ts";
+import twas from "twas";
 
+import { getSearchClient } from "./algolia.ts";
 import { endpointAuth, getDatastore } from "./auth.ts";
 import {
   cacheDocPage,
@@ -25,7 +28,12 @@ import {
   lookupLibDocPage,
   lookupSourcePage,
 } from "./cache.ts";
-import { kinds, ROOT_SYMBOL } from "./consts.ts";
+import {
+  getCompletionItems,
+  getCompletions,
+  getPathDoc,
+} from "./completions.ts";
+import { indexes, kinds, ROOT_SYMBOL } from "./consts.ts";
 import {
   checkMaybeLoad,
   type DocNode,
@@ -51,7 +59,7 @@ import {
   ModuleMetrics,
   SubModuleMetrics,
 } from "./types.d.ts";
-import { assert } from "./util.ts";
+import { assert, getPopularityLabel } from "./util.ts";
 
 interface PagedItems<T> {
   items: T[];
@@ -652,6 +660,167 @@ async function libDocPage(ctx: Context<unknown, LibDocPagesParams>) {
 }
 
 router.get("/v2/pages/lib/doc/:lib/:version{/}?", libDocPage);
+
+// registry completions
+
+export const MAX_AGE_1_HOUR = "max-age=3600";
+export const MAX_AGE_1_DAY = "max-age=86400";
+export const IMMUTABLE = "max-age=2628000, immutable";
+
+let searchIndex: SearchIndex | undefined;
+let cachedRootQuery: string[] | undefined;
+
+router.get("/completions/items/{:mod}?", async (ctx) => {
+  let items: string[] | undefined;
+  let isIncomplete = true;
+  if (ctx.params.mod || !cachedRootQuery) {
+    searchIndex = searchIndex ??
+      (await getSearchClient()).initIndex(indexes.MODULE_INDEX);
+    const res = await searchIndex.search<{ name: string }>(
+      ctx.params.mod ?? "",
+      {
+        facetFilters: "third_party:true",
+        hitsPerPage: 20,
+        attributesToRetrieve: ["name"],
+      },
+    );
+    isIncomplete = res.nbPages > 1;
+    items = res.hits.map(({ name }) => name);
+    if (!ctx.params.mod) {
+      cachedRootQuery = items;
+    }
+  } else if (!ctx.params.mod && cachedRootQuery) {
+    items = cachedRootQuery;
+  }
+  return Response.json({ items, isIncomplete }, {
+    headers: {
+      "cache-control": MAX_AGE_1_DAY,
+      "content-type": "application/json",
+    },
+  });
+});
+
+router.get("/completions/resolve/:mod", async (ctx) => {
+  const [moduleItem] = await lookup(ctx.params.mod);
+  if (moduleItem) {
+    const message = getPopularityLabel(moduleItem);
+    return Response.json({
+      kind: "markdown",
+      value:
+        `**${moduleItem.name}**\n\n${moduleItem.description}\n\n[info](https://deno.land/${
+          moduleItem.name !== "std" ? "x/" : ""
+        }${moduleItem.name})${message ? ` | ${message}` : ""}\n\n`,
+    }, {
+      headers: {
+        "cache-control": MAX_AGE_1_DAY,
+        "content-type": "application/json",
+      },
+    });
+  }
+});
+
+router.get("/completions/items/:mod/{:ver}?", async (ctx) => {
+  const [moduleItem] = await lookup(ctx.params.mod);
+  if (moduleItem) {
+    const items = ctx.params.ver
+      ? moduleItem.versions.filter((version) =>
+        version.startsWith(ctx.params.ver)
+      )
+      : moduleItem.versions;
+    if (items.length) {
+      return Response.json({
+        items,
+        isIncomplete: false,
+        preselect:
+          moduleItem.latest_version && items.includes(moduleItem.latest_version)
+            ? moduleItem.latest_version
+            : undefined,
+      }, {
+        headers: {
+          "cache-control": MAX_AGE_1_HOUR,
+          "content-type": "application/json",
+        },
+      });
+    }
+  }
+});
+
+router.get("/completions/resolve/:mod/:ver", async (ctx) => {
+  const [moduleItem, moduleVersion] = await lookup(
+    ctx.params.mod,
+    ctx.params.ver,
+  );
+  if (moduleItem && moduleVersion) {
+    const message = getPopularityLabel(moduleItem);
+    const value =
+      `**${moduleVersion.name} @ ${moduleVersion.version}**\n\n${moduleVersion.description}\n\n[info](https://deno.land/${
+        moduleVersion.name !== "std" ? "x/" : ""
+      }${moduleVersion.name}@${moduleVersion.version}) | published: _${
+        twas(moduleVersion.uploaded_at)
+      }_${message ? ` | ${message}` : ""}\n\n`;
+    return Response.json({ kind: "markdown", value }, {
+      headers: {
+        "cache-control": MAX_AGE_1_DAY,
+        "content-type": "application/json",
+      },
+    });
+  }
+});
+
+router.get("/completions/items/:mod/:ver/:path*{/}?", async (ctx) => {
+  const completions = await getCompletions(ctx.params.mod, ctx.params.ver);
+  if (completions) {
+    const path = ctx.url().pathname.endsWith("/") && ctx.params.path
+      ? `/${ctx.params.path}/`
+      : `/${ctx.params.path}`;
+    const completionItems = getCompletionItems(completions, path);
+    if (completionItems) {
+      return Response.json(completionItems, {
+        headers: {
+          "cache-control": ctx.params.ver === "__latest__"
+            ? MAX_AGE_1_DAY
+            : IMMUTABLE,
+          "content-type": "application/json",
+        },
+      });
+    }
+  }
+});
+
+router.get("/completions/resolve/:mod/:ver/:path*{/}?", async (ctx) => {
+  const completions = await getCompletions(ctx.params.mod, ctx.params.ver);
+  if (completions) {
+    const path = ctx.url().pathname.endsWith("/") && ctx.params.path
+      ? `/${ctx.params.path}/`
+      : `/${ctx.params.path}`;
+    const parts = path.split("/");
+    const last = parts.pop();
+    const dir = last ? `${parts.join("/")}/` : path;
+    let value = await getPathDoc(completions, dir, path) ?? "";
+    if (value) {
+      value += "\n\n---\n\n";
+    }
+    const { mod, ver } = ctx.params;
+    value += `[doc](https://deno.land/${mod !== "std" ? "x/" : ""}${mod}${
+      ver !== "__latest__" ? `@${ver}` : ""
+    }${path}) | [source](https://deno.land/${mod !== "std" ? "x/" : ""}${mod}${
+      ver !== "__latest__" ? `@${ver}` : ""
+    }${path}?source) | [info](https://deno.land/${
+      mod !== "std" ? "x/" : ""
+    }${mod}${ver !== "__latest__" ? `@${ver}` : ""}/)`;
+    return Response.json({
+      kind: "markdown",
+      value,
+    }, {
+      headers: {
+        "cache-control": ctx.params.ver === "__latest__"
+          ? MAX_AGE_1_DAY
+          : IMMUTABLE,
+        "content-type": "application/json",
+      },
+    });
+  }
+});
 
 // webhooks
 
