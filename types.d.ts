@@ -466,6 +466,12 @@ export interface UsageMetric {
   sessions: number;
 }
 
+export interface CompletionItems {
+  items: string[];
+  isIncomplete: boolean;
+  preselect?: string;
+}
+
 export interface PathCompletion {
   path: string;
   default?: string;

@@ -19,6 +19,7 @@ import { lookup } from "./cache.ts";
 import { kinds } from "./consts.ts";
 import { enqueue } from "./process.ts";
 import type {
+  CompletionItems,
   ModuleEntry,
   PathCompletion,
   PathCompletions,
@@ -100,6 +101,50 @@ function toCompletions(
 }
 
 let datastore: Datastore | undefined;
+
+export function getCompletionItems(
+  completions: PathCompletions,
+  path: string,
+): CompletionItems | undefined {
+  const parts = path.split("/");
+  const last = parts.pop();
+  const dir = last ? `${parts.join("/")}/` : path;
+  const pathCompletion = completions.items.find(({ path }) => path === dir);
+  if (pathCompletion) {
+    const items: string[] = [];
+    let hasDir = false;
+    if (pathCompletion.dirs) {
+      for (const dir of pathCompletion.dirs) {
+        if (dir.startsWith(path)) {
+          hasDir = true;
+          items.push(dir);
+        }
+      }
+    }
+    for (const { path: mod } of pathCompletion.modules) {
+      if (mod.startsWith(path)) {
+        items.push(mod);
+      }
+    }
+    // when the client queries a sub path, it will omit the trailing `/`, here
+    // we check if that if the path with a trailing `/` is the only possible
+    // result, we will return that instead.
+    if (items.length === 1 && items.includes(`${path}/`)) {
+      return getCompletionItems(completions, `${path}/`);
+    }
+    let preselect: string | undefined;
+    if (pathCompletion.default && items.includes(pathCompletion.default)) {
+      preselect = pathCompletion.default.slice(1);
+    }
+    return {
+      // we need to strip the leading `/` from the completions as the client
+      // isn't expecting them.
+      items: items.map((path) => path.slice(1)),
+      isIncomplete: hasDir,
+      preselect,
+    };
+  }
+}
 
 /** Resolve with a collection of directories and paths for a module and version
  * for building completion items. */

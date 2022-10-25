@@ -28,7 +28,11 @@ import {
   lookupLibDocPage,
   lookupSourcePage,
 } from "./cache.ts";
-import { getCompletions, getPathDoc } from "./completions.ts";
+import {
+  getCompletionItems,
+  getCompletions,
+  getPathDoc,
+} from "./completions.ts";
 import { indexes, kinds, ROOT_SYMBOL } from "./consts.ts";
 import {
   checkMaybeLoad,
@@ -767,35 +771,9 @@ router.get("/completions/items/:mod/:ver/:path*{/}?", async (ctx) => {
     const path = ctx.url().pathname.endsWith("/") && ctx.params.path
       ? `/${ctx.params.path}/`
       : `/${ctx.params.path}`;
-    const parts = path.split("/");
-    const last = parts.pop();
-    const dir = last ? `${parts.join("/")}/` : path;
-    const pathCompletion = completions.items.find(({ path }) => path === dir);
-    let preselect: string | undefined;
-    if (pathCompletion) {
-      const items: string[] = [];
-      let hasDir = false;
-      if (pathCompletion.dirs) {
-        for (const dir of pathCompletion.dirs) {
-          if (dir.startsWith(path)) {
-            hasDir = true;
-            items.push(dir);
-          }
-        }
-      }
-      for (const { path: mod } of pathCompletion.modules) {
-        if (mod.startsWith(path)) {
-          items.push(mod);
-        }
-      }
-      if (pathCompletion.default && items.includes(pathCompletion.default)) {
-        preselect = pathCompletion.default.slice(1);
-      }
-      return Response.json({
-        items: items.map((path) => path.slice(1)),
-        preselect,
-        isIncomplete: hasDir,
-      }, {
+    const completionItems = getCompletionItems(completions, path);
+    if (completionItems) {
+      return Response.json(completionItems, {
         headers: {
           "cache-control": IMMUTABLE,
           "content-type": "application/json",
