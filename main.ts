@@ -707,9 +707,9 @@ router.get("/completions/resolve/:mod", async (ctx) => {
     return Response.json({
       kind: "markdown",
       value:
-        `**${moduleItem.name}**\n\n${moduleItem.description}\n\n[info](https://deno.land/x/${moduleItem.name})${
-          message ? ` | ${message}` : ""
-        }\n\n`,
+        `**${moduleItem.name}**\n\n${moduleItem.description}\n\n[info](https://deno.land/${
+          moduleItem.name !== "std" ? "x/" : ""
+        }${moduleItem.name})${message ? ` | ${message}` : ""}\n\n`,
     }, {
       headers: {
         "cache-control": MAX_AGE_1_DAY,
@@ -753,7 +753,9 @@ router.get("/completions/resolve/:mod/:ver", async (ctx) => {
   if (moduleItem && moduleVersion) {
     const message = getPopularityLabel(moduleItem);
     const value =
-      `**${moduleVersion.name} @ ${moduleVersion.version}**\n\n${moduleVersion.description}\n\n[info](https://deno.land/x/${moduleVersion.name}@${moduleVersion.version}) | published: _${
+      `**${moduleVersion.name} @ ${moduleVersion.version}**\n\n${moduleVersion.description}\n\n[info](https://deno.land/${
+        moduleVersion.name !== "std" ? "x/" : ""
+      }${moduleVersion.name}@${moduleVersion.version}) | published: _${
         twas(moduleVersion.uploaded_at)
       }_${message ? ` | ${message}` : ""}\n\n`;
     return Response.json({ kind: "markdown", value }, {
@@ -775,7 +777,9 @@ router.get("/completions/items/:mod/:ver/:path*{/}?", async (ctx) => {
     if (completionItems) {
       return Response.json(completionItems, {
         headers: {
-          "cache-control": IMMUTABLE,
+          "cache-control": ctx.params.ver === "__latest__"
+            ? MAX_AGE_1_DAY
+            : IMMUTABLE,
           "content-type": "application/json",
         },
       });
@@ -792,13 +796,28 @@ router.get("/completions/resolve/:mod/:ver/:path*{/}?", async (ctx) => {
     const parts = path.split("/");
     const last = parts.pop();
     const dir = last ? `${parts.join("/")}/` : path;
-    const value = await getPathDoc(completions, dir, path) ?? "";
+    let value = await getPathDoc(completions, dir, path);
+    if (value != null) {
+      if (value) {
+        value += "\n\n---\n\n";
+      }
+      const { mod, ver } = ctx.params;
+      value += `[doc](https://deno.land/${mod !== "std" ? "x/" : ""}${mod}${
+        ver !== "__latest__" ? `@${ver}` : ""
+      }${path}) | [source](${mod !== "std" ? "x/" : ""}${mod}${
+        ver !== "__latest__" ? `@${ver}` : ""
+      }${path}?source) | [info](${mod !== "std" ? "x/" : ""}${mod}${
+        ver !== "__latest__" ? `@${ver}` : ""
+      }/)`;
+    }
     return Response.json({
       kind: "markdown",
       value,
     }, {
       headers: {
-        "cache-control": IMMUTABLE,
+        "cache-control": ctx.params.ver === "__latest__"
+          ? MAX_AGE_1_DAY
+          : IMMUTABLE,
         "content-type": "application/json",
       },
     });
