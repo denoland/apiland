@@ -151,7 +151,7 @@ export const patterns = {
     new URLPattern({
       protocol: "http{s}?",
       hostname: "{cdn.}?esm.sh",
-      pathname: "/:regver(stable|v[0-9]+)/:org(@[^/]+)?/:pkg{@:ver}?{/}?:mod*",
+      pathname: "/:regver(stable|v[0-9]+)/:org(@[^/]+)?/:pkg{@:ver}?/:mod*",
       search: "*",
     }),
   ],
