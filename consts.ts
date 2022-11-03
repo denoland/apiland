@@ -144,7 +144,7 @@ export const patterns = {
     new URLPattern({
       protocol: "http{s}?",
       hostname: "{cdn.}?esm.sh",
-      pathname: "/:org(@[^/]+)?/:pkg{@:ver}?{/}?:mod*",
+      pathname: "/:org(@[^/]+)?/:pkg{@:ver}?/:mod*",
       search: "*",
     }),
     // https://esm.sh/v92/preact@10.10.0/src/index.d.ts
