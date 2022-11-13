@@ -43,4 +43,4 @@ A local development server is available using:
 
 Note that you need to have a properly configured `.env` file for this to work.
 An example file is included in `.env.example`, but for obvious reasons we will
-not the production keys available.
+not make the production keys available.
