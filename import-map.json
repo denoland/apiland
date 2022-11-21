@@ -12,7 +12,7 @@
     "google_analytics_reporting": "https://googleapis.deno.dev/v1/analyticsreporting:v4.ts",
     "google_datastore": "https://deno.land/x/google_datastore@0.0.17/mod.ts",
     "google_datastore/types": "https://deno.land/x/google_datastore@0.0.17/types.d.ts",
-    "import_map": "https://raw.githubusercontent.com/denoland/import_map/main/mod.ts",
+    "import_map": "https://raw.githubusercontent.com/denoland/import_map/v0.13.0/mod.ts",
     "jsonc-parser": "https://esm.sh/jsonc-parser@3.1.0?pin=v90",
     "std/": "https://deno.land/std@0.159.0/",
     "twas": "https://esm.sh/twas@2.1.2?pin=v90",
