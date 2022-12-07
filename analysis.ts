@@ -154,9 +154,9 @@ let datastore: Datastore | undefined;
 async function getRoots(module: string, version: string): Promise<string[]> {
   datastore = datastore ?? await getDatastore();
   const res = await datastore.lookup(datastore.key(
-    ["module", module],
-    ["module_version", version],
-    ["module_entry", "/"],
+    [kinds.MODULE_KIND, module],
+    [kinds.MODULE_VERSION_KIND, version],
+    [kinds.MODULE_ENTRY_KIND, "/"],
   ));
   assert(
     res.found && res.found.length === 1,
@@ -167,11 +167,11 @@ async function getRoots(module: string, version: string): Promise<string[]> {
     return [`https://deno.land/x/${module}@${version}${rootEntry.default}`];
   } else {
     const query = datastore
-      .createQuery("module_entry")
+      .createQuery(kinds.MODULE_ENTRY_KIND)
       .filter("docable", true)
       .hasAncestor(datastore.key(
-        ["module", module],
-        ["module_version", version],
+        [kinds.MODULE_KIND, module],
+        [kinds.MODULE_VERSION_KIND, version],
       ));
     const roots: string[] = [];
     for (const entry of await datastore.query<ModuleEntry>(query)) {
@@ -258,7 +258,10 @@ export async function analyze(
   }
   const mutations: Mutation[] = [];
   datastore = datastore ?? await getDatastore();
-  const keyInit: KeyInit[] = [["module", module], ["module_version", version]];
+  const keyInit: KeyInit[] = [[kinds.MODULE_KIND, module], [
+    kinds.MODULE_VERSION_KIND,
+    version,
+  ]];
   await clearAppend(
     datastore,
     mutations,
@@ -329,8 +332,8 @@ export async function getAnalysis(
   if (!force && await isAnalyzed(module.name, version.version)) {
     datastore = datastore ?? await getDatastore();
     const ancestor = datastore.key(
-      ["module", module.name],
-      ["module_version", version.version],
+      [kinds.MODULE_KIND, module.name],
+      [kinds.MODULE_VERSION_KIND, version.version],
     );
     const depsQuery = datastore
       .createQuery(kinds.MODULE_DEP_KIND)
