@@ -119,7 +119,7 @@ export const patterns = {
   /** Modules/packages hosted on nest.land. */
   "nest.land": [new URLPattern("https://x.nest.land/:pkg@:ver/:mod*")],
   /** Modules hosted on crux.land. */
-  "crux.land": [new URLPattern("https://crux.land/:pkg{@:ver}?")],
+  "crux.land": [new URLPattern("https://crux.land/:pkg@:ver")],
   /** Content hosted on GitHub. */
   "github.com": [
     new URLPattern({
