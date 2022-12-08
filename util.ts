@@ -1,7 +1,6 @@
 // Copyright 2018-2022 the Deno authors. All rights reserved. MIT license.
 
-import { type Module } from "./types.d.ts";
-import { ModuleDependency } from "https://deno.land/x/apiland@1.3.0/types.d.ts";
+import type { Module, ModuleDependency } from "./types.d.ts";
 
 export function assert(
   cond: unknown,
