@@ -14,7 +14,7 @@ import {
   objectSetKey,
   objectToEntity,
 } from "google_datastore";
-import { config } from "std/dotenv/mod.ts";
+import { load } from "std/dotenv/mod.ts";
 
 import { kinds, ROOT_SYMBOL } from "./consts.ts";
 
@@ -35,7 +35,7 @@ let readyResolve: (value?: unknown) => void;
 export const readyPromise = new Promise((res) => readyResolve = res);
 
 (async () => {
-  await config({ export: true });
+  await load({ export: true, allowEmptyValues: true });
   readyResolve!();
   const privateKey = Deno.env.get("GOOGLE_PRIVATE_KEY") ?? "";
   keys = {
