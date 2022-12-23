@@ -7,7 +7,6 @@
  * @module
  */
 
-import { type MultipleBatchRequest } from "@algolia/client-search";
 import {
   DatastoreError,
   entityToObject,
@@ -16,11 +15,11 @@ import {
 } from "google_datastore";
 import type { Mutation } from "google_datastore/types";
 
-import { loadDocNodes, moduleToRequest, upload } from "./algolia.ts";
+import { getDenoLandApp, Source } from "./algolia.ts";
 import { analyze } from "./analysis.ts";
 import { getDatastore } from "./auth.ts";
 import { clear } from "./cache.ts";
-import { kinds } from "./consts.ts";
+import { indexes, kinds } from "./consts.ts";
 import {
   addNodes,
   commitDocNodes,
@@ -495,23 +494,35 @@ async function taskLoadModule(
   }
 }
 
+let moduleIndex;
 async function taskAlgolia(
   id: number,
   { module, version }: AlgoliaTask,
 ) {
   console.log(
-    `[${id}]: %cUploading%c %c"${version.name}@${version.version}"%c doc nodes to algolia...`,
+    `[${id}]: %cUploading%c %c"${version.name}@${version.version}"%c to algolia...`,
     "color:green",
     "color:none",
     "color:cyan",
     "color:none",
   );
-  const requests: MultipleBatchRequest[] = [];
-  requests.push(moduleToRequest(module));
-  await loadDocNodes(requests, module, version);
-  await upload(requests);
+
+  moduleIndex ??= (await getDenoLandApp()).initIndex(indexes.MODULE_INDEX);
+  await moduleIndex.saveObject({
+    objectID: module.name,
+    name: module.name,
+    description: module.description,
+    third_party: module.name !== "std",
+    source: module.name === "std"
+      ? Source.StandardLibraryDefault
+      : Source.ThirdPartyDefault,
+    popularity_score: module.popularity_score,
+    popularity_tag: module.tags?.find(({ kind }) => kind === "popularity")
+      ?.value,
+  }).wait();
+
   console.log(
-    `[${id}]: %cUploaded%c %c${requests.length}%c items to algolia.`,
+    `[${id}]: %Uploaded%c %c"${version.name}@${version.version}"%c to algolia...`,
     "color:green",
     "color:none",
     "color:cyan",
