@@ -35,7 +35,7 @@ let readyResolve: (value?: unknown) => void;
 export const readyPromise = new Promise((res) => readyResolve = res);
 
 (async () => {
-  await load({ export: true, allowEmptyValues: true });
+  await load({ export: true, examplePath: "" });
   readyResolve!();
   const privateKey = Deno.env.get("GOOGLE_PRIVATE_KEY") ?? "";
   keys = {
