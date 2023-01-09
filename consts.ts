@@ -80,9 +80,6 @@ export const libs = {
 /** These constants represent the different algolia index which are generated
  * from data contained within datastore. */
 export const indexes = {
-  /** The index which contains all the _symbols_ which are generated from
-   * modules and libraries. */
-  SYMBOL_INDEX: "doc_nodes",
   /** The index which contains all the modules (and some submodules). */
   MODULE_INDEX: "modules",
 };

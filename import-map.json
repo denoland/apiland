@@ -14,13 +14,13 @@
     "google_datastore/types": "https://deno.land/x/google_datastore@0.0.17/types.d.ts",
     "import_map": "https://raw.githubusercontent.com/denoland/import_map/v0.13.0/mod.ts",
     "jsonc-parser": "https://esm.sh/jsonc-parser@3.1.0?pin=v90",
-    "std/": "https://deno.land/std@0.159.0/",
+    "std/": "https://deno.land/std@0.170.0/",
     "twas": "https://esm.sh/twas@2.1.2?pin=v90",
     "https://deno.land/x/jose@v4.8.1/": "https://deno.land/x/jose@v4.9.2/",
-    "https://deno.land/std@0.151.0/": "https://deno.land/std@0.159.0/",
-    "https://deno.land/std@0.152.0/": "https://deno.land/std@0.159.0/",
-    "https://deno.land/std@0.155.0/": "https://deno.land/std@0.159.0/",
-    "https://deno.land/std@0.158.0/": "https://deno.land/std@0.159.0/",
+    "https://deno.land/std@0.151.0/": "https://deno.land/std@0.170.0/",
+    "https://deno.land/std@0.152.0/": "https://deno.land/std@0.170.0/",
+    "https://deno.land/std@0.155.0/": "https://deno.land/std@0.170.0/",
+    "https://deno.land/std@0.158.0/": "https://deno.land/std@0.170.0/",
     "https://deno.land/x/deno_graph@0.28.0/": "https://deno.land/x/deno_graph@0.34.0/"
   }
 }
