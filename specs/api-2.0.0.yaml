@@ -566,7 +566,7 @@ paths:
       summary: Gets information about a build.
       description: >
         This resource represents an individual build action.
-      operationId: getModule
+      operationId: getBuild
       parameters:
         - name: id
           in: path
