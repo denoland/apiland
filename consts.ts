@@ -65,6 +65,8 @@ export const kinds = {
   SYMBOL_INDEX_KIND: "symbol_index",
   /** A cache of symbol items for libraries. */
   SYMBOL_ITEMS_KIND: "symbol_items",
+
+  BUILD_KIND: "build",
 } as const;
 
 /** Different libraries are that are stored in the datastore. */

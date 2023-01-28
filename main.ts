@@ -325,6 +325,19 @@ router.get("/v2/metrics/dependencies/:source*", async (ctx) => {
 
 // ## Registry related APIs ##
 
+router.get(
+  "/v2/builds/:id",
+  async (ctx) => {
+    datastore = datastore ?? await getDatastore();
+    const response = await datastore.lookup(
+      datastore.key([kinds.BUILD_KIND, ctx.params.id]),
+    );
+    if (response.found) {
+      return entityToObject(response.found[0].entity);
+    }
+  },
+);
+
 router.get("/v2/modules", async (ctx) => {
   datastore = datastore ?? await getDatastore();
   const query = datastore.createQuery(kinds.MODULE_KIND);
