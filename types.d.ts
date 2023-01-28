@@ -26,13 +26,32 @@ export interface ModuleMetaVersionsJson {
   versions: string[];
 }
 
+export interface UploadOptions {
+  type: string;
+  repository: string;
+  ref: string;
+  subdir?: string;
+}
+
+export type BuildStatus =
+  | "queued"
+  | "success"
+  | "error"
+  | "publishing";
+
+export interface Build {
+  id: string;
+  module: string;
+  version: string;
+  status: BuildStatus;
+  message?: string;
+  created_at: Date;
+  upload_options: UploadOptions;
+}
+
 export interface ModuleVersionMetaJson {
   uploaded_at: string;
-  upload_options: {
-    type: string;
-    repository: string;
-    ref: string;
-  };
+  upload_options: UploadOptions;
   directory_listing: {
     path: string;
     size: number;
@@ -172,12 +191,7 @@ export interface ModuleVersion {
   description: string;
   version: string;
   uploaded_at: Date;
-  upload_options: {
-    type: string;
-    repository: string;
-    ref: string;
-    subdir?: string;
-  };
+  upload_options: UploadOptions;
 }
 
 /** Stored as kind `module_entry` in datastore. */
@@ -238,12 +252,7 @@ export interface PageBase {
   versions: string[];
   latest_version: string;
   uploaded_at: string;
-  upload_options: {
-    type: string;
-    repository: string;
-    ref: string;
-    subdir?: string;
-  };
+  upload_options: UploadOptions;
   /** @deprecated */
   star_count?: number;
   tags?: ModuleTag[];
@@ -337,12 +346,7 @@ export interface ModInfoPage {
    * file. */
   import_map?: ModuleEntry;
   uploaded_at: string;
-  upload_options: {
-    type: string;
-    repository: string;
-    ref: string;
-    subdir?: string;
-  };
+  upload_options: UploadOptions;
   tags?: ModuleTag[];
 }
 

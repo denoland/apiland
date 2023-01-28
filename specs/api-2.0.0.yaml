@@ -559,6 +559,37 @@ paths:
             text/html:
               schema:
                 type: string
+  /v2/builds/{id}:
+    get:
+      tags:
+        - registry
+      summary: Gets information about a build.
+      description: >
+        This resource represents an individual build action.
+      operationId: getBuild
+      parameters:
+        - name: id
+          in: path
+          description: ID
+          required: true
+          schema:
+            $ref: "#/components/schemas/BuildId"
+      responses:
+        "200":
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Build"
+        "404":
+          description: Not found - the requested resource was not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HttpError"
+            text/html:
+              schema:
+                type: string
   /v2/modules:
     get:
       tags:
@@ -1452,6 +1483,44 @@ components:
       required:
         - "total"
         - "symbols"
+    Build:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/BuildId"
+        module:
+          $ref: "#/components/schemas/ModuleName"
+        version:
+          type: string
+          example: v10.0.1
+        status:
+          type: string
+          enum:
+            - "queued"
+            - "success"
+            - "error"
+            - "publishing"
+        message:
+          type: string
+          example: Published module.
+        created_at:
+          type: string
+          format: date-time
+          example: 2022-05-06T01:03:14.774Z
+        upload_options:
+          $ref: "#/components/schemas/UploadOptions"
+      required:
+        - id
+        - module
+        - version
+        - status
+        - message
+        - created_at
+        - upload_options
+      description: Representation of a build action
+    BuildId:
+      type: string
+      example: 39229ca6-e764-4d8d-b762-6b720607458c
     CompletionItemDoc:
       type: object
       properties:
@@ -1743,7 +1812,7 @@ components:
     GlobalSymbolItem:
       type: object
       properties:
-        name: 
+        name:
           type: string
         library:
           type: string
@@ -1881,7 +1950,7 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/DependencyError"
-        defaultModule: 
+        defaultModule:
           $ref: "#/components/schemas/ModuleEntry"
         defaultExport:
           type: boolean
