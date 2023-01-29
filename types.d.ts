@@ -13,12 +13,44 @@ import type {
 } from "deno_doc/types";
 import type { patterns } from "./consts.ts";
 
+export interface ApiModuleDataResponse {
+  data: ApiModuleData;
+}
+
 export interface ApiModuleData {
-  data: {
-    name: string;
-    description: string;
-    star_count: number;
+  name: string;
+  type: string;
+  repo_id: number;
+  owner: string;
+  repo: string;
+  description: string;
+  star_count: number;
+  is_unlisted: boolean;
+  created_at: Date;
+}
+
+export interface ApiBuild {
+  id: string;
+  // deno-lint-ignore camelcase
+  created_at: Date;
+  options: {
+    moduleName: string;
+    type: string;
+    repository: string;
+    ref: string;
+    version: string;
+    subdir?: string;
   };
+  status: BuildStatus;
+  message?: string;
+}
+export interface OwnerQuota {
+  owner: string;
+  type: string;
+  max_modules: number;
+  max_total_size?: number;
+  blocked: boolean;
+  note?: string;
 }
 
 export interface ModuleMetaVersionsJson {
