@@ -85,7 +85,8 @@ export async function pingEvent(
   );
 }
 
-export function pushEvent(
+// deno-lint-ignore require-await
+export async function pushEvent(
   module: string,
   body: WebhookPayloadPush,
   searchParams: URLSearchParams,
@@ -123,7 +124,9 @@ export function pushEvent(
     subdir: normalizeSubdir(subdirRaw),
   });
 }
-export function createEvent(
+
+// deno-lint-ignore require-await
+export async function createEvent(
   module: string,
   body: WebhookPayloadCreate,
   searchParams: URLSearchParams,
