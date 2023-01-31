@@ -11,6 +11,7 @@ import { type SearchIndex } from "algoliasearch";
 import {
   type Datastore,
   DatastoreError,
+  datastoreValueToValue,
   entityToObject,
 } from "google_datastore";
 import { errors, isHttpError } from "std/http/http_errors.ts";
@@ -324,6 +325,16 @@ router.get("/v2/metrics/dependencies/:source*", async (ctx) => {
 });
 
 // ## Registry related APIs ##
+
+router.get("/legacy_modules_count", async () => {
+  datastore = datastore ?? await getDatastore();
+  const query = await datastore.runGqlAggregationQuery({
+    queryString: `SELECT COUNT(*) FROM legacy_modules`,
+  });
+  return datastoreValueToValue(
+    query.batch.aggregationResults[0].aggregateProperties.property_1,
+  ) as number;
+});
 
 router.get(
   "/v2/builds/:id",
