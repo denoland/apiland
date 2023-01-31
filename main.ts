@@ -329,7 +329,9 @@ router.get("/v2/metrics/dependencies/:source*", async (ctx) => {
 router.get("/legacy_modules_count", async () => {
   datastore = datastore ?? await getDatastore();
   const query = await datastore.runGqlAggregationQuery({
-    queryString: `SELECT COUNT(*) FROM legacy_modules`,
+    queryString:
+      `SELECT COUNT(*) FROM legacy_modules WHERE is_unlisted = false`,
+    allowLiterals: true,
   });
   return datastoreValueToValue(
     query.batch.aggregationResults[0].aggregateProperties.property_1,
