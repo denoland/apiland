@@ -11,6 +11,7 @@ import { type SearchIndex } from "algoliasearch";
 import {
   type Datastore,
   DatastoreError,
+  datastoreValueToValue,
   entityToObject,
 } from "google_datastore";
 import { errors, isHttpError } from "std/http/http_errors.ts";
@@ -60,9 +61,6 @@ import {
   SubModuleMetrics,
 } from "./types.d.ts";
 import { assert, getPopularityLabel } from "./util.ts";
-import {
-  datastoreValueToValue
-} from "https://deno.land/x/google_datastore@0.2.1/mod.ts";
 
 interface PagedItems<T> {
   items: T[];
@@ -148,16 +146,6 @@ router.get("/~/spec", async () => {
 router.get("/ping", () => ({ pong: true }));
 
 // ## Metrics related APIs ##
-
-router.get("/legacy_modules_count", async() => {
-  datastore = datastore ?? await getDatastore();
-  const query = await datastore.runGqlAggregationQuery({
-    queryString: `SELECT COUNT(*) FROM legacy_modules`,
-  });
-  return datastoreValueToValue(
-    query.batch.aggregationResults[0].aggregateProperties.property_1,
-  ) as number;
-});
 
 router.get("/v2/metrics/modules", async (ctx) => {
   datastore = datastore ?? await getDatastore();
@@ -337,6 +325,16 @@ router.get("/v2/metrics/dependencies/:source*", async (ctx) => {
 });
 
 // ## Registry related APIs ##
+
+router.get("/legacy_modules_count", async () => {
+  datastore = datastore ?? await getDatastore();
+  const query = await datastore.runGqlAggregationQuery({
+    queryString: `SELECT COUNT(*) FROM legacy_modules`,
+  });
+  return datastoreValueToValue(
+    query.batch.aggregationResults[0].aggregateProperties.property_1,
+  ) as number;
+});
 
 router.get(
   "/v2/builds/:id",
