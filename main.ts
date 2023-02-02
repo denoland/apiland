@@ -61,6 +61,12 @@ import {
   SubModuleMetrics,
 } from "./types.d.ts";
 import { assert, getPopularityLabel } from "./util.ts";
+import type {
+  WebhookPayloadCreate,
+  WebhookPayloadPing,
+  WebhookPayloadPush,
+} from "./webhooks.d.ts";
+import { createEvent, pingEvent, pushEvent } from "./webhook.ts";
 
 interface PagedItems<T> {
   items: T[];
@@ -866,6 +872,62 @@ router.post(
     const { module, version } = body;
     const id = enqueue({ kind: "load", module, version });
     return { result: "enqueued", id };
+  }, endpointAuth),
+);
+
+router.post(
+  "/webhook/temp_gh/:module",
+  auth(async (
+    ctx: Context<
+      WebhookPayloadCreate | WebhookPayloadPing | WebhookPayloadPush
+    >,
+  ) => {
+    const body = await ctx.body();
+
+    if (!body) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: "no body provided",
+        }),
+        {
+          status: 400,
+        },
+      );
+    }
+
+    const ghEvent = ctx.request.headers.get("x-github-event");
+
+    switch (ghEvent) {
+      case "ping":
+        return pingEvent(
+          ctx.params.module,
+          body as WebhookPayloadPing,
+          ctx.url().searchParams,
+        );
+      case "push":
+        return pushEvent(
+          ctx.params.module,
+          body as WebhookPayloadPush,
+          ctx.url().searchParams,
+        );
+      case "create":
+        return createEvent(
+          ctx.params.module,
+          body as WebhookPayloadCreate,
+          ctx.url().searchParams,
+        );
+      default:
+        return new Response(
+          JSON.stringify({
+            success: false,
+            info: "not a ping, or create event",
+          }),
+          {
+            status: 200,
+          },
+        );
+    }
   }, endpointAuth),
 );
 

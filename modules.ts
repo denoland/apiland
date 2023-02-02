@@ -23,7 +23,7 @@ import {
 import { kinds } from "./consts.ts";
 import { isDocable } from "./docs.ts";
 import type {
-  ApiModuleData,
+  ApiModuleDataResponse,
   Module,
   ModuleEntry,
   ModuleMetaVersionsJson,
@@ -79,7 +79,7 @@ export function getIndexModule(paths?: string[]): string | undefined {
 
 export async function getModuleData(
   module: string,
-): Promise<ApiModuleData | undefined> {
+): Promise<ApiModuleDataResponse | undefined> {
   const res = await fetch(`${DENO_API}${module}`);
   if (res.status !== 200) {
     return undefined;

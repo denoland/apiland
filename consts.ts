@@ -67,6 +67,9 @@ export const kinds = {
   SYMBOL_ITEMS_KIND: "symbol_items",
 
   BUILD_KIND: "build",
+  LEGACY_MODULES: "legacy_modules",
+  LEGACY_OWNER_QUOTAS: "legacy_owner_quotas",
+  LEGACY_BUILDS: "legacy_builds",
 } as const;
 
 /** Different libraries are that are stored in the datastore. */

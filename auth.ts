@@ -14,6 +14,8 @@ import {
   objectSetKey,
   objectToEntity,
 } from "google_datastore";
+import { S3Bucket } from "s3";
+import { SQSQueue } from "sqs";
 import { load } from "std/dotenv/mod.ts";
 
 import { kinds, ROOT_SYMBOL } from "./consts.ts";
@@ -27,6 +29,14 @@ export let keys: {
 };
 /** Algolia credentials required to upload docNodes to algolia. */
 export let algoliaKeys: { appId: string; apiKey: string; searchApiKey: string };
+
+export let awsKeys: {
+  region: string;
+  accessKeyID: string;
+  secretKey: string;
+  sessionToken?: string;
+  endpointURL?: string;
+};
 
 let readyResolve: (value?: unknown) => void;
 
@@ -52,6 +62,14 @@ export const readyPromise = new Promise((res) => readyResolve = res);
     appId: Deno.env.get("ALGOLIA_APP_ID") ?? "",
     apiKey: Deno.env.get("ALGOLIA_API_KEY") ?? "",
     searchApiKey: Deno.env.get("ALGOLIA_SEARCH_API_KEY") ?? "",
+  };
+
+  awsKeys = {
+    region: Deno.env.get("AWS_REGION") ?? "",
+    accessKeyID: Deno.env.get("AWS_ACCESS_KEY_ID") ?? "",
+    secretKey: Deno.env.get("AWS_SECRET_ACCESS_KEY") ?? "",
+    sessionToken: Deno.env.get("AWS_SESSION_TOKEN"),
+    endpointURL: Deno.env.get("S3_ENDPOINT_URL"),
   };
 })();
 
@@ -157,6 +175,52 @@ export async function getDatastore(): Promise<Datastore> {
   }
   await readyPromise;
   return datastore = new Datastore(keys);
+}
+
+let s3Bucket: S3Bucket | undefined;
+
+/** Return an instance of the s3 bucket configured to be authorized using the
+ * environmental configuration. */
+export async function getS3Bucket(): Promise<S3Bucket> {
+  if (s3Bucket) {
+    return s3Bucket;
+  }
+  await readyPromise;
+  return s3Bucket = new S3Bucket({
+    bucket: Deno.env.get("STORAGE_BUCKET")!,
+    ...awsKeys,
+  });
+}
+
+let moderationS3Bucket: S3Bucket | undefined;
+
+/** Return an instance of the s3 moderation bucket configured to be authorized
+ * using the environmental configuration. */
+export async function getModerationS3Bucket(): Promise<S3Bucket | undefined> {
+  const moderationbucket = Deno.env.get("MODERATION_BUCKET");
+  if (moderationS3Bucket || !moderationbucket) {
+    return moderationS3Bucket;
+  }
+  await readyPromise;
+  return moderationS3Bucket = new S3Bucket({
+    bucket: moderationbucket,
+    ...awsKeys,
+  });
+}
+
+let sqsQueue: SQSQueue | undefined;
+
+/** Return an instance of the s3 moderation bucket configured to be authorized
+ * using the environmental configuration. */
+export async function getSQSQueue(): Promise<SQSQueue> {
+  if (sqsQueue) {
+    return sqsQueue;
+  }
+  await readyPromise;
+  return sqsQueue = new SQSQueue({
+    queueURL: Deno.env.get("BUILD_QUEUE")!,
+    ...awsKeys,
+  });
 }
 
 /** Load API tokens from the datastore. */
