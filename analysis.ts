@@ -240,7 +240,10 @@ export async function analyze(
     return [[], []];
   }
   $.logLight(`  generating module graph...`);
-  const { modules, redirects, roots } = await createGraph(graphRoots, { load, resolve });
+  const { modules, redirects, roots } = await createGraph(graphRoots, {
+    load,
+    resolve,
+  });
   const mods = modules.reduce((map, { specifier, error, dependencies }) => {
     const deps = dependencies?.reduce(
       (map, { specifier, code, type }) => map.set(specifier, { code, type }),
