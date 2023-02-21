@@ -23,7 +23,7 @@ import type {
 
 import { getDatastore } from "./auth.ts";
 import { cacheLibDocPage, cacheSymbolItems, lookupLib } from "./cache.ts";
-import { ROOT_SYMBOL } from "./consts.ts";
+import { ROOT_SYMBOL, SYMBOL_REGEX } from "./consts.ts";
 import {
   dehydrateDocNodes,
   entitiesToDocNodes,
@@ -146,6 +146,10 @@ async function queryLibDocNodesBySymbol(
   version: string,
   symbol: string,
 ): Promise<DocNode[]> {
+  if (!SYMBOL_REGEX.test(symbol)) {
+    return [];
+  }
+
   const keyInit: KeyInit[] = [
     ["library", lib],
     ["library_version", version],
@@ -219,6 +223,10 @@ export async function generateLibDocPage(
   version: string,
   symbol: string,
 ): Promise<LibDocPage | undefined> {
+  if (!SYMBOL_REGEX.test(symbol)) {
+    return undefined;
+  }
+
   const [libItem, versionItem, symbolItems] = await lookupLib(lib, version);
   if (!libItem) {
     // will result in a 404 not found
