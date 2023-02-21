@@ -130,11 +130,3 @@ export function moduleDependencyToURLAndDisplay(
       return [dep.pkg, dep.pkg];
   }
 }
-
-const symbolRegex = /[a-zA-Z0-9$_.]+/;
-
-export function assertSymbol(symbol: string) {
-  if (symbolRegex.test(symbol)) {
-    throw new TypeError("Invalid symbol");
-  }
-}

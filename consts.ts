@@ -276,4 +276,4 @@ export const patterns = {
   ],
 };
 
-export const SYMBOL_REGEX = /^[a-zA-Z0-9$_]+$/;
+export const SYMBOL_REGEX = /^[a-zA-Z0-9$_.]+$/;
