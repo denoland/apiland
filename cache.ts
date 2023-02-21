@@ -10,7 +10,7 @@ import { type Datastore, entityToObject } from "google_datastore";
 import type { Entity, Key } from "google_datastore/types";
 
 import { getDatastore } from "./auth.ts";
-import { kinds, ROOT_SYMBOL } from "./consts.ts";
+import { kinds, ROOT_SYMBOL, SYMBOL_REGEX } from "./consts.ts";
 import { entityToDocPage, hydrateDocNodes } from "./docs.ts";
 import {
   DocPage,
@@ -26,7 +26,7 @@ import {
   ModuleVersion,
   SourcePage,
 } from "./types.d.ts";
-import { assert } from "./util.ts";
+import { assert, assertSymbol } from "./util.ts";
 
 const CACHED_MODULE_COUNT =
   parseInt(Deno.env.get("CACHED_MODULE_COUNT") ?? "", 10) ||
@@ -250,6 +250,10 @@ export async function lookupDocPage(
   path: string,
   symbol: string,
 ): Promise<DocPage | undefined> {
+  if (!SYMBOL_REGEX.test(symbol)) {
+    return undefined;
+  }
+
   let moduleItem = cachedModules.get(module);
   let versionItem = moduleItem && cachedVersions.get(moduleItem)?.get(version);
   let entryItem = versionItem && cachedEntries.get(versionItem)?.get(path);
@@ -452,6 +456,10 @@ export async function lookupLibDocPage(
   version: string,
   symbol: string,
 ) {
+  if (!SYMBOL_REGEX.test(symbol)) {
+    return undefined;
+  }
+
   const [libItem] = await lookupLib(lib);
   if (!libItem) {
     return;

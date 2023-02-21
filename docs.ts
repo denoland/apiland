@@ -46,7 +46,7 @@ import { errors } from "std/http/http_errors.ts";
 import { getAnalysis } from "./analysis.ts";
 import { getDatastore } from "./auth.ts";
 import { cacheInfoPage, lookup } from "./cache.ts";
-import { kinds, ROOT_SYMBOL } from "./consts.ts";
+import { kinds, ROOT_SYMBOL, SYMBOL_REGEX } from "./consts.ts";
 import {
   getIndexModule,
   loadModule,
@@ -813,6 +813,10 @@ async function getDocPageSymbol(
   entry: ModuleEntry,
   symbol: string,
 ): Promise<DocPageSymbol | undefined> {
+  if (!SYMBOL_REGEX.test(symbol)) {
+    return undefined;
+  }
+
   const docPage = getPageBase(
     "symbol",
     module,
@@ -977,6 +981,10 @@ export async function generateDocPage(
   path: string,
   symbol: string,
 ): Promise<DocPage | undefined> {
+  if (!SYMBOL_REGEX.test(symbol)) {
+    return undefined;
+  }
+
   let [
     moduleItem,
     moduleVersion,
@@ -1589,6 +1597,10 @@ export async function commitDocPage(
   symbol: string,
   docPage: DocPage,
 ) {
+  if (!SYMBOL_REGEX.test(symbol)) {
+    return undefined;
+  }
+
   const datastore = await getDatastore();
   const key = datastore.key(
     [kinds.MODULE_KIND, module],
@@ -1980,6 +1992,10 @@ async function queryDocNodesBySymbol(
   entry: string,
   symbol: string,
 ): Promise<DenoDocNode[]> {
+  if (!SYMBOL_REGEX.test(symbol)) {
+    return [];
+  }
+
   const keyInit: KeyInit[] = [
     [kinds.MODULE_KIND, module],
     [kinds.MODULE_VERSION_KIND, version],
