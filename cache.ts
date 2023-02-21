@@ -282,66 +282,70 @@ export async function lookupDocPage(
       [kinds.DOC_PAGE_KIND, symbol],
     ));
 
-    const res = await datastore.lookup(keys);
-    if (res.found) {
-      let foundModuleVersion: ModuleVersion | undefined;
-      let foundModuleEntry: ModuleEntry | undefined;
-      let foundModuleDocPage: DocPage | undefined;
-      for (const { entity } of res.found) {
-        assert(entity.key);
-        const entityKind = entity.key.path[entity.key.path.length - 1].kind;
-        switch (entityKind) {
-          case kinds.MODULE_KIND:
-            moduleItem = entityToObject(entity);
-            cachedModules.set(module, moduleItem);
-            break;
-          case kinds.MODULE_VERSION_KIND: {
-            foundModuleVersion = versionItem = entityToObject(entity);
-            break;
-          }
-          case kinds.MODULE_ENTRY_KIND: {
-            foundModuleEntry = entryItem = entityToObject(entity);
-            break;
-          }
-          case kinds.DOC_PAGE_KIND: {
-            const docPage = entityToDocPage(entity);
-            if (
-              !((docPage.kind === "module" || docPage.kind === "symbol") &&
-                !docPage.symbols)
-            ) {
-              foundModuleDocPage = docPageItem = entityToDocPage(entity);
+    try {
+      const res = await datastore.lookup(keys);
+      if (res.found) {
+        let foundModuleVersion: ModuleVersion | undefined;
+        let foundModuleEntry: ModuleEntry | undefined;
+        let foundModuleDocPage: DocPage | undefined;
+        for (const { entity } of res.found) {
+          assert(entity.key);
+          const entityKind = entity.key.path[entity.key.path.length - 1].kind;
+          switch (entityKind) {
+            case kinds.MODULE_KIND:
+              moduleItem = entityToObject(entity);
+              cachedModules.set(module, moduleItem);
+              break;
+            case kinds.MODULE_VERSION_KIND: {
+              foundModuleVersion = versionItem = entityToObject(entity);
+              break;
             }
-            break;
+            case kinds.MODULE_ENTRY_KIND: {
+              foundModuleEntry = entryItem = entityToObject(entity);
+              break;
+            }
+            case kinds.DOC_PAGE_KIND: {
+              const docPage = entityToDocPage(entity);
+              if (
+                !((docPage.kind === "module" || docPage.kind === "symbol") &&
+                  !docPage.symbols)
+              ) {
+                foundModuleDocPage = docPageItem = entityToDocPage(entity);
+              }
+              break;
+            }
+            default:
+              throw new TypeError(`Unexpected kind "${entityKind}".`);
           }
-          default:
-            throw new TypeError(`Unexpected kind "${entityKind}".`);
         }
-      }
 
-      if (foundModuleVersion) {
-        assert(moduleItem);
-        if (!cachedVersions.has(moduleItem)) {
-          cachedVersions.set(moduleItem, new Map());
+        if (foundModuleVersion) {
+          assert(moduleItem);
+          if (!cachedVersions.has(moduleItem)) {
+            cachedVersions.set(moduleItem, new Map());
+          }
+          const versions = cachedVersions.get(moduleItem)!;
+          versions.set(version, foundModuleVersion);
         }
-        const versions = cachedVersions.get(moduleItem)!;
-        versions.set(version, foundModuleVersion);
-      }
-      if (foundModuleEntry) {
-        assert(versionItem);
-        if (!cachedEntries.has(versionItem)) {
-          cachedEntries.set(versionItem, new Map());
+        if (foundModuleEntry) {
+          assert(versionItem);
+          if (!cachedEntries.has(versionItem)) {
+            cachedEntries.set(versionItem, new Map());
+          }
+          const entries = cachedEntries.get(versionItem)!;
+          entries.set(path, foundModuleEntry);
         }
-        const entries = cachedEntries.get(versionItem)!;
-        entries.set(path, foundModuleEntry);
-      }
-      if (foundModuleDocPage) {
-        assert(entryItem);
-        if (!cachedDocPages.has(entryItem)) {
-          cachedDocPages.set(entryItem, new Map());
+        if (foundModuleDocPage) {
+          assert(entryItem);
+          if (!cachedDocPages.has(entryItem)) {
+            cachedDocPages.set(entryItem, new Map());
+          }
+          const docPages = cachedDocPages.get(entryItem)!;
+          docPages.set(symbol, foundModuleDocPage);
         }
-        const docPages = cachedDocPages.get(entryItem)!;
-        docPages.set(symbol, foundModuleDocPage);
       }
+    } catch (e) {
+      console.error(keys, e);
     }
   }
   if (moduleItem) {
