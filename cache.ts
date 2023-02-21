@@ -26,7 +26,7 @@ import {
   ModuleVersion,
   SourcePage,
 } from "./types.d.ts";
-import { assert, assertSymbol } from "./util.ts";
+import { assert } from "./util.ts";
 
 const CACHED_MODULE_COUNT =
   parseInt(Deno.env.get("CACHED_MODULE_COUNT") ?? "", 10) ||
