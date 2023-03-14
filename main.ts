@@ -1025,11 +1025,11 @@ router.addEventListener("handled", (evt) => {
 router.addEventListener("error", (evt) => {
   if (isHttpError(evt.error)) {
     if (evt.error.status > 500 && evt.error.stack) {
-      console.log(evt.error.stack);
+      console.error(evt.error.stack);
     }
   } else if (evt.error instanceof Error) {
     if (evt.error.stack) {
-      console.log(evt.error.stack);
+      console.error(evt.error.stack);
     }
   }
 });
