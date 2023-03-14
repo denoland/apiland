@@ -982,7 +982,7 @@ router.get("/shields/:module/popularity", async (ctx) => {
 
 // basic logging and error handling
 
-router.addEventListener("listen", (evt) => {
+/*router.addEventListener("listen", (evt) => {
   console.log(
     `%cListening: %c${
       evt.secure ? "https://" : "http://"
@@ -1018,7 +1018,7 @@ router.addEventListener("handled", (evt) => {
     } - [${evt.response.status}] ${evt.measure.duration.toFixed(2)}ms`,
     responseColor,
   );
-});
+});*/
 
 // log out stack of errors that are either server errors or other non-http
 // errors.
