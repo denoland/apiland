@@ -982,7 +982,7 @@ router.get("/shields/:module/popularity", async (ctx) => {
 
 // basic logging and error handling
 
-/*router.addEventListener("listen", (evt) => {
+router.addEventListener("listen", (evt) => {
   console.log(
     `%cListening: %c${
       evt.secure ? "https://" : "http://"
@@ -1000,6 +1000,24 @@ router.get("/shields/:module/popularity", async (ctx) => {
   );
 });
 
+router.addEventListener("handled", (evt) => {
+  if (evt.measure.duration > 5000) {
+    let url;
+    try {
+      url = new URL(evt.request.url);
+    } catch {
+      // just swallow errors here
+    }
+    console.warn(
+      `%c${evt.request.method} ${url?.pathname} - [${evt.response.status}] ${
+        evt.measure.duration.toFixed(2)
+      }ms`,
+      "color:yellow",
+    );
+  }
+});
+
+/*
 router.addEventListener("handled", (evt) => {
   const responseColor = evt.response.status < 400
     ? "color:green"
