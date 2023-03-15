@@ -155,16 +155,17 @@ export async function lookupSourcePage(
     const res = await datastore.lookup(keys);
     if (res.found) {
       for (const { entity } of res.found) {
-        assert(entity.key, "Entity assertion failed for " + JSON.stringify(entity));
+        assert(entity.key, "Entity assertion failed for " + JSON.stringify(res.found));
         const entityKind = entity.key.path[entity.key.path.length - 1].kind;
         switch (entityKind) {
-          case kinds.MODULE_KIND:
+          case kinds.MODULE_KIND: {
             moduleItem = entityToObject(entity);
             cachedModules.set(module, moduleItem);
             break;
+          }
           case kinds.MODULE_VERSION_KIND: {
             versionItem = entityToObject(entity);
-            assert(moduleItem, "ModuleItem assertion failed for " + JSON.stringify(entity));
+            assert(moduleItem, "ModuleItem assertion failed for " + JSON.stringify(res.found));
             if (!cachedVersions.has(moduleItem)) {
               cachedVersions.set(moduleItem, new Map());
             }
@@ -174,7 +175,7 @@ export async function lookupSourcePage(
           }
           case kinds.CODE_PAGE_KIND: {
             sourcePageItem = entityToObject(entity);
-            assert(versionItem, "sourcePageItem assertion failed for " + JSON.stringify(entity));
+            assert(versionItem, "sourcePageItem assertion failed for " + JSON.stringify(res.found));
             if (!cachedSourcePages.has(versionItem)) {
               cachedSourcePages.set(versionItem, new Map());
             }
