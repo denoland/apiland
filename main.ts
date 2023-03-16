@@ -493,7 +493,7 @@ router.get("/v2/modules/:module/:version/doc/:path*", async (ctx) => {
     return redirectToLatest(ctx.url(), module);
   }
   // puts too much pressure on datastore
-  if (module === "aws-sdk") return undefined;
+  if (module === "aws_sdk") return undefined;
   datastore = datastore ?? await getDatastore();
   const moduleEntryKey = datastore.key(
     [kinds.MODULE_KIND, module],
@@ -534,7 +534,7 @@ router.get("/v2/modules/:module/:version/index/:path*{/}?", async (ctx) => {
     return redirectToLatest(ctx.url(), module);
   }
   // puts too much pressure on datastore
-  if (module === "aws-sdk") return undefined;
+  if (module === "aws_sdk") return undefined;
   const path = `/${paramPath}`;
   datastore = datastore ?? await getDatastore();
   const indexKey = datastore.key(
@@ -570,7 +570,7 @@ async function moduleSourcePage(
     return redirectToLatest(ctx.url(), module);
   }
   // puts too much pressure on datastore
-  if (module === "aws-sdk") return undefined;
+  if (module === "aws_sdk") return undefined;
   const path = `/${paramPath}`;
   let sourcePage = await lookupSourcePage(module, version, path);
   if (!sourcePage) {
@@ -610,7 +610,7 @@ router.get("/v2/pages/mod/info/:module/:version{/}?", async (ctx) => {
     return redirectToLatest(ctx.url(), module);
   }
   // puts too much pressure on datastore
-  if (module === "aws-sdk") return undefined;
+  if (module === "aws_sdk") return undefined;
   let infoPage = await lookupInfoPage(module, version);
   if (!infoPage) {
     infoPage = await generateInfoPage(module, version);
@@ -635,7 +635,7 @@ async function moduleDocPage(ctx: Context<unknown, ModuleDocPagesParams>) {
   const path = `/${paramPath}`;
   const symbol = ctx.searchParams.symbol ?? ROOT_SYMBOL;
   // puts too much pressure on datastore
-  if (module === "aws-sdk") return undefined;
+  if (module === "aws_sdk") return undefined;
   let docPage = await lookupDocPage(module, version, path, symbol);
   if (!docPage) {
     datastore = datastore ?? await getDatastore();
