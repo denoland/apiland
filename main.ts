@@ -492,6 +492,8 @@ router.get("/v2/modules/:module/:version/doc/:path*", async (ctx) => {
   if (version === "__latest__") {
     return redirectToLatest(ctx.url(), module);
   }
+  // puts too much pressure on datastore
+  if (module === "aws-sdk") return undefined;
   datastore = datastore ?? await getDatastore();
   const moduleEntryKey = datastore.key(
     [kinds.MODULE_KIND, module],
