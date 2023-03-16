@@ -1903,6 +1903,8 @@ export async function getDocNodes(
   version: string,
   entry: string,
 ): Promise<[entry: string, nodes: DenoDocNode[]] | undefined> {
+  // puts too much pressure on datastore
+  if (module === "aws-sdk") return
   const datastore = await getDatastore();
   const ancestor = datastore.key(
     [kinds.MODULE_KIND, module],
