@@ -556,7 +556,10 @@ function getPagePathNotFound(
 function getPageInvalidVersion(
   { name: module, description, versions, latest_version }: Module,
 ): PageInvalidVersion {
-  assert(latest_version, "Assertion failed for " + JSON.stringify({ module, versions }));
+  assert(
+    latest_version,
+    "Assertion failed for " + JSON.stringify({ module, versions }),
+  );
   return {
     kind: "invalid-version",
     module,
