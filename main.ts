@@ -537,7 +537,6 @@ router.get("/v2/modules/:module/:version/index/:path*{/}?", async (ctx) => {
     return redirectToLatest(ctx.url(), module);
   }
   // puts too much pressure on datastore
-  if (DISABLED_MODULES.includes(module)) return undefined;
   const path = `/${paramPath}`;
   datastore = datastore ?? await getDatastore();
   const indexKey = datastore.key(
@@ -573,7 +572,6 @@ async function moduleSourcePage(
     return redirectToLatest(ctx.url(), module);
   }
   // puts too much pressure on datastore
-  if (DISABLED_MODULES.includes(module)) return undefined;
   const path = `/${paramPath}`;
   let sourcePage = await lookupSourcePage(module, version, path);
   if (!sourcePage) {
@@ -613,7 +611,6 @@ router.get("/v2/pages/mod/info/:module/:version{/}?", async (ctx) => {
     return redirectToLatest(ctx.url(), module);
   }
   // puts too much pressure on datastore
-  if (DISABLED_MODULES.includes(module)) return undefined;
   let infoPage = await lookupInfoPage(module, version);
   if (!infoPage) {
     infoPage = await generateInfoPage(module, version);
