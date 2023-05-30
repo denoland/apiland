@@ -34,7 +34,7 @@ import {
   getCompletions,
   getPathDoc,
 } from "./completions.ts";
-import { indexes, kinds, ROOT_SYMBOL } from "./consts.ts";
+import { GITHUB_HOOKS_CIDRS, indexes, kinds, ROOT_SYMBOL } from "./consts.ts";
 import {
   checkMaybeLoad,
   type DocNode,
@@ -60,7 +60,7 @@ import {
   ModuleMetrics,
   SubModuleMetrics,
 } from "./types.d.ts";
-import { assert, getPopularityLabel } from "./util.ts";
+import { assert, getPopularityLabel, isIp4InCidrs } from "./util.ts";
 import type {
   WebhookPayloadCreate,
   WebhookPayloadPing,
@@ -938,6 +938,95 @@ router.post(
         );
     }
   }, endpointAuth),
+);
+
+router.post(
+  "/webhook/gh/:module",
+  async (
+    ctx: Context<
+      WebhookPayloadCreate | WebhookPayloadPing | WebhookPayloadPush
+    >,
+  ) => {
+    if (!isIp4InCidrs(((ctx.addr as Deno.Addr) as Deno.NetAddr).hostname, GITHUB_HOOKS_CIDRS)) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: "request does not come from GitHub",
+        }),
+        {
+          status: 400,
+        },
+      );
+    }
+
+    if (    !(ctx.request.headers.get("content-type") ?? "").startsWith("application/json") &&
+      !(ctx.request.headers.get("content-type") ?? "").startsWith(
+        "application/x-www-form-urlencoded",
+      )
+    ) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: "content-type is not json or x-www-form-urlencoded",
+        }),
+        {
+          status: 400,
+        },
+      );
+    }
+
+    let body;
+
+    if ((ctx.request.headers.get("content-type") ?? "").startsWith("application/json")) {
+      body = await ctx.body();
+    } else {
+      body = ctx.searchParams.payload;
+    }
+
+    if (!body) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: "no body provided",
+        }),
+        {
+          status: 400,
+        },
+      );
+    }
+
+    const ghEvent = ctx.request.headers.get("x-github-event");
+    switch (ghEvent) {
+      case "ping":
+        return pingEvent(
+          ctx.params.module,
+          body as WebhookPayloadPing,
+          ctx.url().searchParams,
+        );
+      case "push":
+        return pushEvent(
+          ctx.params.module,
+          body as WebhookPayloadPush,
+          ctx.url().searchParams,
+        );
+      case "create":
+        return createEvent(
+          ctx.params.module,
+          body as WebhookPayloadCreate,
+          ctx.url().searchParams,
+        );
+      default:
+        return new Response(
+          JSON.stringify({
+            success: false,
+            info: "not a ping, or create event",
+          }),
+          {
+            status: 200,
+          },
+        );
+    }
+  }
 );
 
 // shield.io endpoints

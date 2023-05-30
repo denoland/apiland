@@ -1,7 +1,7 @@
 // Copyright 2018-2022 the Deno authors. All rights reserved. MIT license.
 
-import { assertEquals } from "std/testing/asserts.ts";
-import { moduleDependencyToURLAndDisplay } from "./util.ts";
+import { assert, assertEquals, assertThrows } from "std/testing/asserts.ts";
+import { moduleDependencyToURLAndDisplay, ip4ToInt, isIp4InCidr } from "./util.ts";
 
 Deno.test("moduleDependencyToURLAndDisplay - std", () => {
   const [url1, display1] = moduleDependencyToURLAndDisplay({
@@ -412,4 +412,25 @@ Deno.test("moduleDependencyToURLAndDisplay - other", () => {
 
   assertEquals(url, "foo");
   assertEquals(display, "foo");
+});
+
+Deno.test({
+  name: "ipv4 parsing",
+  fn() {
+    assert(ip4ToInt("1.1.1.1"));
+    assertThrows(() => ip4ToInt("1.1.1.1.1"));
+    assertThrows(() => ip4ToInt("1.1.1.-1"));
+    assertThrows(() => ip4ToInt("1.1.1.300"));
+  },
+});
+
+Deno.test({
+  name: "ipv4 in cidr matches",
+  fn() {
+    assertEquals(isIp4InCidr("1.1.1.1")("0.0.0.0/0"), true);
+    assertEquals(isIp4InCidr("1.1.1.1")("1.1.1.0/24"), true);
+    assertEquals(isIp4InCidr("1.1.1.1")("1.1.1.0/31"), true);
+    assertEquals(isIp4InCidr("1.1.1.1")("1.1.1.0/32"), false);
+    assertEquals(isIp4InCidr("1.1.1.1")("1.2.1.0/31"), false);
+  },
 });

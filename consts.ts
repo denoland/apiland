@@ -277,3 +277,11 @@ export const patterns = {
 };
 
 export const SYMBOL_REGEX = /^[a-zA-Z0-9$_.]+$/;
+
+// From https://api.github.com/meta
+export const GITHUB_HOOKS_CIDRS = [
+  "192.30.252.0/22",
+  "185.199.108.0/22",
+  "140.82.112.0/20",
+  "143.55.64.0/20",
+];
