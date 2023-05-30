@@ -35,7 +35,6 @@ import { assert } from "./util.ts";
 import { ApiModuleData } from "./types.d.ts";
 
 const DENO_CDN = "https://cdn.deno.land/";
-const DENO_API = "https://api.deno.land/modules/";
 export const RE_IGNORED_MODULE =
   /(\/[_.].|(test|.+_test)\.(js|jsx|mjs|cjs|ts|tsx|mts|cts)$)/i;
 const RE_MODULE_EXT = /\.(?:js|jsx|mjs|cjs|ts|tsx|mts|cts)$/i;
