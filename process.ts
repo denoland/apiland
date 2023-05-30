@@ -289,7 +289,7 @@ async function taskLoadModule(
   const result = await datastore.lookup(moduleDataKey);
   const entity = result.found?.[0].entity;
   assert(entity, "Module data missing");
-  const moduleData = entityToObject<ApiModuleData>(result.found[0].entity);
+  const moduleData = entityToObject<ApiModuleData>(result.found![0].entity);
   const moduleMetaVersion = await getModuleMetaVersions(module);
   assert(moduleMetaVersion, "module version data missing");
 

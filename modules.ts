@@ -242,7 +242,7 @@ export async function loadModule(
   const result = await datastore.lookup(moduleDataKey);
   const entity = result.found?.[0].entity;
   assert(entity, "Module data missing");
-  const moduleData = entityToObject<ApiModuleData>(result.found[0].entity);
+  const moduleData = entityToObject<ApiModuleData>(result.found![0].entity);
   const moduleMetaVersion = await getModuleMetaVersions(module);
 
   const mutations: Mutation[] = [];
