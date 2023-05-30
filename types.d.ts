@@ -29,21 +29,6 @@ export interface ApiModuleData {
   created_at: Date;
 }
 
-export interface ApiBuild {
-  id: string;
-  // deno-lint-ignore camelcase
-  created_at: Date;
-  options: {
-    moduleName: string;
-    type: string;
-    repository: string;
-    ref: string;
-    version: string;
-    subdir?: string;
-  };
-  status: BuildStatus;
-  message?: string;
-}
 export interface OwnerQuota {
   owner: string;
   type: string;

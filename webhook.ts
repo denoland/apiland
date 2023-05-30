@@ -22,7 +22,6 @@ import {
   getSQSQueue,
 } from "./auth.ts";
 import {
-  ApiBuild,
   ApiModuleData,
   Build,
   ModuleMetaVersionsJson,
@@ -225,29 +224,14 @@ async function initiateBuild({
 
   const id = crypto.randomUUID();
 
-  const legacyBuild: ApiBuild = {
-    id,
-    options: {
-      type: "github",
-      moduleName: module,
-      repository: `${owner}/${repo}`,
-      ref,
-      version,
-      subdir: subdir ?? undefined,
-    },
-    status: "queued",
-    created_at: new Date(),
-  };
-
   datastore ??= await getDatastore();
-  objectSetKey(legacyBuild, datastore.key([kinds.LEGACY_BUILDS, id]));
 
   const newBuild: Build = {
     id,
     module,
     version,
     status: "queued",
-    created_at: legacyBuild.created_at,
+    created_at: new Date(),
     upload_options: {
       type: "github",
       repository: `${owner}/${repo}`,
@@ -259,7 +243,6 @@ async function initiateBuild({
   objectSetKey(newBuild, datastore.key([kinds.BUILD_KIND, id]));
 
   mutations.push(
-    { upsert: objectToEntity(legacyBuild) },
     { upsert: objectToEntity(newBuild) },
   );
 
@@ -560,12 +543,12 @@ async function checkVersion(
   }
 
   datastore = datastore ?? await getDatastore();
-  const query = datastore
-    .createQuery(kinds.LEGACY_BUILDS)
-    .filter("options.moduleName", module)
-    .filter("options.version", version);
+  const query = datastore!
+    .createQuery(kinds.BUILD_KIND)
+    .filter("module", module)
+    .filter("version", version);
 
-  const builds = await datastore.query<ApiBuild>(query);
+  const builds = await datastore!.query<Build>(query);
   if (builds[0] && builds[0].status !== "error") {
     return new Response(
       JSON.stringify({
