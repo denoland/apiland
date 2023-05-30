@@ -53,7 +53,8 @@ const cachedLibDocPages = new WeakMap<
 /** The "LRU" for modules names. */
 const cachedModuleNames = new Set<string>();
 
-let bc: BroadcastChannel | undefined;
+// deno-lint-ignore no-explicit-any
+let bc: any | undefined;
 
 if ("BroadcastChannel" in globalThis) {
   console.log(
@@ -61,9 +62,10 @@ if ("BroadcastChannel" in globalThis) {
     "color:green",
     "color:none",
   );
-  bc = new BroadcastChannel("cache_clear");
+  // deno-lint-ignore no-explicit-any
+  bc = new (globalThis as any).BroadcastChannel("cache_clear");
 
-  bc.addEventListener("message", ({ data }) => {
+  bc.addEventListener("message", ({ data }: { data: unknown }) => {
     const module = String(data);
     console.log(
       `%cReceived%c clear cache for module: %c"${module}"%c.`,
