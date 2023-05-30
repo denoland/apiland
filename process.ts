@@ -39,7 +39,6 @@ import {
 import {
   clearModule,
   getIndexedModules,
-  getModuleData,
   getModuleMetaVersions,
   getSubdirs,
   getVersionMeta,
@@ -57,6 +56,7 @@ import type {
   SymbolIndexItem,
 } from "./types.d.ts";
 import { assert } from "./util.ts";
+import { ApiModuleData } from "./types.d.ts";
 
 interface TaskBase {
   kind: string;
@@ -284,13 +284,16 @@ async function taskLoadModule(
     "color:cyan",
     "color:none",
   );
-  const moduleData = await getModuleData(module);
-  assert(moduleData, "module data missing");
+  const datastore = await getDatastore();
+  const moduleDataKey = datastore.key([kinds.LEGACY_MODULES, module]);
+  const result = await datastore.lookup(moduleDataKey);
+  const entity = result.found?.[0].entity;
+  assert(entity, "Module data missing");
+  const moduleData = entityToObject<ApiModuleData>(result.found[0].entity);
   const moduleMetaVersion = await getModuleMetaVersions(module);
   assert(moduleMetaVersion, "module version data missing");
 
   const mutations: Mutation[] = [];
-  const datastore = await getDatastore();
 
   const moduleKey = datastore.key(
     [kinds.MODULE_KIND, module],
@@ -301,17 +304,17 @@ async function taskLoadModule(
   if (lookupResult.found) {
     assert(lookupResult.found.length === 1, "More than one item found.");
     moduleItem = entityToObject(lookupResult.found[0].entity);
-    moduleItem.description = moduleData.data.description;
+    moduleItem.description = moduleData.description;
     moduleItem.versions = moduleMetaVersion.versions;
     moduleItem.latest_version = moduleMetaVersion.latest;
-    moduleItem.star_count = moduleData.data.star_count;
+    moduleItem.star_count = moduleData.star_count;
   } else {
     moduleItem = {
       name: module,
-      description: moduleData.data.description,
+      description: moduleData.description,
       versions: moduleMetaVersion.versions,
       latest_version: moduleMetaVersion.latest,
-      star_count: moduleData.data.star_count,
+      star_count: moduleData.star_count,
     };
     objectSetKey(moduleItem, moduleKey);
   }

@@ -13,10 +13,6 @@ import type {
 } from "deno_doc/types";
 import type { patterns } from "./consts.ts";
 
-export interface ApiModuleDataResponse {
-  data: ApiModuleData;
-}
-
 export interface ApiModuleData {
   name: string;
   type: string;

@@ -23,7 +23,6 @@ import {
 import { kinds } from "./consts.ts";
 import { isDocable } from "./docs.ts";
 import type {
-  ApiModuleDataResponse,
   Module,
   ModuleEntry,
   ModuleMetaVersionsJson,
@@ -33,6 +32,7 @@ import type {
   PageNoVersions,
 } from "./types.d.ts";
 import { assert } from "./util.ts";
+import { ApiModuleData } from "./types.d.ts";
 
 const DENO_CDN = "https://cdn.deno.land/";
 const DENO_API = "https://api.deno.land/modules/";
@@ -75,16 +75,6 @@ export function getIndexModule(paths?: string[]): string | undefined {
       return item;
     }
   }
-}
-
-export async function getModuleData(
-  module: string,
-): Promise<ApiModuleDataResponse | undefined> {
-  const res = await fetch(`${DENO_API}${module}`);
-  if (res.status !== 200) {
-    return undefined;
-  }
-  return res.json();
 }
 
 export async function getModuleMetaVersions(
@@ -248,26 +238,29 @@ export async function loadModule(
     moduleEntries: ModuleEntry[],
   ]
 > {
-  const moduleData = await getModuleData(module);
-  assert(moduleData, "Module data missing");
+  const datastore = await getDatastore();
+  const moduleDataKey = datastore.key([kinds.LEGACY_MODULES, module]);
+  const result = await datastore.lookup(moduleDataKey);
+  const entity = result.found?.[0].entity;
+  assert(entity, "Module data missing");
+  const moduleData = entityToObject<ApiModuleData>(result.found[0].entity);
   const moduleMetaVersion = await getModuleMetaVersions(module);
 
   const mutations: Mutation[] = [];
-  const datastore = await getDatastore();
   const moduleKey = datastore.key([kinds.MODULE_KIND, module]);
 
   let [moduleItem] = await lookup(module);
   if (moduleItem) {
-    moduleItem.description = moduleData.data.description;
+    moduleItem.description = moduleData.description;
     // for some reason, the version.json contains multiple versions, so we do a
     // quick de-dupe of them here
     moduleItem.versions = [...new Set(moduleMetaVersion?.versions ?? [])];
     moduleItem.latest_version = moduleMetaVersion?.latest ?? null;
-    moduleItem.star_count = moduleData.data.star_count;
+    moduleItem.star_count = moduleData.star_count;
   } else {
     moduleItem = {
       name: module,
-      description: moduleData.data.description,
+      description: moduleData.description,
       // sometimes there are duplicates in the versions, so dedupe
       versions: [...new Set(moduleMetaVersion?.versions) ?? []],
       latest_version: moduleMetaVersion?.latest ?? null,
