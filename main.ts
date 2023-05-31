@@ -947,7 +947,12 @@ router.post(
       WebhookPayloadCreate | WebhookPayloadPing | WebhookPayloadPush
     >,
   ) => {
-    if (!isIp4InCidrs(((ctx.addr as Deno.Addr) as Deno.NetAddr).hostname, GITHUB_HOOKS_CIDRS)) {
+    if (
+      !isIp4InCidrs(
+        ((ctx.addr as Deno.Addr) as Deno.NetAddr).hostname,
+        GITHUB_HOOKS_CIDRS,
+      )
+    ) {
       return new Response(
         JSON.stringify({
           success: false,
@@ -959,7 +964,10 @@ router.post(
       );
     }
 
-    if (    !(ctx.request.headers.get("content-type") ?? "").startsWith("application/json") &&
+    if (
+      !(ctx.request.headers.get("content-type") ?? "").startsWith(
+        "application/json",
+      ) &&
       !(ctx.request.headers.get("content-type") ?? "").startsWith(
         "application/x-www-form-urlencoded",
       )
@@ -977,7 +985,11 @@ router.post(
 
     let body;
 
-    if ((ctx.request.headers.get("content-type") ?? "").startsWith("application/json")) {
+    if (
+      (ctx.request.headers.get("content-type") ?? "").startsWith(
+        "application/json",
+      )
+    ) {
       body = await ctx.body();
     } else {
       body = ctx.searchParams.payload;
@@ -1026,7 +1038,7 @@ router.post(
           },
         );
     }
-  }
+  },
 );
 
 // shield.io endpoints

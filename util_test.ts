@@ -1,7 +1,11 @@
 // Copyright 2018-2022 the Deno authors. All rights reserved. MIT license.
 
 import { assert, assertEquals, assertThrows } from "std/testing/asserts.ts";
-import { moduleDependencyToURLAndDisplay, ip4ToInt, isIp4InCidr } from "./util.ts";
+import {
+  ip4ToInt,
+  isIp4InCidr,
+  moduleDependencyToURLAndDisplay,
+} from "./util.ts";
 
 Deno.test("moduleDependencyToURLAndDisplay - std", () => {
   const [url1, display1] = moduleDependencyToURLAndDisplay({
