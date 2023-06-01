@@ -2,7 +2,7 @@
   "imports": {
     "@algolia/client-search": "https://esm.sh/@algolia/client-search@4.14.2?pin=v90",
     "@algolia/requester-fetch": "https://esm.sh/@algolia/requester-fetch@4.14.2?pin=v90",
-    "acorn": "https://deno.land/x/acorn@0.1.1/mod.ts",
+    "acorn": "https://deno.land/x/acorn@0.3.0/mod.ts",
     "algoliasearch": "https://esm.sh/algoliasearch@4.14.2?pin=v90",
     "dax": "https://deno.land/x/dax@0.13.0/mod.ts",
     "deno_doc": "https://deno.land/x/deno_doc@0.56.0/mod.ts",

@@ -947,12 +947,7 @@ router.post(
       WebhookPayloadCreate | WebhookPayloadPing | WebhookPayloadPush
     >,
   ) => {
-    if (
-      !isIp4InCidrs(
-        ((ctx.addr as Deno.Addr) as Deno.NetAddr).hostname,
-        GITHUB_HOOKS_CIDRS,
-      )
-    ) {
+    if (!isIp4InCidrs(ctx.addr.hostname, GITHUB_HOOKS_CIDRS)) {
       return new Response(
         JSON.stringify({
           success: false,
