@@ -2501,14 +2501,10 @@ components:
         pageviews:
           type: integer
           example: 12345
-        uniquePageviews:
-          type: integer
-          example: 5423
         unstable:
           type: boolean
       required:
         - "pageviews"
-        - "uniquePageviews"
     WebhookResponse:
       type: object
       properties:
