@@ -20,7 +20,6 @@ export interface ApiModuleData {
   owner: string;
   repo: string;
   description: string;
-  star_count: number;
   is_unlisted: boolean;
   created_at: Date;
 }
@@ -122,8 +121,6 @@ export interface Module {
   description: string;
   versions: string[];
   latest_version: string | null;
-  /** @deprecated Use `popularity_score` instead. */
-  star_count?: number;
   maintenance_score?: number;
   /** A weighted score of how popular a module is. */
   popularity_score?: number;
@@ -266,8 +263,6 @@ export interface PageBase {
   latest_version: string;
   uploaded_at: string;
   upload_options: UploadOptions;
-  /** @deprecated */
-  star_count?: number;
   tags?: ModuleTag[];
 }
 

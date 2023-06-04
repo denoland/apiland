@@ -1988,9 +1988,6 @@ components:
         latest_version:
           type: string
           example: v10.0.1
-        star_count:
-          type: number
-          example: 4567
         versions:
           type: array
           items:
@@ -2247,9 +2244,6 @@ components:
           example: 2022-05-06T01:03:14.774Z
         upload_options:
           $ref: "#/components/schemas/UploadOptions"
-        star_count:
-          type: number
-          example: 2406
         tags:
           type: array
           items:
