@@ -1,12 +1,12 @@
 terraform {
-    backend "gcs" {
-        prefix = "terraform"
-    }
+  backend "gcs" {
+    prefix = "terraform"
+  }
 }
 
 provider "aws" {
-  region = "us-east-1"
-  profile = "${var.aws_profile}"
+  region  = "us-east-1"
+  profile = var.aws_profile
 }
 
 provider "google" {

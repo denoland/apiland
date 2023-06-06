@@ -1,11 +1,11 @@
 
 variable "aws_profile" {
-  type = string
+  type    = string
   default = "default"
 }
 
 variable "environment" {
-  type = string
+  type    = string
   default = "prod"
 }
 

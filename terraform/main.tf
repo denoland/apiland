@@ -1,6 +1,3 @@
-
-
-
 resource "aws_iam_user" "apiland" {
   name = "${var.environment}-apiland"
   path = "/"
@@ -15,8 +12,6 @@ resource "aws_iam_user_policy" "apiland" {
   name = "${var.environment}-apiland"
   user = aws_iam_user.apiland.name
 
-
-// deno-registry2-prod-moderationbucket-b3a31d16
   policy = <<EOF
 {
   "Version": "2012-10-17",
