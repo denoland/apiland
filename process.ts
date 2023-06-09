@@ -307,14 +307,12 @@ async function taskLoadModule(
     moduleItem.description = moduleData.description;
     moduleItem.versions = moduleMetaVersion.versions;
     moduleItem.latest_version = moduleMetaVersion.latest;
-    moduleItem.star_count = moduleData.star_count;
   } else {
     moduleItem = {
       name: module,
       description: moduleData.description,
       versions: moduleMetaVersion.versions,
       latest_version: moduleMetaVersion.latest,
-      star_count: moduleData.star_count,
     };
     objectSetKey(moduleItem, moduleKey);
   }

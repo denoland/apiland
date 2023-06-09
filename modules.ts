@@ -255,7 +255,6 @@ export async function loadModule(
     // quick de-dupe of them here
     moduleItem.versions = [...new Set(moduleMetaVersion?.versions ?? [])];
     moduleItem.latest_version = moduleMetaVersion?.latest ?? null;
-    moduleItem.star_count = moduleData.star_count;
   } else {
     moduleItem = {
       name: module,
