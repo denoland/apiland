@@ -90,7 +90,6 @@ export interface LegacyIndex {
   name: string;
   description: string;
   version: string;
-  star_count?: number;
   uploaded_at: string;
   upload_options: {
     type: string;
@@ -333,7 +332,7 @@ export async function checkMaybeLoad(
 
 function getPageBase<Kind extends DocPage["kind"] | SourcePage["kind"]>(
   kind: Kind,
-  { star_count, versions, latest_version, tags }: Module,
+  { versions, latest_version, tags }: Module,
   { name: module, version, uploaded_at, upload_options, description }:
     ModuleVersion,
   path: string,
@@ -349,7 +348,6 @@ function getPageBase<Kind extends DocPage["kind"] | SourcePage["kind"]>(
     latest_version,
     uploaded_at: uploaded_at.toISOString(),
     upload_options,
-    star_count,
     tags,
   };
 }

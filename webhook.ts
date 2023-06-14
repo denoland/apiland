@@ -38,7 +38,6 @@ export async function pingEvent(
   const [owner, repo] = body.repository.full_name.split("/");
   const repoId = body.repository.id;
   const description = body.repository.description ?? "";
-  const starCount = body.repository.stargazers_count;
   const sender = body.sender.login;
   const subdirRaw = decodeURIComponent(searchParams.get("subdir") ?? "") ||
     null;
@@ -52,7 +51,6 @@ export async function pingEvent(
     subdir,
     repo,
     description,
-    starCount,
   );
   if (res instanceof Response) {
     return res;
@@ -120,7 +118,6 @@ export async function pushEvent(
     sender: body.sender.login,
     ref,
     description: body.repository.description ?? "",
-    starCount: body.repository.stargazers_count,
     versionPrefix,
     subdir: normalizeSubdir(subdirRaw),
   });
@@ -159,7 +156,6 @@ export async function createEvent(
     sender: body.sender.login,
     ref: body.ref,
     description: body.repository.description ?? "",
-    starCount: body.repository.stargazers_count,
     versionPrefix,
     subdir: normalizeSubdir(subdirRaw),
   });
@@ -173,7 +169,6 @@ async function initiateBuild({
   sender,
   ref,
   description,
-  starCount,
   versionPrefix,
   subdir,
 }: {
@@ -184,7 +179,6 @@ async function initiateBuild({
   sender: string;
   ref: string;
   description: string;
-  starCount: number;
   versionPrefix: string;
   subdir: string | null;
 }): Promise<Response> {
@@ -210,7 +204,6 @@ async function initiateBuild({
     subdir,
     repo,
     description,
-    starCount,
   );
   if (res instanceof Response) {
     return res;
@@ -281,7 +274,6 @@ async function checkAndUpdateModule(
   subdir: string | null,
   repo: string,
   description: string,
-  starCount: number,
 ): Promise<Response | Mutation> {
   datastore = datastore ?? await getDatastore();
 
@@ -314,7 +306,6 @@ async function checkAndUpdateModule(
     owner,
     repo,
     description,
-    star_count: starCount,
   };
   objectSetKey(newModule, key);
 
