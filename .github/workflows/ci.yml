@@ -20,6 +20,7 @@ jobs:
       GOOGLE_PRIVATE_KEY: ${{ secrets.GOOGLE_PRIVATE_KEY }}
       GOOGLE_PRIVATE_KEY_ID: ${{ secrets.GOOGLE_PRIVATE_KEY_ID }}
       GOOGLE_PROJECT_ID: ${{ secrets.GOOGLE_PROJECT_ID }}
+      STORAGE_BUCKET: ${{ secrets.STORAGE_BUCKET }}
       MODERATION_BUCKET: ${{ secrets.MODERATION_BUCKET }}
       BUILD_QUEUE: ${{ secrets.BUILD_QUEUE }}
       AWS_REGION: ${{ secrets.AWS_REGION }}
