@@ -1,10 +1,8 @@
 {
   "fmt": {
-    "files": {
-      "exclude": [
-        "mocks"
-      ]
-    }
+    "exclude": [
+      "mocks"
+    ]
   },
   "importMap": "./import-map.json",
   "tasks": {
