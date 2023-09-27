@@ -179,6 +179,11 @@ export async function load(
       cacheSize += content.length;
       enqueueCheck();
       return loadResponse;
+    } else if (url.protocol === "node:" || url.protocol === "npm:") {
+      return {
+        kind: "external",
+        specifier,
+      };
     }
   } catch {
     cachedResources.set(specifier, undefined);
