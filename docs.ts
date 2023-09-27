@@ -246,8 +246,12 @@ export async function getImportMapSpecifier(
   if (result?.kind === "module") {
     const { specifier, content } = result;
     const configFileJson: ConfigFileJson | undefined = JSONC.parse(content);
-    if (configFileJson && configFileJson.importMap) {
-      return new URL(configFileJson.importMap, specifier).toString();
+    if (configFileJson) {
+      if (configFileJson.imports) {
+        return new URL(specifier).toString();
+      } else if (configFileJson.importMap) {
+        return new URL(configFileJson.importMap, specifier).toString();
+      }
     }
     return undefined;
   }
