@@ -465,7 +465,7 @@ async function hasReachedQuota(
 
   const maxModuleQuota = ownerQuota?.max_modules ??
     MAX_MODULES_PER_OWNER_DEFAULT;
-  if (!entry && modulesForOwner >= (maxModuleQuota)) {
+  if (!entry && modulesForOwner >= maxModuleQuota) {
     return new Response(
       JSON.stringify({
         success: false,
