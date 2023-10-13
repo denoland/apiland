@@ -2505,9 +2505,9 @@ components:
         result:
           type: string
           example: enqueued
-        id:
-          type: number
-          example: 1
+        timestamp:
+          type: string
+          example: 00000000000000010000
     pong:
       type: object
       properties:
