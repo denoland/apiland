@@ -15,11 +15,7 @@ import type {
   WebhookPayloadPush,
 } from "./webhooks.d.ts";
 import { kinds, kv } from "./consts.ts";
-import {
-  getDatastore,
-  getModerationS3Bucket,
-  getS3Bucket,
-} from "./auth.ts";
+import { getDatastore, getModerationS3Bucket, getS3Bucket } from "./auth.ts";
 import {
   ApiModuleData,
   Build,
@@ -612,8 +608,8 @@ export async function uploadVersionRaw(
     (file.endsWith(".tsx")
       ? "application/typescript; charset=utf-8"
       : file.endsWith(".tsx")
-        ? "application/javascript; charset=utf-8"
-        : "application/octet-stream");
+      ? "application/javascript; charset=utf-8"
+      : "application/octet-stream");
   const resp = await s3.putObject(
     join(module, "versions", version, "raw", file),
     contents,
@@ -623,8 +619,8 @@ export async function uploadVersionRaw(
       contentType: type === "video/mp2t"
         ? "application/typescript; charset=utf-8"
         : type === "text/jsx"
-          ? "application/javascript; charset=utf-8"
-          : type,
+        ? "application/javascript; charset=utf-8"
+        : type,
     },
   );
   return { etag: resp.etag };

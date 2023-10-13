@@ -144,7 +144,6 @@ async function publishGithub(build: Build) {
     //
   }
 
-
   const versions = await getMeta(module);
   await uploadMetaJson(
     module,
