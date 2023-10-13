@@ -22,7 +22,7 @@ import {
   ModuleMetaVersionsJson,
   OwnerQuota,
 } from "./types.d.ts";
-export { lookup } from "https://deno.land/x/media_types@v2.13.0/mod.ts";
+import { lookup } from "https://deno.land/x/media_types@v2.13.0/mod.ts";
 
 let datastore: Datastore | undefined;
 
