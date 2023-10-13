@@ -114,6 +114,7 @@ type NullableSymbolItem = SymbolItem | { kind: "null" };
 type DocNode = DenoDocNode | DocNodeNull;
 
 interface ConfigFileJson {
+  imports?: Record<string, string>;
   importMap?: string;
 }
 
