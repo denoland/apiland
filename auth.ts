@@ -15,7 +15,6 @@ import {
   objectToEntity,
 } from "google_datastore";
 import { S3Bucket } from "s3";
-import { SQSQueue } from "sqs";
 import { load } from "std/dotenv/mod.ts";
 
 import { kinds, ROOT_SYMBOL } from "./consts.ts";
@@ -204,21 +203,6 @@ export async function getModerationS3Bucket(): Promise<S3Bucket | undefined> {
   await readyPromise;
   return moderationS3Bucket = new S3Bucket({
     bucket: moderationbucket,
-    ...awsKeys,
-  });
-}
-
-let sqsQueue: SQSQueue | undefined;
-
-/** Return an instance of the s3 moderation bucket configured to be authorized
- * using the environmental configuration. */
-export async function getSQSQueue(): Promise<SQSQueue> {
-  if (sqsQueue) {
-    return sqsQueue;
-  }
-  await readyPromise;
-  return sqsQueue = new SQSQueue({
-    queueURL: Deno.env.get("BUILD_QUEUE")!,
     ...awsKeys,
   });
 }
