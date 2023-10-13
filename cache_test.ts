@@ -27,10 +27,10 @@ Deno.test({
   async fn() {
     clear();
     performance.mark("gv-gm1");
-    const [, gv1] = await lookup("std", "0.189.0");
+    const [, gv1] = await lookup("std", "0.203.0");
     assert(gv1);
     performance.mark("gv-gv1");
-    const [, gv2] = await lookup("std", "0.189.0");
+    const [, gv2] = await lookup("std", "0.203.0");
     performance.mark("gv-gv2");
     assertStrictEquals(gv1, gv2);
     const pass1 = performance.measure("gv-pass1", "gv-gm1", "gv-gv1");
@@ -45,10 +45,10 @@ Deno.test({
   async fn() {
     clear();
     performance.mark("me-gm1");
-    const [, , me1] = await lookup("std", "0.189.0", "/");
+    const [, , me1] = await lookup("std", "0.203.0", "/");
     assert(me1);
     performance.mark("me-me1");
-    const [, , me2] = await lookup("std", "0.189.0", "/");
+    const [, , me2] = await lookup("std", "0.203.0", "/");
     performance.mark("me-me2");
     assertStrictEquals(me1, me2);
     const pass1 = performance.measure("me-pass1", "me-gm1", "me-me1");
@@ -63,10 +63,10 @@ Deno.test({
   async fn() {
     clear();
     performance.mark("dp-gm1");
-    const dp1 = await lookupDocPage("std", "0.190.0", "/", "$$root$$");
+    const dp1 = await lookupDocPage("std", "0.204.0", "/", "$$root$$");
     assert(dp1);
     performance.mark("dp-dp1");
-    const dp2 = await lookupDocPage("std", "0.190.0", "/", "$$root$$");
+    const dp2 = await lookupDocPage("std", "0.204.0", "/", "$$root$$");
     performance.mark("dp-dp2");
     assertStrictEquals(dp1, dp2);
     const pass1 = performance.measure("dp-pass1", "dp-gm1", "dp-dp1");

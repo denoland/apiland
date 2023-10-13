@@ -16,8 +16,7 @@ import {
 } from "google_datastore";
 import { getDatastore } from "./auth.ts";
 import { lookup } from "./cache.ts";
-import { kinds } from "./consts.ts";
-import { enqueue } from "./process.ts";
+import { kinds, kv } from "./consts.ts";
 import type {
   CompletionItems,
   ModuleEntry,
@@ -191,7 +190,7 @@ export async function getCompletions(
           ),
         );
         completionCache.set(key, pathCompletions);
-        enqueue({
+        await kv.enqueue({
           kind: "commitMutations",
           mutations: [{ upsert: objectToEntity(pathCompletions) }],
         });
@@ -246,7 +245,7 @@ export async function getPathDoc(
             completions.version,
             search,
           );
-          enqueue({
+          await kv.enqueue({
             kind: "commitMutations",
             mutations: [{ upsert: objectToEntity(completions) }],
           });

@@ -285,3 +285,5 @@ export const GITHUB_HOOKS_CIDRS = [
   "140.82.112.0/20",
   "143.55.64.0/20",
 ];
+
+export const kv = await Deno.openKv();
