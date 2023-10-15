@@ -23,7 +23,7 @@ import type {
 
 import { getDatastore } from "./auth.ts";
 import { cacheLibDocPage, cacheSymbolItems, lookupLib } from "./cache.ts";
-import { kv, ROOT_SYMBOL, SYMBOL_REGEX } from "./consts.ts";
+import { ROOT_SYMBOL, SYMBOL_REGEX } from "./consts.ts";
 import {
   dehydrateDocNodes,
   entitiesToDocNodes,
@@ -31,6 +31,7 @@ import {
   isKeyEqual,
   isNamespace,
 } from "./docs.ts";
+import { enqueue } from "./process.ts";
 import type {
   DocNode,
   DocPageLibrary,
@@ -269,6 +270,6 @@ export async function generateLibDocPage(
   }
   cacheLibDocPage(libItem.name, versionItem.version, symbol, docPage);
   mutations.push({ upsert: docPageToEntity(docPage, docPageKey) });
-  await kv.enqueue({ kind: "commitMutations", mutations });
+  enqueue({ kind: "commitMutations", mutations });
   return docPage;
 }

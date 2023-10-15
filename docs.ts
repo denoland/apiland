@@ -46,13 +46,14 @@ import { errors } from "std/http/http_errors.ts";
 import { getAnalysis } from "./analysis.ts";
 import { getDatastore } from "./auth.ts";
 import { cacheInfoPage, lookup } from "./cache.ts";
-import { kinds, kv, ROOT_SYMBOL, SYMBOL_REGEX } from "./consts.ts";
+import { kinds, ROOT_SYMBOL, SYMBOL_REGEX } from "./consts.ts";
 import {
   getIndexModule,
   loadModule,
   RE_IGNORED_MODULE,
   RE_PRIVATE_PATH,
 } from "./modules.ts";
+import { enqueue } from "./process.ts";
 import type {
   DocPage,
   DocPageFile,
@@ -114,7 +115,6 @@ type NullableSymbolItem = SymbolItem | { kind: "null" };
 type DocNode = DenoDocNode | DocNodeNull;
 
 interface ConfigFileJson {
-  imports?: Record<string, string>;
   importMap?: string;
 }
 
@@ -421,7 +421,7 @@ async function getSymbolIndex(
     ),
   );
   appendIndex(items, docNodes);
-  await kv.enqueue({ kind: "commitSymbolIndex", module, version, path, items });
+  enqueue({ kind: "commitSymbolIndex", module, version, path, items });
   return items;
 }
 
@@ -515,7 +515,7 @@ export async function getNav(
           path,
           importMap,
         );
-        await kv.enqueue({
+        enqueue({
           kind: "commit",
           module,
           version,
@@ -548,7 +548,7 @@ export async function getNav(
       }
     }
   }
-  await kv.enqueue({ kind: "commitNav", module, version, path, nav });
+  enqueue({ kind: "commitNav", module, version, path, nav });
   return nav;
 }
 
@@ -653,7 +653,7 @@ export async function generateSourcePage(
         moduleVersion,
         moduleEntry,
       ] = await loadModule(module, version, path);
-      await kv.enqueue({ kind: "commitMutations", mutations });
+      enqueue({ kind: "commitMutations", mutations });
     } catch (e) {
       console.log("error loading module", e);
       return undefined;
@@ -954,7 +954,7 @@ export async function generateInfoPage(
         ,
         moduleEntries,
       ] = await loadModule(module, version);
-      await kv.enqueue({ kind: "commitMutations", mutations });
+      enqueue({ kind: "commitMutations", mutations });
     } catch (e) {
       console.log("error loading module", e);
       return undefined;
@@ -979,7 +979,7 @@ export async function generateInfoPage(
     datastore.key([kinds.MODULE_KIND, module], ["info_page", version]),
   );
   const mutations: Mutation[] = [{ upsert: objectToEntity(infoPage) }];
-  await kv.enqueue({ kind: "commitMutations", mutations });
+  enqueue({ kind: "commitMutations", mutations });
   cacheInfoPage(module, version, infoPage);
   return infoPage;
 }
@@ -1011,7 +1011,7 @@ export async function generateDocPage(
         moduleVersion,
         moduleEntry,
       ] = await loadModule(module, version, path);
-      await kv.enqueue({ kind: "commitMutations", mutations });
+      enqueue({ kind: "commitMutations", mutations });
     } catch (e) {
       console.log("error loading module", e);
       return undefined;
@@ -1480,6 +1480,7 @@ export function addNodes(
 
 /** Given a set of doc nodes, commit them to the datastore. */
 export async function commitDocNodes(
+  id: number,
   module: string,
   version: string,
   path: string,
@@ -1498,7 +1499,7 @@ export async function commitDocNodes(
       const _result of datastore.commit(mutations, { transactional: false })
     ) {
       console.log(
-        `%cCommitted %cbatch for %c${module}@${version}/${path}%c.`,
+        `[${id}]: %cCommitted %cbatch for %c${module}@${version}/${path}%c.`,
         "color:green",
         "color:none",
         "color:yellow",
@@ -1507,7 +1508,7 @@ export async function commitDocNodes(
     }
   } catch (error) {
     if (error instanceof DatastoreError) {
-      console.log(`Datastore Error:`);
+      console.log(`[${id}] Datastore Error:`);
       console.log(`${error.status} ${error.message}`);
       console.log(error.statusInfo);
     } else {
@@ -1519,6 +1520,7 @@ export async function commitDocNodes(
 }
 
 export async function commitModuleIndex(
+  id: number,
   module: string,
   version: string,
   path: string,
@@ -1537,7 +1539,7 @@ export async function commitModuleIndex(
       const _result of datastore.commit(mutations, { transactional: false })
     ) {
       console.log(
-        `%cCommitted %cbatch for %c${module}@${version}/${path}%c.`,
+        `[${id}]: %cCommitted %cbatch for %c${module}@${version}/${path}%c.`,
         "color:green",
         "color:none",
         "color:yellow",
@@ -1546,7 +1548,7 @@ export async function commitModuleIndex(
     }
   } catch (error) {
     if (error instanceof DatastoreError) {
-      console.log(`Datastore Error:`);
+      console.log(`[${id}] Datastore Error:`);
       console.log(`${error.status} ${error.message}`);
       console.log(error.statusInfo);
     } else {
@@ -1558,6 +1560,7 @@ export async function commitModuleIndex(
 }
 
 export async function commitSourcePage(
+  id: number,
   module: string,
   version: string,
   path: string,
@@ -1576,7 +1579,7 @@ export async function commitSourcePage(
       const _result of datastore.commit(mutations, { transactional: false })
     ) {
       console.log(
-        `%cCommitted %cbatch for %c${module}@${version}${path}%c.`,
+        `[${id}]: %cCommitted %cbatch for %c${module}@${version}${path}%c.`,
         "color:green",
         "color:none",
         "color:yellow",
@@ -1585,7 +1588,7 @@ export async function commitSourcePage(
     }
   } catch (error) {
     if (error instanceof DatastoreError) {
-      console.log("Datastore Error:");
+      console.log(`[${id}] Datastore Error:`);
       console.log(`${error.status} ${error.message}`);
       console.log(error.statusInfo);
     } else {
@@ -1597,6 +1600,7 @@ export async function commitSourcePage(
 }
 
 export async function commitDocPage(
+  id: number,
   module: string,
   version: string,
   path: string,
@@ -1621,7 +1625,7 @@ export async function commitDocPage(
       const _result of datastore.commit(mutations, { transactional: false })
     ) {
       console.log(
-        `%cCommitted %cbatch for %c${module}@${version}${path}#${symbol}%c.`,
+        `[${id}]: %cCommitted %cbatch for %c${module}@${version}${path}#${symbol}%c.`,
         "color:green",
         "color:none",
         "color:yellow",
@@ -1630,7 +1634,7 @@ export async function commitDocPage(
     }
   } catch (error) {
     if (error instanceof DatastoreError) {
-      console.log("Datastore Error:");
+      console.log(`[${id}] Datastore Error:`);
       console.log(`${error.status} ${error.message}`);
       console.log(error.statusInfo);
     } else {
@@ -1642,6 +1646,7 @@ export async function commitDocPage(
 }
 
 export async function commitSymbolIndex(
+  id: number,
   module: string,
   version: string,
   path: string,
@@ -1661,7 +1666,7 @@ export async function commitSymbolIndex(
       const _result of datastore.commit(mutations, { transactional: false })
     ) {
       console.log(
-        `%cCommitted %cbatch for %c${module}@${version}/${path}%c.`,
+        `[${id}]: %cCommitted %cbatch for %c${module}@${version}/${path}%c.`,
         "color:green",
         "color:none",
         "color:yellow",
@@ -1670,7 +1675,7 @@ export async function commitSymbolIndex(
     }
   } catch (error) {
     if (error instanceof DatastoreError) {
-      console.log("Datastore Error:");
+      console.log(`[${id}] Datastore Error:`);
       console.log(`${error.status} ${error.message}`);
       console.log(error.statusInfo);
     } else {
@@ -1682,6 +1687,7 @@ export async function commitSymbolIndex(
 }
 
 export async function commitNav(
+  id: number,
   module: string,
   version: string,
   path: string,
@@ -1701,7 +1707,7 @@ export async function commitNav(
       const _result of datastore.commit(mutations, { transactional: false })
     ) {
       console.log(
-        `%cCommitted %cbatch for %c${module}@${version}/${path}%c.`,
+        `[${id}]: %cCommitted %cbatch for %c${module}@${version}/${path}%c.`,
         "color:green",
         "color:none",
         "color:yellow",
@@ -1710,7 +1716,7 @@ export async function commitNav(
     }
   } catch (error) {
     if (error instanceof DatastoreError) {
-      console.log("Datastore Error:");
+      console.log(`[${id}] Datastore Error:`);
       console.log(`${error.status} ${error.message}`);
       console.log(error.statusInfo);
     } else {
@@ -1937,7 +1943,7 @@ export async function getDocNodes(
         // if a module doesn't generate any doc nodes, we need to commit a null
         // node to the datastore, see we don't continue to try to generate doc
         // nodes for a module that doesn't export anything.
-        await kv.enqueue({
+        enqueue({
           kind: "commit",
           module,
           version,
