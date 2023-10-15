@@ -19,7 +19,7 @@ import { getDenoLandApp, Source } from "./algolia.ts";
 import { analyze } from "./analysis.ts";
 import { getDatastore } from "./auth.ts";
 import { clear } from "./cache.ts";
-import { indexes, kinds, kv } from "./consts.ts";
+import { indexes, kinds } from "./consts.ts";
 import {
   addNodes,
   commitDocNodes,
@@ -152,33 +152,43 @@ type TaskDescriptor =
   | CommitSymbolIndexTask
   | CommitNavTask;
 
-function taskCommitDocNodes({ module, version, path, docNodes }: CommitTask) {
+let uid = 1;
+
+const queue: [id: number, desc: TaskDescriptor][] = [];
+
+let processing = false;
+
+function taskCommitDocNodes(
+  id: number,
+  { module, version, path, docNodes }: CommitTask,
+) {
   console.log(
-    `%cCommitting%c doc nodes for %c"${module}@${version}/${path}"%c...`,
+    `[${id}]: %cCommitting%c doc nodes for %c"${module}@${version}/${path}"%c...`,
     "color:green",
     "color:none",
     "color:cyan",
     "color:none",
   );
-  return commitDocNodes(module, version, path, docNodes);
+  return commitDocNodes(id, module, version, path, docNodes);
 }
 
 function taskCommitModuleIndex(
+  id: number,
   { module, version, path, index }: CommitIndexTask,
 ) {
   console.log(
-    `%cCommitting%c module index for %c"${module}@${version}/${path}"%c...`,
+    `[${id}]: %cCommitting%c module index for %c"${module}@${version}/${path}"%c...`,
     "color:green",
     "color:none",
     "color:cyan",
     "color:none",
   );
-  return commitModuleIndex(module, version, path, index);
+  return commitModuleIndex(id, module, version, path, index);
 }
 
-async function taskCommitMutations({ mutations }: CommitMutations) {
+async function taskCommitMutations(id: number, { mutations }: CommitMutations) {
   console.log(
-    `%cCommitting %c${mutations.length}%c mutations...`,
+    `[${id}]: %cCommitting %c${mutations.length}%c mutations...`,
     "color:green",
     "color:cyan",
     "color:none",
@@ -189,7 +199,7 @@ async function taskCommitMutations({ mutations }: CommitMutations) {
       const batch of datastore.commit(mutations, { transactional: false })
     ) {
       console.log(
-        `%cCommitted %c${batch.mutationResults.length}%c mutations.`,
+        `[${id}]: %cCommitted %c${batch.mutationResults.length}%c mutations.`,
         "color:green",
         "color:cyan",
         "color:none",
@@ -197,7 +207,7 @@ async function taskCommitMutations({ mutations }: CommitMutations) {
     }
   } catch (error) {
     if (error instanceof DatastoreError) {
-      console.log("Datastore Error:");
+      console.log(`[${id}] Datastore Error:`);
       console.log(`${error.status} ${error.message}`);
       console.log(error.statusInfo);
     } else {
@@ -208,58 +218,67 @@ async function taskCommitMutations({ mutations }: CommitMutations) {
 }
 
 function taskCommitCodePage(
+  id: number,
   { module, version, path, sourcePage }: CommitSourcePageTask,
 ) {
   console.log(
-    `%cCommitting%c code page for %c"${module}@${version}${path}"%c...`,
+    `[${id}]: %cCommitting%c code page for %c"${module}@${version}${path}"%c...`,
     "color:green",
     "color:none",
     "color:cyan",
     "color:none",
   );
-  return commitSourcePage(module, version, path, sourcePage);
+  return commitSourcePage(id, module, version, path, sourcePage);
 }
 
 function taskCommitDocPage(
+  id: number,
   { module, version, path, symbol, docPage }: CommitDocPageTask,
 ) {
   console.log(
-    `%cCommitting%c doc page for %c"${module}@${version}${path}"%c...`,
+    `[${id}]: %cCommitting%c doc page for %c"${module}@${version}${path}"%c...`,
     "color:green",
     "color:none",
     "color:cyan",
     "color:none",
   );
-  return commitDocPage(module, version, path, symbol, docPage);
+  return commitDocPage(id, module, version, path, symbol, docPage);
 }
 
 function taskCommitSymbolIndex(
+  id: number,
   { module, version, path, items }: CommitSymbolIndexTask,
 ) {
   console.log(
-    `%cCommitting%c symbol index for %c"${module}@${version}${path}"%c...`,
+    `[${id}]: %cCommitting%c symbol index for %c"${module}@${version}${path}"%c...`,
     "color:green",
     "color:none",
     "color:cyan",
     "color:none",
   );
-  return commitSymbolIndex(module, version, path, items);
+  return commitSymbolIndex(id, module, version, path, items);
 }
 
-function taskCommitNav({ module, version, path, nav }: CommitNavTask) {
+function taskCommitNav(
+  id: number,
+  { module, version, path, nav }: CommitNavTask,
+) {
   console.log(
-    `%cCommitting%c nav index for %c"${module}@${version}${path}"%c...`,
+    `[${id}]: %cCommitting%c nav index for %c"${module}@${version}${path}"%c...`,
     "color:green",
     "color:none",
     "color:cyan",
     "color:none",
   );
-  return commitNav(module, version, path, nav);
+  return commitNav(id, module, version, path, nav);
 }
 
-async function taskLoadModule({ module, version }: LoadTask): Promise<void> {
+async function taskLoadModule(
+  id: number,
+  { module, version }: LoadTask,
+): Promise<void> {
   console.log(
-    `%cLoading%c module %c"${module}@${version}"%c...`,
+    `[${id}]: %cLoading%c module %c"${module}@${version}"%c...`,
     "color:green",
     "color:none",
     "color:cyan",
@@ -366,7 +385,7 @@ async function taskLoadModule({ module, version }: LoadTask): Promise<void> {
 
   let remaining = mutations.length;
   console.log(
-    `%cCommitting %c${remaining}%c changes...`,
+    `[${id}]: %cCommitting %c${remaining}%c changes...`,
     "color:green",
     "color:yellow",
     "color:none",
@@ -376,7 +395,7 @@ async function taskLoadModule({ module, version }: LoadTask): Promise<void> {
   ) {
     remaining -= res.mutationResults.length;
     console.log(
-      `%cCommitted %c${res.mutationResults.length}%c changes. %c${remaining}%c to go.`,
+      `[${id}]: %cCommitted %c${res.mutationResults.length}%c changes. %c${remaining}%c to go.`,
       "color:green",
       "color:yellow",
       "color:none",
@@ -389,7 +408,7 @@ async function taskLoadModule({ module, version }: LoadTask): Promise<void> {
     // the module has too many modules, skipping, will be processed via batch
     // later.
     console.warn(
-      `%cToo many%c modules. Skipping.`,
+      `[${id}]: %cToo many%c modules. Skipping.`,
       "color:red",
       "color:none",
     );
@@ -404,7 +423,7 @@ async function taskLoadModule({ module, version }: LoadTask): Promise<void> {
   const docNodes = new Map<string, DocNode[]>();
   for (const path of toDoc) {
     console.log(
-      `%cGenerating%c doc nodes for: %c${moduleItem.name}@${moduleVersion.version}${path}%c...`,
+      `[${id}]: %cGenerating%c doc nodes for: %c${moduleItem.name}@${moduleVersion.version}${path}%c...`,
       "color:green",
       "color:none",
       "color:cyan",
@@ -422,7 +441,7 @@ async function taskLoadModule({ module, version }: LoadTask): Promise<void> {
     } catch (e) {
       const msg = e instanceof Error ? `${e.message}\n\n${e.stack}` : String(e);
       console.error(
-        `Error generating doc nodes for "${path}":\n${msg}`,
+        `[${id}]: Error generating doc nodes for "${path}":\n${msg}`,
       );
     }
     addNodes(
@@ -445,7 +464,7 @@ async function taskLoadModule({ module, version }: LoadTask): Promise<void> {
 
   remaining = docMutations.length;
   console.log(
-    `%cCommitting %c${remaining}%c doc nodes...`,
+    `[${id}]: %cCommitting %c${remaining}%c doc nodes...`,
     "color:green",
     "color:yellow",
     "color:none",
@@ -455,7 +474,7 @@ async function taskLoadModule({ module, version }: LoadTask): Promise<void> {
   ) {
     remaining -= res.mutationResults.length;
     console.log(
-      `%cCommitted %c${res.mutationResults.length}%c doc nodes. %c${remaining}%c to go.`,
+      `[${id}]: %cCommitted %c${res.mutationResults.length}%c doc nodes. %c${remaining}%c to go.`,
       "color:green",
       "color:yellow",
       "color:none",
@@ -468,7 +487,7 @@ async function taskLoadModule({ module, version }: LoadTask): Promise<void> {
   // perform dependency analysis
   await analyze(module, version, true);
   if (docNodes.size) {
-    await kv.enqueue({
+    enqueue({
       kind: "algolia",
       module: moduleItem,
       version: moduleVersion,
@@ -477,9 +496,12 @@ async function taskLoadModule({ module, version }: LoadTask): Promise<void> {
 }
 
 let moduleIndex;
-async function taskAlgolia({ module, version }: AlgoliaTask) {
+async function taskAlgolia(
+  id: number,
+  { module, version }: AlgoliaTask,
+) {
   console.log(
-    `%cUploading%c %c"${version.name}@${version.version}"%c to algolia...`,
+    `[${id}]: %cUploading%c %c"${version.name}@${version.version}"%c to algolia...`,
     "color:green",
     "color:none",
     "color:cyan",
@@ -501,7 +523,7 @@ async function taskAlgolia({ module, version }: AlgoliaTask) {
   }).wait();
 
   console.log(
-    `%Uploaded%c %c"${version.name}@${version.version}"%c to algolia...`,
+    `[${id}]: %Uploaded%c %c"${version.name}@${version.version}"%c to algolia...`,
     "color:green",
     "color:none",
     "color:cyan",
@@ -509,34 +531,81 @@ async function taskAlgolia({ module, version }: AlgoliaTask) {
   );
 }
 
-kv.listenQueue((task: TaskDescriptor) => {
+function process(id: number, task: TaskDescriptor): Promise<void> {
   switch (task.kind) {
     case "algolia":
-      return taskAlgolia(task);
+      return taskAlgolia(id, task);
     case "commit":
-      return taskCommitDocNodes(task);
+      return taskCommitDocNodes(id, task);
     case "commitIndex":
-      return taskCommitModuleIndex(task);
+      return taskCommitModuleIndex(id, task);
     case "commitMutations":
-      return taskCommitMutations(task);
+      return taskCommitMutations(id, task);
     case "commitSourcePage":
-      return taskCommitCodePage(task);
+      return taskCommitCodePage(id, task);
     case "commitDocPage":
-      return taskCommitDocPage(task);
+      return taskCommitDocPage(id, task);
     case "commitNav":
-      return taskCommitNav(task);
+      return taskCommitNav(id, task);
     case "commitSymbolIndex":
-      return taskCommitSymbolIndex(task);
+      return taskCommitSymbolIndex(id, task);
     case "load":
-      return taskLoadModule(task);
-
+      return taskLoadModule(id, task);
     default:
       console.error(
-        `%cERROR%c: unexpected task kind: %c${(task as TaskBase).kind}`,
+        `%cERROR%c: [${id}]: unexpected task kind: %c${
+          (task as TaskBase).kind
+        }`,
         "color:red",
         "color:none",
         "color:yellow",
       );
       return Promise.resolve();
   }
-});
+}
+
+async function drainQueue() {
+  if (processing) {
+    return;
+  }
+  processing = true;
+  const item = queue.shift();
+  if (!item) {
+    return;
+  }
+  const [id, task] = item;
+  console.log(
+    `[${id}]: %cProcessing %ctask %c"${task.kind}"%c...`,
+    "color:green",
+    "color:none",
+    "color:yellow",
+    "color:none",
+  );
+  const startMark = `task ${task.kind} ${id}`;
+  performance.mark(startMark);
+  await process(id, task);
+  const measure = performance.measure(`duration ${startMark}`, startMark);
+  console.log(
+    `[${id}]: %cFinished%c task %c"${task.kind}"%c in %c${
+      measure.duration.toFixed(2)
+    }ms%c.`,
+    "color:green",
+    "color:none",
+    "color:yellow",
+    "color:none",
+    "color:cyan",
+    "color:none",
+  );
+  if (queue.length) {
+    queueMicrotask(drainQueue);
+  }
+  processing = false;
+}
+
+/** Enqueue a long running task and schedule draining of the queue. */
+export function enqueue(desc: TaskDescriptor): number {
+  const id = uid++;
+  queue.push([id, desc]);
+  queueMicrotask(drainQueue);
+  return id;
+}

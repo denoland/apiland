@@ -34,13 +34,7 @@ import {
   getCompletions,
   getPathDoc,
 } from "./completions.ts";
-import {
-  GITHUB_HOOKS_CIDRS,
-  indexes,
-  kinds,
-  kv,
-  ROOT_SYMBOL,
-} from "./consts.ts";
+import { GITHUB_HOOKS_CIDRS, indexes, kinds, ROOT_SYMBOL } from "./consts.ts";
 import {
   checkMaybeLoad,
   type DocNode,
@@ -57,6 +51,7 @@ import {
 } from "./docs.ts";
 import { getModuleLatestVersion, redirectToLatest } from "./modules.ts";
 import { generateLibDocPage } from "./pages.ts";
+import { enqueue } from "./process.ts";
 import {
   DependencyMetrics,
   InfoPage,
@@ -524,7 +519,7 @@ router.get("/v2/modules/:module/:version/doc/:path*", async (ctx) => {
   try {
     const importMap = await getImportMapSpecifier(module, version);
     const docNodes = await generateDocNodes(module, version, path, importMap);
-    await kv.enqueue({ kind: "commit", module, version, path, docNodes });
+    enqueue({ kind: "commit", module, version, path, docNodes });
     return docNodes;
   } catch (e) {
     if (isHttpError(e)) {
@@ -555,7 +550,7 @@ router.get("/v2/modules/:module/:version/index/:path*{/}?", async (ctx) => {
   }
   const index = await generateModuleIndex(datastore, module, version, path);
   if (index) {
-    await kv.enqueue({ kind: "commitIndex", module, version, path, index });
+    enqueue({ kind: "commitIndex", module, version, path, index });
   }
   return index;
 });
@@ -589,7 +584,7 @@ async function moduleSourcePage(
       sourcePage && sourcePage.kind !== "invalid-version" &&
       sourcePage.kind !== "notfound"
     ) {
-      await kv.enqueue({
+      enqueue({
         kind: "commitSourcePage",
         module,
         version,
@@ -658,7 +653,7 @@ async function moduleDocPage(ctx: Context<unknown, ModuleDocPagesParams>) {
       docPage && docPage.kind !== "invalid-version" &&
       docPage.kind !== "notfound"
     ) {
-      await kv.enqueue({
+      enqueue({
         kind: "commitDocPage",
         module,
         version,
@@ -884,12 +879,8 @@ router.post(
       throw new errors.BadRequest("Missing or malformed body");
     }
     const { module, version } = body;
-    const { versionstamp } = await kv.enqueue({
-      kind: "load",
-      module,
-      version,
-    });
-    return { result: "enqueued", versionstamp };
+    const id = enqueue({ kind: "load", module, version });
+    return { result: "enqueued", id };
   }, endpointAuth),
 );
 
