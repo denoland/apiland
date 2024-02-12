@@ -116,7 +116,7 @@ type DocNode = DenoDocNode | DocNodeNull;
 
 interface ConfigFileJson {
   importMap?: string;
-  imports?: Record<string, string>,
+  imports?: Record<string, string>;
 }
 
 const MAX_CACHE_SIZE = parseInt(Deno.env.get("MAX_CACHE_SIZE") ?? "", 10) ||
