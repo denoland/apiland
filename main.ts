@@ -67,7 +67,7 @@ import type {
   WebhookPayloadPush,
 } from "./webhooks.d.ts";
 import { createEvent, pingEvent, pushEvent } from "./webhook.ts";
-import DISABLED_MODULES from "./docDisabledModules.json" assert {
+import DISABLED_MODULES from "./docDisabledModules.json" with {
   type: "json",
 };
 
