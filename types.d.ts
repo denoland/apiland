@@ -127,6 +127,7 @@ export interface Module {
   quality_score?: number;
   /** Tags which are associated with the module. */
   tags?: ModuleTag[];
+  upload_options?: UploadOptions;
 }
 
 /** Defines a tag related to how popular a module is. */

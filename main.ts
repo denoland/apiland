@@ -58,6 +58,7 @@ import {
   Library,
   Module,
   ModuleMetrics,
+  ModuleVersion,
   SubModuleMetrics,
 } from "./types.d.ts";
 import { assert, getPopularityLabel, isIp4InCidrs } from "./util.ts";
@@ -410,7 +411,24 @@ router.get(
       datastore.key([kinds.MODULE_KIND, ctx.params.module]),
     );
     if (response.found) {
-      return entityToObject(response.found[0].entity);
+      const obj = entityToObject<Module>(response.found[0].entity);
+
+      if (obj.latest_version) {
+        const response = await datastore.lookup(
+          datastore.key(
+            [kinds.MODULE_KIND, ctx.params.module],
+            [kinds.MODULE_VERSION_KIND, obj.latest_version],
+          ),
+        );
+
+        if (response.found) {
+          obj.upload_options =
+            entityToObject<ModuleVersion>(response.found[0].entity)
+              .upload_options;
+        }
+      }
+
+      return obj;
     }
   },
 );
