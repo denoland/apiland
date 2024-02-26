@@ -342,7 +342,7 @@ router.get("/legacy_modules/:id", async (ctx) => {
     datastore.key([kinds.LEGACY_MODULES, ctx.params.id]),
   );
   if (res.found && res.found.length === 1) {
-    return entityToObject<ApiModuleData>(res.found![0].entity);
+    return entityToObject<ApiModuleData>(res.found[0].entity);
   }
 });
 
