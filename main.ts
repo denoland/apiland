@@ -53,6 +53,7 @@ import { getModuleLatestVersion, redirectToLatest } from "./modules.ts";
 import { generateLibDocPage } from "./pages.ts";
 import { enqueue } from "./process.ts";
 import {
+  ApiModuleData,
   DependencyMetrics,
   InfoPage,
   Library,
@@ -335,6 +336,15 @@ router.get("/v2/metrics/dependencies/:source*", async (ctx) => {
 });
 
 // ## Registry related APIs ##
+router.get("/legacy_modules/:id", async (ctx) => {
+  const datastore = await getDatastore();
+  const res = await datastore.lookup(
+    datastore.key([kinds.LEGACY_MODULES, ctx.params.id]),
+  );
+  if (res.found && res.found.length === 1) {
+    return entityToObject<ApiModuleData>(res.found[0].entity);
+  }
+});
 
 router.get("/legacy_modules_count", async () => {
   datastore = datastore ?? await getDatastore();
