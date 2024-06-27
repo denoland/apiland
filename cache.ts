@@ -10,17 +10,11 @@ import { type Datastore, entityToObject } from "google_datastore";
 import type { Entity, Key } from "google_datastore/types";
 
 import { getDatastore } from "./auth.ts";
-import { kinds, ROOT_SYMBOL, SYMBOL_REGEX } from "./consts.ts";
+import { kinds, SYMBOL_REGEX } from "./consts.ts";
 import { entityToDocPage, hydrateDocNodes } from "./docs.ts";
 import {
   DocPage,
-  GlobalSymbolItem,
-  GlobalSymbols,
   InfoPage,
-  LibDocPage,
-  Library,
-  LibrarySymbolItems,
-  LibraryVersion,
   Module,
   ModuleEntry,
   ModuleVersion,
@@ -38,17 +32,6 @@ const cachedEntries = new WeakMap<ModuleVersion, Map<string, ModuleEntry>>();
 const cachedInfoPages = new WeakMap<Module, Map<string, InfoPage>>();
 const cachedDocPages = new WeakMap<ModuleEntry, Map<string, DocPage>>();
 const cachedSourcePages = new WeakMap<ModuleVersion, Map<string, SourcePage>>();
-
-const cachedLibs = new Map<string, Library>();
-const cachedLibVersions = new WeakMap<Library, Map<string, LibraryVersion>>();
-const cachedSymbolItems = new WeakMap<
-  Library,
-  Map<string, LibrarySymbolItems>
->();
-const cachedLibDocPages = new WeakMap<
-  LibraryVersion,
-  Map<string, LibDocPage>
->();
 
 /** The "LRU" for modules names. */
 const cachedModuleNames = new Set<string>();
@@ -370,188 +353,6 @@ export async function lookupDocPage(
   return docPageItem;
 }
 
-export async function lookupLib(lib: string): Promise<[Library | undefined]>;
-export async function lookupLib(
-  lib: string,
-  version: string,
-): Promise<
-  [
-    Library | undefined,
-    LibraryVersion | undefined,
-    LibrarySymbolItems | undefined,
-  ]
->;
-export async function lookupLib(lib: string, version?: string) {
-  let libItem = cachedLibs.get(lib);
-  const keys: Key[] = [];
-  datastore = datastore || await getDatastore();
-  if (version === "latest") {
-    if (!libItem) {
-      [libItem] = await lookupLib(lib);
-    }
-    if (!libItem) {
-      return [undefined, undefined];
-    }
-    version = libItem.latest_version;
-  }
-  let versionItem = version && libItem &&
-      cachedLibVersions.get(libItem)?.get(version) || undefined;
-  let symbolItems =
-    version && libItem && cachedSymbolItems.get(libItem)?.get(version) ||
-    undefined;
-  if (!libItem) {
-    keys.push(datastore.key([kinds.LIBRARY_KIND, lib]));
-  }
-  if (version && !versionItem) {
-    keys.push(datastore.key(
-      [kinds.LIBRARY_KIND, lib],
-      [kinds.LIBRARY_VERSION_KIND, version],
-    ));
-  }
-  if (version && !symbolItems) {
-    keys.push(datastore.key(
-      [kinds.LIBRARY_KIND, lib],
-      [kinds.SYMBOL_ITEMS_KIND, version],
-    ));
-  }
-  if (keys.length) {
-    const res = await datastore.lookup(keys);
-    if (res.found) {
-      for (const { entity } of res.found) {
-        assert(entity.key);
-        const entityKind = entity.key.path[entity.key.path.length - 1].kind;
-        switch (entityKind) {
-          case kinds.LIBRARY_KIND:
-            libItem = entityToObject(entity);
-            cachedLibs.set(lib, libItem);
-            break;
-          case kinds.LIBRARY_VERSION_KIND: {
-            versionItem = entityToObject(entity);
-            assert(libItem);
-            assert(version);
-            if (!cachedLibVersions.has(libItem)) {
-              cachedLibVersions.set(libItem, new Map());
-            }
-            const versions = cachedLibVersions.get(libItem)!;
-            versions.set(version, versionItem);
-            break;
-          }
-          case kinds.SYMBOL_ITEMS_KIND: {
-            symbolItems = entityToObject(entity);
-            assert(libItem);
-            assert(version);
-            if (!cachedSymbolItems.has(libItem)) {
-              cachedSymbolItems.set(libItem, new Map());
-            }
-            const symbolItemsMap = cachedSymbolItems.get(libItem)!;
-            symbolItemsMap.set(version, symbolItems);
-            break;
-          }
-        }
-      }
-    }
-  }
-  return [libItem, versionItem, symbolItems];
-}
-
-function entityToLibDocPage(entity: Entity): LibDocPage {
-  const docPage = entityToObject<LibDocPage>(entity);
-  if ("docNodes" in docPage && docPage.docNodes) {
-    hydrateDocNodes(docPage.docNodes);
-  }
-  return docPage;
-}
-
-export async function lookupLibDocPage(
-  lib: string,
-  version: string,
-  symbol: string,
-) {
-  if (!SYMBOL_REGEX.test(symbol)) {
-    return undefined;
-  }
-
-  const [libItem] = await lookupLib(lib);
-  if (!libItem) {
-    return;
-  }
-  if (version === "latest") {
-    version = libItem.latest_version;
-  }
-  let versionItem = libItem && cachedLibVersions.get(libItem)?.get(version);
-  let docPageItem = versionItem &&
-    cachedLibDocPages.get(versionItem)?.get(symbol);
-  if (!docPageItem) {
-    datastore = datastore || await getDatastore();
-    const keys: Key[] = [];
-    if (!versionItem) {
-      keys.push(datastore.key(
-        [kinds.LIBRARY_KIND, lib],
-        [kinds.LIBRARY_VERSION_KIND, version],
-      ));
-    }
-    keys.push(datastore.key(
-      [kinds.LIBRARY_KIND, lib],
-      [kinds.LIBRARY_VERSION_KIND, version],
-      [kinds.DOC_PAGE_KIND, symbol],
-    ));
-    const res = await datastore.lookup(keys);
-    if (res.found) {
-      for (const { entity } of res.found) {
-        assert(entity.key);
-        const entityKind = entity.key.path[entity.key.path.length - 1].kind;
-        switch (entityKind) {
-          case kinds.LIBRARY_VERSION_KIND: {
-            versionItem = entityToObject(entity);
-            if (!cachedLibVersions.has(libItem)) {
-              cachedLibVersions.set(libItem, new Map());
-            }
-            const versions = cachedLibVersions.get(libItem)!;
-            versions.set(version, versionItem);
-            break;
-          }
-          case kinds.DOC_PAGE_KIND: {
-            docPageItem = entityToLibDocPage(entity);
-            queueMicrotask(() => {
-              assert(docPageItem);
-              assert(versionItem);
-              if (!cachedLibDocPages.has(versionItem)) {
-                cachedLibDocPages.set(versionItem, new Map());
-              }
-              const docPages = cachedLibDocPages.get(versionItem)!;
-              docPages.set(symbol, docPageItem);
-            });
-            break;
-          }
-          default:
-            throw new TypeError(`Unexpected kind "${entityKind}".`);
-        }
-      }
-    }
-  }
-  return docPageItem;
-}
-
-let globalSymbols: GlobalSymbolItem[] | undefined;
-
-export async function lookupGlobalSymbols() {
-  if (globalSymbols) {
-    return globalSymbols;
-  }
-  datastore = datastore ?? await getDatastore();
-  const res = await datastore.lookup(datastore.key(
-    [kinds.GLOBAL_SYMBOLS_KIND, ROOT_SYMBOL],
-  ));
-  if (!res.found || res.found.length !== 1) {
-    throw new Error(
-      "Unexpected result returned from datastore.",
-      { cause: res },
-    );
-  }
-  const { items } = entityToObject<GlobalSymbols>(res.found[0].entity);
-  return globalSymbols = items;
-}
-
 export async function lookup(
   module: string,
 ): Promise<[Module | undefined, undefined, undefined]>;
@@ -686,40 +487,6 @@ export function cacheModuleEntry(
       const entries = cachedEntries.get(versionItem)!;
       entries.set(path, entry);
       cachedModuleNames.add(module);
-    }
-  }
-}
-
-export function cacheSymbolItems(
-  lib: string,
-  version: string,
-  symbolItems: LibrarySymbolItems,
-): void {
-  const libItem = cachedLibs.get(lib);
-  if (libItem) {
-    if (!cachedSymbolItems.has(libItem)) {
-      cachedSymbolItems.set(libItem, new Map());
-    }
-    const symbolItemsMap = cachedSymbolItems.get(libItem)!;
-    symbolItemsMap.set(version, symbolItems);
-  }
-}
-
-export function cacheLibDocPage(
-  lib: string,
-  version: string,
-  symbol: string,
-  docPage: LibDocPage,
-): void {
-  const libItem = cachedLibs.get(lib);
-  if (libItem) {
-    const versionItem = cachedLibVersions.get(libItem)?.get(version);
-    if (versionItem) {
-      if (!cachedLibDocPages.has(versionItem)) {
-        cachedLibDocPages.set(versionItem, new Map());
-      }
-      const docPages = cachedLibDocPages.get(versionItem)!;
-      docPages.set(symbol, docPage);
     }
   }
 }
