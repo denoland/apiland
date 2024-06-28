@@ -524,8 +524,6 @@ router.get("/v2/modules/:module/:version/doc/:path*", async (ctx) => {
   }
 });
 
-router.get("/v2/symbols/global", (_ctx) => lookupGlobalSymbols());
-
 router.get("/v2/modules/:module/:version/index/:path*{/}?", async (ctx) => {
   const { module, version, path: paramPath } = ctx.params;
   if (version === "__latest__") {
