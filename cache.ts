@@ -7,11 +7,11 @@
  */
 
 import { type Datastore, entityToObject } from "google_datastore";
-import type { Entity, Key } from "google_datastore/types";
+import type { Key } from "google_datastore/types";
 
 import { getDatastore } from "./auth.ts";
 import { kinds, SYMBOL_REGEX } from "./consts.ts";
-import { entityToDocPage, hydrateDocNodes } from "./docs.ts";
+import { entityToDocPage } from "./docs.ts";
 import {
   DocPage,
   InfoPage,
