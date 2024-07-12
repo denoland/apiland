@@ -10,16 +10,10 @@ import { router } from "./main.ts";
 // test
 await getDatastore();
 
-let serverPromise: Promise<string> | undefined;
-let controller: AbortController | undefined;
+function setup(): [AbortController, Promise<string>] {
+  const { promise, resolve } = Promise.withResolvers();
 
-function setup(): Promise<string> {
-  if (serverPromise) {
-    return serverPromise;
-  }
-  let resolve: (value: string | PromiseLike<string>) => void;
-  serverPromise = new Promise((res) => resolve = res);
-  controller = new AbortController();
+  const controller = new AbortController();
   function onlisten({ secure, hostname, port }: RouterListenEvent) {
     // deno-lint-ignore no-explicit-any
     router.removeEventListener("listen", onlisten as any);
@@ -30,23 +24,21 @@ function setup(): Promise<string> {
 
   router.listen({ signal: controller.signal });
 
-  return serverPromise;
+  return [controller, promise];
 }
 
-function teardown() {
+function teardown(controller) {
   if (!controller) {
     return;
   }
   controller.abort();
-  controller = undefined;
-  serverPromise = undefined;
 }
 
 Deno.test({
   name: "GET /",
   sanitizeResources: false,
   async fn() {
-    const hostname = await setup();
+    const [controller, hostname] = await setup();
 
     const response = await fetch(`${hostname}/`);
     assertEquals(response.status, 200);
@@ -56,14 +48,14 @@ Deno.test({
     );
     assertStringIncludes(await response.text(), "<h1>apiland.deno.dev</h1>");
 
-    teardown();
+    teardown(controller);
   },
 });
 
 Deno.test({
   name: "GET /ping",
   async fn() {
-    const hostname = await setup();
+    const [controller, hostname] = await setup();
 
     const response = await fetch(`${hostname}/ping`);
     assertEquals(response.status, 200);
@@ -73,6 +65,6 @@ Deno.test({
     );
     assertEquals(await response.json(), { pong: true });
 
-    teardown();
+    teardown(controller);
   },
 });
