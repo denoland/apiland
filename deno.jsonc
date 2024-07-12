@@ -7,7 +7,7 @@
   "importMap": "./import-map.json",
   "tasks": {
     "dev": "deno run --check --unstable --allow-net --allow-hrtime --allow-env --allow-read=. main.ts",
-    "test": "deno test --unstable --allow-net --allow-hrtime --allow-env --allow-read=."
+    "test": "deno test --unstable --allow-net --allow-hrtime --allow-env --allow-read=. --trace-leaks"
   },
   "lock": false
 }
