@@ -38,7 +38,8 @@ Deno.test({
   name: "GET /",
   sanitizeResources: false,
   async fn() {
-    const [controller, hostname] = await setup();
+    const [controller, hostnamePromise] = setup();
+    const hostname = await hostnamePromise;
 
     const response = await fetch(`${hostname}/`);
     assertEquals(response.status, 200);
@@ -55,7 +56,8 @@ Deno.test({
 Deno.test({
   name: "GET /ping",
   async fn() {
-    const [controller, hostname] = await setup();
+    const [controller, hostnamePromise] = setup();
+    const hostname = await hostnamePromise;
 
     const response = await fetch(`${hostname}/ping`);
     assertEquals(response.status, 200);
