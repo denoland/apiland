@@ -11,7 +11,7 @@ import { router } from "./main.ts";
 await getDatastore();
 
 function setup(): [AbortController, Promise<string>] {
-  const { promise, resolve } = Promise.withResolvers();
+  const { promise, resolve } = Promise.withResolvers<string>();
 
   const controller = new AbortController();
   function onlisten({ secure, hostname, port }: RouterListenEvent) {
@@ -27,7 +27,7 @@ function setup(): [AbortController, Promise<string>] {
   return [controller, promise];
 }
 
-function teardown(controller) {
+function teardown(controller: AbortController) {
   if (!controller) {
     return;
   }
