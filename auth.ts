@@ -27,8 +27,8 @@ export let keys: {
   private_key_id: string;
   project_id: string;
 };
-/** Algolia credentials required to upload docNodes to algolia. */
-export let algoliaKeys: { appId: string; apiKey: string; searchApiKey: string };
+/** Orama credentials required to upload modules to orama. */
+export let oramaKeys: { privateApiKey: string; privateIndex: string; publicApiKey: string; publicIndex: string };
 
 export let awsKeys: {
   region: string;
@@ -58,10 +58,11 @@ export const readyPromise = new Promise((res) => readyResolve = res);
     project_id: Deno.env.get("GOOGLE_PROJECT_ID") ?? "",
   };
 
-  algoliaKeys = {
-    appId: Deno.env.get("ALGOLIA_APP_ID") ?? "",
-    apiKey: Deno.env.get("ALGOLIA_API_KEY") ?? "",
-    searchApiKey: Deno.env.get("ALGOLIA_SEARCH_API_KEY") ?? "",
+  oramaKeys = {
+    privateApiKey: Deno.env.get("ORAMA_PRIVATE_API_KEY") ?? "",
+    privateIndex: Deno.env.get("ORAMA_PRIVATE_INDEX") ?? "",
+    publicApiKey: Deno.env.get("ORAMA_PUBLIC_API_KEY") ?? "",
+    publicIndex: Deno.env.get("ORAMA_PUBLIC_INDEX") ?? "",
   };
 
   awsKeys = {

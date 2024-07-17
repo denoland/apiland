@@ -15,11 +15,11 @@ import {
 } from "google_datastore";
 import type { Mutation } from "google_datastore/types";
 
-import { getDenoLandApp, Source } from "./algolia.ts";
+import { getDenoLandApp, Source } from "./orama.ts";
 import { analyze } from "./analysis.ts";
 import { getDatastore } from "./auth.ts";
 import { clear } from "./cache.ts";
-import { indexes, kinds } from "./consts.ts";
+import { kinds } from "./consts.ts";
 import {
   addNodes,
   commitDocNodes,
@@ -135,8 +135,8 @@ interface LoadTask extends TaskBase {
   version: string;
 }
 
-interface AlgoliaTask extends TaskBase {
-  kind: "algolia";
+interface OramaTask extends TaskBase {
+  kind: "orama";
   module: Module;
   version: ModuleVersion;
 }
@@ -144,7 +144,7 @@ interface AlgoliaTask extends TaskBase {
 type TaskDescriptor =
   | LoadTask
   | CommitTask
-  | AlgoliaTask
+  | OramaTask
   | CommitSourcePageTask
   | CommitDocPageTask
   | CommitIndexTask
@@ -488,7 +488,7 @@ async function taskLoadModule(
   await analyze(module, version, true);
   if (docNodes.size) {
     enqueue({
-      kind: "algolia",
+      kind: "orama",
       module: moduleItem,
       version: moduleVersion,
     });
@@ -496,21 +496,21 @@ async function taskLoadModule(
 }
 
 let moduleIndex;
-async function taskAlgolia(
+async function taskOrama(
   id: number,
-  { module, version }: AlgoliaTask,
+  { module, version }: OramaTask,
 ) {
   console.log(
-    `[${id}]: %cUploading%c %c"${version.name}@${version.version}"%c to algolia...`,
+    `[${id}]: %cUploading%c %c"${version.name}@${version.version}"%c to orama...`,
     "color:green",
     "color:none",
     "color:cyan",
     "color:none",
   );
 
-  moduleIndex ??= (await getDenoLandApp()).initIndex(indexes.MODULE_INDEX);
-  await moduleIndex.saveObject({
-    objectID: module.name,
+  moduleIndex ??= await getDenoLandApp();
+  await moduleIndex.update([{
+    id: module.name,
     name: module.name,
     description: module.description,
     third_party: module.name !== "std",
@@ -520,10 +520,10 @@ async function taskAlgolia(
     popularity_score: module.popularity_score,
     popularity_tag: module.tags?.find(({ kind }) => kind === "popularity")
       ?.value,
-  }).wait();
+  }]);
 
   console.log(
-    `[${id}]: %Uploaded%c %c"${version.name}@${version.version}"%c to algolia...`,
+    `[${id}]: %Uploaded%c %c"${version.name}@${version.version}"%c to orama...`,
     "color:green",
     "color:none",
     "color:cyan",
@@ -533,8 +533,8 @@ async function taskAlgolia(
 
 function process(id: number, task: TaskDescriptor): Promise<void> {
   switch (task.kind) {
-    case "algolia":
-      return taskAlgolia(id, task);
+    case "orama":
+      return taskOrama(id, task);
     case "commit":
       return taskCommitDocNodes(id, task);
     case "commitIndex":

@@ -64,13 +64,6 @@ export const kinds = {
   LEGACY_BUILDS: "legacy_builds",
 } as const;
 
-/** These constants represent the different algolia index which are generated
- * from data contained within datastore. */
-export const indexes = {
-  /** The index which contains all the modules (and some submodules). */
-  MODULE_INDEX: "modules",
-};
-
 /** A set of URL patterns that are used to parse specifiers to determine their
  * source. */
 export const patterns = {
