@@ -32,7 +32,7 @@ import {
   getCompletions,
   getPathDoc,
 } from "./completions.ts";
-import { GITHUB_HOOKS_CIDRS, indexes, kinds, ROOT_SYMBOL } from "./consts.ts";
+import { GITHUB_HOOKS_CIDRS, kinds, ROOT_SYMBOL } from "./consts.ts";
 import {
   checkMaybeLoad,
   type DocNode,
