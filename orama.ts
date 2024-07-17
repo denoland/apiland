@@ -7,17 +7,18 @@
  */
 
 import { CloudManager, OramaClient } from "orama";
+import type { IndexManager } from "orama/types";
 
 import { oramaKeys, readyPromise } from "./auth.ts";
 
-let oramaManager: CloudManager | undefined;
+let oramaManager: IndexManager | undefined;
 let searchClient: OramaClient | undefined;
 
 export enum Source {
   StandardLibraryDefault = 200,
   ThirdPartyDefault = 400,
 }
-export async function getDenoLandApp(): Promise<CloudManager> {
+export async function getDenoLandApp(): Promise<IndexManager> {
   if (oramaManager) {
     return oramaManager;
   }
@@ -33,8 +34,8 @@ export async function getSearchClient(): Promise<OramaClient> {
     return searchClient;
   }
   await readyPromise;
-  return searchClient = new OramaClient(
-    oramaKeys.publicApiKey,
-    oramaKeys.publicIndex,
-  );
+  return searchClient = new OramaClient({
+    endpoint: oramaKeys.endpoint,
+    api_key: oramaKeys.publicApiKey,
+  });
 }

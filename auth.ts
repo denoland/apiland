@@ -28,7 +28,7 @@ export let keys: {
   project_id: string;
 };
 /** Orama credentials required to upload modules to orama. */
-export let oramaKeys: { privateApiKey: string; privateIndex: string; publicApiKey: string; publicIndex: string };
+export let oramaKeys: { privateApiKey: string; privateIndex: string; publicApiKey: string; endpoint: string };
 
 export let awsKeys: {
   region: string;
@@ -62,7 +62,7 @@ export const readyPromise = new Promise((res) => readyResolve = res);
     privateApiKey: Deno.env.get("ORAMA_PRIVATE_API_KEY") ?? "",
     privateIndex: Deno.env.get("ORAMA_PRIVATE_INDEX") ?? "",
     publicApiKey: Deno.env.get("ORAMA_PUBLIC_API_KEY") ?? "",
-    publicIndex: Deno.env.get("ORAMA_PUBLIC_INDEX") ?? "",
+    endpoint: Deno.env.get("ORAMA_ENDPOINT") ?? "",
   };
 
   awsKeys = {
