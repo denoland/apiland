@@ -28,7 +28,12 @@ export let keys: {
   project_id: string;
 };
 /** Orama credentials required to upload modules to orama. */
-export let oramaKeys: { privateApiKey: string; privateIndex: string; publicApiKey: string; endpoint: string };
+export let oramaKeys: {
+  privateApiKey: string;
+  privateIndex: string;
+  publicApiKey: string;
+  endpoint: string;
+};
 
 export let awsKeys: {
   region: string;
