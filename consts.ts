@@ -30,14 +30,8 @@ export const kinds = {
   DOC_PAGE_KIND: "doc_page",
   /** A doc work item, which indicates a module that needs to be doc'ed. */
   DOC_WORK_ITEM: "doc_work_item",
-  /** Cached information about global symbols that are available in Deno CLI. */
-  GLOBAL_SYMBOLS_KIND: "global_symbols",
   /** Cached version of the meta data for an info page of a module. */
   INFO_PAGE_KIND: "info_page",
-  /** Meta data about a library (e.g. Deno Stable). */
-  LIBRARY_KIND: "library",
-  /** Meta data associated with a specific version of a library. */
-  LIBRARY_VERSION_KIND: "library_version",
   /** Daily and version related usage for a module. */
   METRIC_USAGE_KIND: "metric_usage",
   /** A dependency of a module. */
@@ -63,24 +57,12 @@ export const kinds = {
   SUBMODULE_METRICS_KIND: "submodule_metrics",
   /** A cache of symbols within the scope of a module. */
   SYMBOL_INDEX_KIND: "symbol_index",
-  /** A cache of symbol items for libraries. */
-  SYMBOL_ITEMS_KIND: "symbol_items",
 
   BUILD_KIND: "build",
   LEGACY_MODULES: "legacy_modules",
   LEGACY_OWNER_QUOTAS: "legacy_owner_quotas",
   LEGACY_BUILDS: "legacy_builds",
 } as const;
-
-/** Different libraries are that are stored in the datastore. */
-export const libs = {
-  /** The name of the stable built-in APIs */
-  DENO_STABLE_NAME: "deno_stable",
-  /** The name of the unstable built-in APIs (which includes stable) */
-  DENO_UNSTABLE_NAME: "deno_unstable",
-  /** The name of the esnext build-in APIs */
-  ESNEXT_NAME: "esnext",
-};
 
 /** These constants represent the different algolia index which are generated
  * from data contained within datastore. */

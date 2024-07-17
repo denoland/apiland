@@ -89,32 +89,6 @@ export interface PackageMetaListing {
 
 export type { DocNode } from "deno_doc/types";
 
-export interface GlobalSymbolItem {
-  name: string;
-  library: "deno" | "esnext";
-  unstable?: boolean;
-}
-
-export interface GlobalSymbols {
-  items: GlobalSymbolItem[];
-}
-
-export interface Library {
-  name: string;
-  versions: string[];
-  latest_version: string;
-}
-
-export interface LibraryVersion {
-  name: string;
-  version: string;
-  sources: { url: string; contentType?: string; unstable?: boolean }[];
-}
-
-export interface LibrarySymbolItems {
-  items: SymbolItem[];
-}
-
 /** Stored as kind `module` in the datastore. */
 export interface Module {
   name: string;
@@ -389,33 +363,6 @@ export type DocPage =
   | PagePathNotFound
   | DocPageRedirect;
 
-interface DocPageLibraryBase {
-  kind: string;
-  name: string;
-  version: string;
-  versions: string[];
-  latest_version: string;
-}
-
-export interface DocPageLibrary extends DocPageLibraryBase {
-  kind: "library";
-  items: SymbolItem[];
-}
-
-export interface DocPageLibrarySymbol extends DocPageLibraryBase {
-  kind: "librarySymbol";
-  items: SymbolItem[];
-  name: string;
-  docNodes: DocNode[];
-}
-
-export interface DocPageLibraryInvalidVersion {
-  kind: "libraryInvalidVersion";
-  name: string;
-  versions: string[];
-  latest_version: string;
-}
-
 /** An interface representing a doc work item. Typically the doc work item
  * is processed at the time of module publish, but if for various reasons it
  * cannot be processed, then the doc work item will remain in the datastore to
@@ -430,11 +377,6 @@ export interface DocWorkItem {
    * documented. */
   attempts?: number;
 }
-
-export type LibDocPage =
-  | DocPageLibrary
-  | DocPageLibrarySymbol
-  | DocPageLibraryInvalidVersion;
 
 export interface SourcePageFile extends PageBase {
   kind: "file";

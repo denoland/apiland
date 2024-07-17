@@ -24,9 +24,7 @@ import {
   cacheSourcePage,
   lookup,
   lookupDocPage,
-  lookupGlobalSymbols,
   lookupInfoPage,
-  lookupLibDocPage,
   lookupSourcePage,
 } from "./cache.ts";
 import {
@@ -50,13 +48,11 @@ import {
   queryDocNodes,
 } from "./docs.ts";
 import { getModuleLatestVersion, redirectToLatest } from "./modules.ts";
-import { generateLibDocPage } from "./pages.ts";
 import { enqueue } from "./process.ts";
 import {
   ApiModuleData,
   DependencyMetrics,
   InfoPage,
-  Library,
   Module,
   ModuleMetrics,
   ModuleVersion,
@@ -125,7 +121,6 @@ router.all("/", () =>
       <div>
         <ul>
           <li><code>/v2/pages/mod/doc/:module/:version/:path*</code> - provides a structure to render a doc view page - [<a href="/v2/pages/mod/doc/std/0.150.0/testing/asserts.ts">example</a>]</li>
-          <li><code>/v2/pages/lib/doc/:module/:version/:path*</code> - provides a structure to render a doc view page - [<a href="/v2/pages/lib/doc/deno_stable/latest?symbol=Deno.errors">example</a>]</li>
           <li><code>/v2/pages/mod/source/:module/:version/:path*</code> - provides a structure to render a source view page - [<a href="/v2/pages/mod/source/std/0.150.0/testing/asserts.ts">example</a>]</li>
           <li><code>/v2/pages/mod/info/:module/:version</code> - provides a structure to render a module info page - [<a href="/v2/pages/info/oak/v11.0.0">example</a>]</li>
           <li><code>/v2/modules</code> - Provide a list of modules in the registry - [<a href="/v2/modules" target="_blank">example</a>]</li>
@@ -136,7 +131,6 @@ router.all("/", () =>
           <li><code>/v2/metrics/modules/:module</code> - Provide metric information for a module -  [<a href="/v2/metrics/modules/oak" target="_blank">example</a>]</li>
           <li><code>/v2/metrics/submmodules/:submodule</code> - Provide metric information for a module's submodules -  [<a href="/v2/metrics/modules/std" target="_blank">example</a>]</li>
           <li><code>/v2/metrics/dependencies/:source*</code> - Provide metrics information for a dependency source -  [<a href="/v2/metrics/modules/deno.land/x" target="_blank">example</a>]</li>
-          <li><code>/v2/symbols/global</code> - Provide a list of symbols that are in the global scope of the Deno CLI runtime - [<a href="/v2/symbols/global" target="_blank">example</a>]</li>
           <li><code>/ping</code> - A health endpoint for the server - [<a href="/ping" target="_blank">example</a>]</li>
         <ul>
       </div>
@@ -488,33 +482,6 @@ router.post(
   },
 );
 
-router.get("/v2/libs/:lib/:version/doc{/}?", async (ctx) => {
-  let { lib, version } = ctx.params;
-  datastore = datastore ?? await getDatastore();
-  if (version === "latest") {
-    const res = await datastore.lookup(
-      datastore.key([kinds.LIBRARY_KIND, lib]),
-    );
-    if (res.found && res.found.length) {
-      const libItem = entityToObject<Library>(res.found[0].entity);
-      version = libItem.latest_version;
-    } else {
-      return;
-    }
-  }
-  const results = await queryDocNodes(
-    datastore,
-    datastore.key(
-      [kinds.LIBRARY_KIND, lib],
-      [kinds.LIBRARY_VERSION_KIND, version],
-    ),
-    ctx.searchParams.kind as DocNodeKind,
-  );
-  if (results.length) {
-    return results;
-  }
-});
-
 router.get("/v2/modules/:module/:version/doc/:path*", async (ctx) => {
   const { module, version, path } = ctx.params;
   if (!isDocable(path)) {
@@ -556,8 +523,6 @@ router.get("/v2/modules/:module/:version/doc/:path*", async (ctx) => {
     return undefined;
   }
 });
-
-router.get("/v2/symbols/global", (_ctx) => lookupGlobalSymbols());
 
 router.get("/v2/modules/:module/:version/index/:path*{/}?", async (ctx) => {
   const { module, version, path: paramPath } = ctx.params;
@@ -710,25 +675,6 @@ async function moduleDocPage(ctx: Context<unknown, ModuleDocPagesParams>) {
 /** @deprecated to be removed */
 router.get("/v2/pages/doc/:module/:version/:path*{/}?", moduleDocPage);
 router.get("/v2/pages/mod/doc/:module/:version/:path*{/}?", moduleDocPage);
-
-interface LibDocPagesParams extends Record<string, string> {
-  lib: string;
-  version: string;
-}
-
-async function libDocPage(ctx: Context<unknown, LibDocPagesParams>) {
-  let { lib, version } = ctx.params;
-  lib = decodeURIComponent(lib);
-  version = decodeURIComponent(version);
-  const symbol = ctx.searchParams.symbol ?? ROOT_SYMBOL;
-  let docPage = await lookupLibDocPage(lib, version, symbol);
-  if (!docPage) {
-    docPage = await generateLibDocPage(lib, version, symbol);
-  }
-  return docPage;
-}
-
-router.get("/v2/pages/lib/doc/:lib/:version{/}?", libDocPage);
 
 // registry completions
 
