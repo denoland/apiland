@@ -7,7 +7,7 @@
  */
 
 import { auth, type Context, Router } from "acorn";
-import { type SearchIndex } from "algoliasearch";
+import type { OramaClient } from "orama";
 import {
   type Datastore,
   DatastoreError,
@@ -17,7 +17,7 @@ import {
 import { errors, isHttpError } from "std/http/http_errors.ts";
 import twas from "twas";
 
-import { getSearchClient } from "./algolia.ts";
+import { getSearchClient } from "./orama.ts";
 import { endpointAuth, getDatastore } from "./auth.ts";
 import {
   cacheDocPage,
@@ -32,7 +32,7 @@ import {
   getCompletions,
   getPathDoc,
 } from "./completions.ts";
-import { GITHUB_HOOKS_CIDRS, indexes, kinds, ROOT_SYMBOL } from "./consts.ts";
+import { GITHUB_HOOKS_CIDRS, kinds, ROOT_SYMBOL } from "./consts.ts";
 import {
   checkMaybeLoad,
   type DocNode,
@@ -682,25 +682,28 @@ export const MAX_AGE_1_HOUR = "max-age=3600";
 export const MAX_AGE_1_DAY = "max-age=86400";
 export const IMMUTABLE = "max-age=2628000, immutable";
 
-let searchIndex: SearchIndex | undefined;
+let searchIndex: OramaClient | undefined;
 let cachedRootQuery: string[] | undefined;
 
 router.get("/completions/items/{:mod}?", async (ctx) => {
   let items: string[] | undefined;
   let isIncomplete = true;
   if (ctx.params.mod || !cachedRootQuery) {
-    searchIndex = searchIndex ??
-      (await getSearchClient()).initIndex(indexes.MODULE_INDEX);
-    const res = await searchIndex.search<{ name: string }>(
-      ctx.params.mod ?? "",
+    searchIndex = searchIndex ?? await getSearchClient();
+    const res = await searchIndex.search(
       {
-        facetFilters: "third_party:true",
-        hitsPerPage: 20,
-        attributesToRetrieve: ["name"],
+        term: ctx.params.mod ?? "",
+        where: {
+          third_party: true,
+        },
+        limit: 20,
       },
     );
-    isIncomplete = res.nbPages > 1;
-    items = res.hits.map(({ name }) => name);
+    if (!res) {
+      throw new Error("search returned null");
+    }
+    isIncomplete = res.hits.length < res.count;
+    items = res.hits.map((hit) => hit.document.name);
     if (!ctx.params.mod) {
       cachedRootQuery = items;
     }
