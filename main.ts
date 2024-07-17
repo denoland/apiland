@@ -699,7 +699,7 @@ router.get("/completions/items/{:mod}?", async (ctx) => {
         limit: 20,
       },
     );
-    if (!res.hits) {
+    if (!res) {
       throw new Error("search returned null");
     }
     isIncomplete = res.hits.length < res.count;
