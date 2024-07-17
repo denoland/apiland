@@ -6,8 +6,7 @@
  * @module
  */
 
-import { CloudManager, OramaClient } from "orama";
-import type { IndexManager } from "orama/types";
+import { CloudManager, OramaClient, type IndexManager } from "orama";
 
 import { oramaKeys, readyPromise } from "./auth.ts";
 
