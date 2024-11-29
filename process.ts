@@ -57,6 +57,7 @@ import type {
 } from "./types.d.ts";
 import { assert } from "./util.ts";
 import { ApiModuleData } from "./types.d.ts";
+import { publish } from "./publish.ts";
 
 interface TaskBase {
   kind: string;
@@ -85,6 +86,11 @@ interface ModuleIndexBase {
   version: string;
   path: string;
   index: ModuleIndex;
+}
+
+interface PublishTask extends TaskBase {
+  kind: "publish";
+  buildID: string;
 }
 
 interface CommitIndexTask extends TaskBase, ModuleIndexBase {
@@ -142,6 +148,7 @@ interface AlgoliaTask extends TaskBase {
 }
 
 type TaskDescriptor =
+  | PublishTask
   | LoadTask
   | CommitTask
   | AlgoliaTask
@@ -533,6 +540,8 @@ async function taskAlgolia(
 
 function process(id: number, task: TaskDescriptor): Promise<void> {
   switch (task.kind) {
+    case "publish":
+      return publish(task.buildID);
     case "algolia":
       return taskAlgolia(id, task);
     case "commit":

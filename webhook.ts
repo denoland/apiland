@@ -14,19 +14,15 @@ import type {
   WebhookPayloadPing,
   WebhookPayloadPush,
 } from "./webhooks.d.ts";
-import { kinds } from "./consts.ts";
-import {
-  getDatastore,
-  getModerationS3Bucket,
-  getS3Bucket,
-  getSQSQueue,
-} from "./auth.ts";
+import { kinds, kv } from "./consts.ts";
+import { getDatastore, getModerationS3Bucket, getS3Bucket } from "./auth.ts";
 import {
   ApiModuleData,
   Build,
   ModuleMetaVersionsJson,
   OwnerQuota,
 } from "./types.d.ts";
+import { lookup } from "https://deno.land/x/media_types@v2.13.0/mod.ts";
 
 let datastore: Datastore | undefined;
 
@@ -245,10 +241,7 @@ async function initiateBuild({
     //
   }
 
-  const sqs = await getSQSQueue();
-  await sqs.sendMessage({
-    body: JSON.stringify({ buildID: id }),
-  });
+  await kv.enqueue({ kind: "publish", buildID: id });
 
   return new Response(
     JSON.stringify({
@@ -602,4 +595,51 @@ export async function uploadMetaJson(module: string, data: unknown) {
       contentType: "application/json",
     },
   );
+}
+
+export async function uploadVersionRaw(
+  module: string,
+  version: string,
+  file: string,
+  contents: Uint8Array,
+): Promise<{ etag: string }> {
+  const s3 = await getS3Bucket();
+  const type = lookup(file) ??
+    (file.endsWith(".tsx")
+      ? "application/typescript; charset=utf-8"
+      : file.endsWith(".tsx")
+      ? "application/javascript; charset=utf-8"
+      : "application/octet-stream");
+  const resp = await s3.putObject(
+    join(module, "versions", version, "raw", file),
+    contents,
+    {
+      // Versioned files can be cached indefinitely. (1 year)
+      cacheControl: "public, max-age=31536000, immutable",
+      contentType: type === "video/mp2t"
+        ? "application/typescript; charset=utf-8"
+        : type === "text/jsx"
+        ? "application/javascript; charset=utf-8"
+        : type,
+    },
+  );
+  return { etag: resp.etag };
+}
+
+export async function uploadVersionMetaJson(
+  module: string,
+  version: string,
+  data: unknown,
+): Promise<{ etag: string }> {
+  const s3 = await getS3Bucket();
+  const resp = await s3.putObject(
+    join(module, "versions", version, "meta", "meta.json"),
+    encoder.encode(JSON.stringify(data)),
+    {
+      // Immutable files can be cached indefinitely. (1 year)
+      cacheControl: "public, max-age=31536000, immutable",
+      contentType: "application/json",
+    },
+  );
+  return { etag: resp.etag };
 }
