@@ -19,34 +19,10 @@ import twas from "twas";
 
 import { getSearchClient } from "./algolia.ts";
 import { endpointAuth, getDatastore } from "./auth.ts";
-import {
-  cacheDocPage,
-  cacheSourcePage,
-  lookup,
-  lookupDocPage,
-  lookupInfoPage,
-  lookupSourcePage,
-} from "./cache.ts";
-import {
-  getCompletionItems,
-  getCompletions,
-  getPathDoc,
-} from "./completions.ts";
-import { GITHUB_HOOKS_CIDRS, indexes, kinds, ROOT_SYMBOL } from "./consts.ts";
-import {
-  checkMaybeLoad,
-  type DocNode,
-  type DocNodeKind,
-  generateDocNodes,
-  generateDocPage,
-  generateInfoPage,
-  generateModuleIndex,
-  generateSourcePage,
-  getDocNodes,
-  getImportMapSpecifier,
-  isDocable,
-  queryDocNodes,
-} from "./docs.ts";
+import { lookup, lookupInfoPage } from "./cache.ts";
+import { getCompletionItems, getCompletions } from "./completions.ts";
+import { GITHUB_HOOKS_CIDRS, indexes, kinds } from "./consts.ts";
+import { generateInfoPage } from "./docs.ts";
 import { getModuleLatestVersion, redirectToLatest } from "./modules.ts";
 import { enqueue } from "./process.ts";
 import {
@@ -65,9 +41,6 @@ import type {
   WebhookPayloadPush,
 } from "./webhooks.d.ts";
 import { createEvent, pingEvent, pushEvent } from "./webhook.ts";
-import DISABLED_MODULES from "./docDisabledModules.json" with {
-  type: "json",
-};
 
 interface PagedItems<T> {
   items: T[];
@@ -120,13 +93,10 @@ router.all("/", () =>
       <h2>Endpoints</h2>
       <div>
         <ul>
-          <li><code>/v2/pages/mod/doc/:module/:version/:path*</code> - provides a structure to render a doc view page - [<a href="/v2/pages/mod/doc/std/0.150.0/testing/asserts.ts">example</a>]</li>
-          <li><code>/v2/pages/mod/source/:module/:version/:path*</code> - provides a structure to render a source view page - [<a href="/v2/pages/mod/source/std/0.150.0/testing/asserts.ts">example</a>]</li>
           <li><code>/v2/pages/mod/info/:module/:version</code> - provides a structure to render a module info page - [<a href="/v2/pages/info/oak/v11.0.0">example</a>]</li>
           <li><code>/v2/modules</code> - Provide a list of modules in the registry - [<a href="/v2/modules" target="_blank">example</a>]</li>
           <li><code>/v2/modules/:module</code> - Provide information about a specific module - [<a href="/v2/modules/std" target="_blank">example</a>]</li>
           <li><code>/v2/modules/:module/:version</code> - Provide information about a specific module version - [<a href="/v2/modules/std/0.139.0" target="_blank">example</a>]</li>
-          <li><code>/v2/modules/:module/:version/doc/:path*</code> - Provide documentation nodes for a specific path of a specific module version -  [<a href="/v2/modules/std/0.139.0/doc/archive/tar.ts" target="_blank">example</a>]</li>
           <li><code>/v2/metrics/apis</code> - Provide metric information for builtin APIs -  [<a href="/v2/metrics/apis" target="_blank">example</a>]</li>
           <li><code>/v2/metrics/modules/:module</code> - Provide metric information for a module -  [<a href="/v2/metrics/modules/oak" target="_blank">example</a>]</li>
           <li><code>/v2/metrics/submmodules/:submodule</code> - Provide metric information for a module's submodules -  [<a href="/v2/metrics/modules/std" target="_blank">example</a>]</li>
@@ -455,147 +425,6 @@ router.get(
   },
 );
 
-// ## DocNode related APIs
-
-router.post(
-  "/v2/modules/:module/:version/doc",
-  async (ctx: Context<string[], { module: string; version: string }>) => {
-    const { params: { module, version } } = ctx;
-    if (version === "__latest__") {
-      return redirectToLatest(ctx.url(), module);
-    }
-    const entries = await ctx.body();
-    if (!entries || !Array.isArray(entries)) {
-      throw new errors.BadRequest("Body is missing or malformed");
-    }
-    const results = await Promise.all(
-      entries.map((entry) => getDocNodes(module, version, entry)),
-    );
-    const result: Record<string, DocNode[]> = {};
-    for (const item of results) {
-      if (item) {
-        const [entry, nodes] = item;
-        result[entry] = nodes;
-      }
-    }
-    return result;
-  },
-);
-
-router.get("/v2/modules/:module/:version/doc/:path*", async (ctx) => {
-  const { module, version, path } = ctx.params;
-  if (!isDocable(path)) {
-    return;
-  }
-  if (version === "__latest__") {
-    return redirectToLatest(ctx.url(), module);
-  }
-  // puts too much pressure on datastore
-  if (DISABLED_MODULES.includes(module)) return undefined;
-  datastore = datastore ?? await getDatastore();
-  const moduleEntryKey = datastore.key(
-    [kinds.MODULE_KIND, module],
-    [kinds.MODULE_VERSION_KIND, version],
-    [kinds.MODULE_ENTRY_KIND, `/${path}`],
-  );
-  // attempt to retrieve the doc nodes from the datastore
-  const results = await queryDocNodes(
-    datastore,
-    moduleEntryKey,
-    ctx.searchParams.kind as DocNodeKind,
-  );
-  if (results.length) {
-    return results;
-  }
-  // attempt to load the module
-  if (!await checkMaybeLoad(datastore, module, version, path)) {
-    return undefined;
-  }
-  try {
-    const importMap = await getImportMapSpecifier(module, version);
-    const docNodes = await generateDocNodes(module, version, path, importMap);
-    enqueue({ kind: "commit", module, version, path, docNodes });
-    return docNodes;
-  } catch (e) {
-    if (isHttpError(e)) {
-      throw e;
-    }
-    return undefined;
-  }
-});
-
-router.get("/v2/modules/:module/:version/index/:path*{/}?", async (ctx) => {
-  const { module, version, path: paramPath } = ctx.params;
-  if (version === "__latest__") {
-    return redirectToLatest(ctx.url(), module);
-  }
-  // puts too much pressure on datastore
-  const path = `/${paramPath}`;
-  datastore = datastore ?? await getDatastore();
-  const indexKey = datastore.key(
-    [kinds.MODULE_KIND, module],
-    [kinds.MODULE_VERSION_KIND, version],
-    [kinds.MODULE_INDEX_KIND, path],
-  );
-  const response = await datastore.lookup(indexKey);
-  if (response.found) {
-    return entityToObject(response.found[0].entity);
-  }
-  const index = await generateModuleIndex(datastore, module, version, path);
-  if (index) {
-    enqueue({ kind: "commitIndex", module, version, path, index });
-  }
-  return index;
-});
-
-interface ModuleSourcePagesParams extends Record<string, string> {
-  module: string;
-  version: string;
-  path: string;
-}
-
-async function moduleSourcePage(
-  ctx: Context<unknown, ModuleSourcePagesParams>,
-) {
-  let { module, version, path: paramPath } = ctx.params;
-  module = decodeURIComponent(module);
-  version = decodeURIComponent(version);
-  paramPath = decodeURIComponent(paramPath);
-  if (version === "__latest__") {
-    return redirectToLatest(ctx.url(), module);
-  }
-  // puts too much pressure on datastore
-  const path = `/${paramPath}`;
-  let sourcePage = await lookupSourcePage(module, version, path);
-  if (!sourcePage) {
-    datastore = datastore ?? await getDatastore();
-    sourcePage = await generateSourcePage(datastore, module, version, path);
-    if (sourcePage) {
-      cacheSourcePage(module, version, path, sourcePage);
-    }
-    if (
-      sourcePage && sourcePage.kind !== "invalid-version" &&
-      sourcePage.kind !== "notfound"
-    ) {
-      enqueue({
-        kind: "commitSourcePage",
-        module,
-        version,
-        path,
-        sourcePage,
-      });
-    }
-  }
-  return sourcePage;
-}
-
-/** @deprecated to be removed */
-router.get("/v2/pages/code/:module/:version/:path*{/}?", moduleSourcePage);
-router.get(
-  "/v2/pages/mod/source/:module/:version/:path*{/}?",
-  moduleSourcePage,
-);
-
 router.get("/v2/pages/mod/info/:module/:version{/}?", async (ctx) => {
   let { module, version } = ctx.params;
   module = decodeURIComponent(module);
@@ -610,71 +439,6 @@ router.get("/v2/pages/mod/info/:module/:version{/}?", async (ctx) => {
   }
   return infoPage;
 });
-
-interface ModuleDocPagesParams extends Record<string, string> {
-  module: string;
-  version: string;
-  path: string;
-}
-
-async function moduleDocPage(ctx: Context<unknown, ModuleDocPagesParams>) {
-  let { module, version, path: paramPath } = ctx.params;
-  module = decodeURIComponent(module);
-  version = decodeURIComponent(version);
-  paramPath = decodeURIComponent(paramPath);
-  if (version === "__latest__") {
-    return redirectToLatest(ctx.url(), module);
-  }
-  const path = `/${paramPath}`;
-  const symbol = ctx.searchParams.symbol ?? ROOT_SYMBOL;
-  // puts too much pressure on datastore
-  if (DISABLED_MODULES.includes(module)) return undefined;
-  let docPage = await lookupDocPage(module, version, path, symbol);
-  if (!docPage) {
-    datastore = datastore ?? await getDatastore();
-    try {
-      docPage = await generateDocPage(datastore, module, version, path, symbol);
-    } catch (e) {
-      console.log("docPageError");
-      console.error(e);
-      throw e;
-    }
-    if (docPage) {
-      cacheDocPage(module, version, path, symbol, docPage);
-    }
-    if (
-      docPage && docPage.kind !== "invalid-version" &&
-      docPage.kind !== "notfound"
-    ) {
-      enqueue({
-        kind: "commitDocPage",
-        module,
-        version,
-        path,
-        symbol,
-        docPage,
-      });
-    }
-  }
-  if (docPage?.kind === "redirect") {
-    return new Response(null, {
-      status: 301,
-      statusText: "Moved Permanently",
-      headers: {
-        location:
-          `/v2/pages/mod/doc/${module}/${version}${docPage.path}${ctx.url().search}`,
-        "X-Deno-Module": module,
-        "X-Deno-Version": version,
-        "X-Deno-Module-Path": docPage.path,
-      },
-    });
-  }
-  return docPage;
-}
-
-/** @deprecated to be removed */
-router.get("/v2/pages/doc/:module/:version/:path*{/}?", moduleDocPage);
-router.get("/v2/pages/mod/doc/:module/:version/:path*{/}?", moduleDocPage);
 
 // registry completions
 
@@ -808,13 +572,7 @@ router.get("/completions/resolve/:mod/:ver/:path*{/}?", async (ctx) => {
     const path = ctx.url().pathname.endsWith("/") && ctx.params.path
       ? `/${ctx.params.path}/`
       : `/${ctx.params.path}`;
-    const parts = path.split("/");
-    const last = parts.pop();
-    const dir = last ? `${parts.join("/")}/` : path;
-    let value = await getPathDoc(completions, dir, path) ?? "";
-    if (value) {
-      value += "\n\n---\n\n";
-    }
+    let value = "";
     const { mod, ver } = ctx.params;
     value += `[doc](https://deno.land/${mod !== "std" ? "x/" : ""}${mod}${
       ver !== "__latest__" ? `@${ver}` : ""

@@ -165,17 +165,7 @@ export function isIndexedDir(item: PackageMetaListing): boolean {
   return item.type === "dir" && !item.path.match(RE_PRIVATE_PATH);
 }
 
-const MODULE_KINDS = [
-  kinds.DOC_PAGE_KIND,
-  kinds.INFO_PAGE_KIND,
-  kinds.CODE_PAGE_KIND,
-];
-const VERSION_KINDS = [
-  kinds.DOC_NODE_KIND,
-  kinds.MODULE_INDEX_KIND,
-  kinds.NAV_INDEX_KIND,
-  kinds.SYMBOL_INDEX_KIND,
-];
+const MODULE_KINDS = [kinds.INFO_PAGE_KIND];
 
 export async function clearAppend(
   datastore: Datastore,
@@ -202,7 +192,6 @@ export function clearModule(
   datastore: Datastore,
   mutations: Mutation[],
   module: string,
-  version: string,
 ): Promise<unknown> {
   const pModules = clearAppend(
     datastore,
@@ -210,16 +199,7 @@ export function clearModule(
     MODULE_KINDS,
     datastore.key([kinds.MODULE_KIND, module]),
   );
-  const pVersions = clearAppend(
-    datastore,
-    mutations,
-    VERSION_KINDS,
-    datastore.key(
-      [kinds.MODULE_KIND, module],
-      [kinds.MODULE_VERSION_KIND, version],
-    ),
-  );
-  return Promise.all([pModules, pVersions]);
+  return Promise.all([pModules]);
 }
 
 export async function loadModule(
@@ -309,7 +289,7 @@ export async function loadModule(
       objectSetKey(moduleVersion, versionKey);
       cacheModuleVersion(module, version, moduleVersion);
       mutations.push({ upsert: objectToEntity(moduleVersion) });
-      await clearModule(datastore, mutations, moduleItem.name, version);
+      await clearModule(datastore, mutations, moduleItem.name);
       const { directory_listing: listing } = versionMeta;
       const toDocPaths = new Set<string>();
       for (const moduleEntry of versionMeta.directory_listing) {

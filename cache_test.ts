@@ -2,7 +2,7 @@
 
 import { assert, assertStrictEquals } from "std/testing/asserts.ts";
 import { readyPromise } from "./auth.ts";
-import { clear, lookup, lookupDocPage } from "./cache.ts";
+import { clear, lookup } from "./cache.ts";
 
 await readyPromise;
 
@@ -53,25 +53,6 @@ Deno.test({
     assertStrictEquals(me1, me2);
     const pass1 = performance.measure("me-pass1", "me-gm1", "me-me1");
     const pass2 = performance.measure("me-pass2", "me-me1", "me-me2");
-    assert(pass1.duration > pass2.duration);
-    assert(pass2.duration < 2);
-  },
-});
-
-Deno.test({
-  name: "cache - lookupDocPage(module, version, path, symbol)",
-  async fn() {
-    clear();
-    performance.mark("dp-gm1");
-    const dp1 = await lookupDocPage("std", "0.190.0", "/", "$$root$$");
-    assert(dp1);
-    performance.mark("dp-dp1");
-    const dp2 = await lookupDocPage("std", "0.190.0", "/", "$$root$$");
-    performance.mark("dp-dp2");
-    assertStrictEquals(dp1, dp2);
-    const pass1 = performance.measure("dp-pass1", "dp-gm1", "dp-dp1");
-    const pass2 = performance.measure("dp-pass2", "dp-dp1", "dp-dp2");
-    console.log(pass1.duration, pass2.duration);
     assert(pass1.duration > pass2.duration);
     assert(pass2.duration < 2);
   },
