@@ -5,12 +5,6 @@
  * @module
  */
 
-import type {
-  DeclarationKind,
-  DocNode,
-  DocNodeKind,
-  JsDoc,
-} from "deno_doc/types";
 import type { patterns } from "./consts.ts";
 
 export interface ApiModuleData {
@@ -86,8 +80,6 @@ export interface PackageMetaListing {
  *
  * @module
  */
-
-export type { DocNode } from "deno_doc/types";
 
 /** Stored as kind `module` in the datastore. */
 export interface Module {
@@ -222,90 +214,6 @@ export interface DependencyError {
   error: string;
 }
 
-/** Stores as kind `doc_structure` in datastore. */
-export interface DocStructureItem {
-  name: string;
-  items: string[];
-}
-
-export interface PageBase {
-  kind: string;
-  module: string;
-  description?: string;
-  version: string;
-  path: string;
-  versions: string[];
-  latest_version: string;
-  uploaded_at: string;
-  upload_options: UploadOptions;
-  tags?: ModuleTag[];
-}
-
-interface DocPageDirItem {
-  kind: "dir";
-  path: string;
-}
-
-export interface SymbolItem {
-  name: string;
-  kind: DocNodeKind;
-  category?: string;
-  jsDoc?: JsDoc | null;
-}
-
-export interface IndexItem {
-  kind: "dir" | "module" | "file";
-  path: string;
-  size: number;
-  ignored: boolean;
-  doc?: string;
-}
-
-interface DocPageModuleItem {
-  kind: "module";
-  path: string;
-  items: SymbolItem[];
-  default?: true;
-}
-
-export type DocPageNavItem = DocPageModuleItem | DocPageDirItem;
-
-export interface DocPageSymbol extends PageBase {
-  kind: "symbol";
-  nav: DocPageNavItem[];
-  name: string;
-  docNodes: DocNode[];
-  symbols?: SymbolIndexItem[];
-}
-
-export interface DocPageModule extends PageBase {
-  kind: "module";
-  nav: DocPageNavItem[];
-  docNodes: DocNode[];
-  symbols?: SymbolIndexItem[];
-}
-
-export interface DocPageIndex extends PageBase {
-  kind: "index";
-  items: IndexItem[];
-}
-
-export interface DocPageFile extends PageBase {
-  kind: "file";
-}
-
-export interface DocPageRedirect {
-  kind: "redirect";
-  path: string;
-}
-
-export interface ModuleUsage {
-  total: UsageMetric;
-  daily: UsageMetric[];
-  versions: Record<string, UsageMetric>;
-  updated: Date;
-}
-
 export interface ModInfoPage {
   kind: "modinfo";
   module: string;
@@ -335,10 +243,6 @@ export interface ModInfoPage {
 
 export type InfoPage = ModInfoPage | PageInvalidVersion | PageNoVersions;
 
-export interface PagePathNotFound extends PageBase {
-  kind: "notfound";
-}
-
 export interface PageNoVersions {
   kind: "no-versions";
   module: string;
@@ -350,75 +254,6 @@ export interface PageInvalidVersion {
   description?: string;
   versions: string[];
   latest_version: string;
-}
-
-/** Stores as kind `doc_page` in datastore. */
-export type DocPage =
-  | DocPageSymbol
-  | DocPageModule
-  | DocPageIndex
-  | DocPageFile
-  | PageInvalidVersion
-  | PageNoVersions
-  | PagePathNotFound
-  | DocPageRedirect;
-
-/** An interface representing a doc work item. Typically the doc work item
- * is processed at the time of module publish, but if for various reasons it
- * cannot be processed, then the doc work item will remain in the datastore to
- * be processed at a later point in time. */
-export interface DocWorkItem {
-  module: string;
-  version: string;
-  /** The paths of the module entries that need to be doc'ed. */
-  to_doc: string[];
-  /** The number of attempts that have been made to try to document the module.
-   * This is used to detect issues with modules that are having issues being
-   * documented. */
-  attempts?: number;
-}
-
-export interface SourcePageFile extends PageBase {
-  kind: "file";
-  size: number;
-  /** Indicates if the page is docable or not. */
-  docable?: boolean;
-}
-
-export interface SourcePageDirEntry {
-  path: string;
-  kind: "file" | "dir";
-  size: number;
-  /** Indicates if the page is docable or not. */
-  docable?: boolean;
-}
-
-export interface SourcePageDir extends PageBase {
-  kind: "dir";
-  entries: SourcePageDirEntry[];
-}
-
-export type SourcePage =
-  | SourcePageFile
-  | SourcePageDir
-  | PageInvalidVersion
-  | PageNoVersions
-  | PagePathNotFound;
-
-export interface SymbolIndex {
-  items: SymbolIndexItem[];
-}
-
-export interface SymbolIndexItem {
-  name: string;
-  kind: DocNodeKind;
-  declarationKind: DeclarationKind;
-  filename: string;
-}
-
-export interface UsageMetric {
-  users: number;
-  sessions: number;
 }
 
 export interface CompletionItems {

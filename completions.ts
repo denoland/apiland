@@ -6,8 +6,6 @@
  * @module
  */
 
-import type { DocNodeModuleDoc } from "deno_doc/types";
-
 import {
   type Datastore,
   entityToObject,
@@ -24,7 +22,6 @@ import type {
   PathCompletion,
   PathCompletions,
 } from "./types.d.ts";
-import { assert } from "./util.ts";
 
 const completionCache = new Map<string, PathCompletions>();
 
@@ -199,60 +196,4 @@ export async function getCompletions(
     }
   }
   return pathCompletions;
-}
-
-async function getModDoc(
-  module: string,
-  version: string,
-  path: string,
-): Promise<string> {
-  datastore = datastore ?? await getDatastore();
-  const docNodeQuery = datastore
-    .createQuery(kinds.DOC_NODE_KIND)
-    .filter("kind", "moduleDoc")
-    .hasAncestor(datastore.key(
-      [kinds.MODULE_KIND, module],
-      [kinds.MODULE_VERSION_KIND, version],
-      [kinds.MODULE_ENTRY_KIND, path],
-    ));
-  for await (const entity of datastore.streamQuery(docNodeQuery)) {
-    assert(entity.key);
-    // this ensure we only find moduleDoc for the module, not from a re-exported
-    // namespace which might have module doc as well.
-    if (entity.key.path.length !== 4) {
-      continue;
-    }
-    const obj = entityToObject<DocNodeModuleDoc>(entity);
-    return obj.jsDoc.doc ?? "";
-  }
-  return "";
-}
-
-/** Attempt to resolve any JSDoc associated with a path. */
-export async function getPathDoc(
-  completions: PathCompletions,
-  dir: string,
-  path: string,
-): Promise<string | undefined> {
-  const pathCompletion = completions.items.find(({ path }) => path === dir);
-  if (pathCompletion) {
-    const search = path === dir ? pathCompletion.default : path;
-    if (search) {
-      const mod = pathCompletion.modules.find(({ path }) => path === search);
-      if (mod) {
-        if (mod.doc == null) {
-          mod.doc = await getModDoc(
-            completions.name,
-            completions.version,
-            search,
-          );
-          enqueue({
-            kind: "commitMutations",
-            mutations: [{ upsert: objectToEntity(completions) }],
-          });
-        }
-        return mod.doc || "";
-      }
-    }
-  }
 }

@@ -10,16 +10,8 @@ import { type Datastore, entityToObject } from "google_datastore";
 import type { Key } from "google_datastore/types";
 
 import { getDatastore } from "./auth.ts";
-import { kinds, SYMBOL_REGEX } from "./consts.ts";
-import { entityToDocPage } from "./docs.ts";
-import {
-  DocPage,
-  InfoPage,
-  Module,
-  ModuleEntry,
-  ModuleVersion,
-  SourcePage,
-} from "./types.d.ts";
+import { kinds } from "./consts.ts";
+import { InfoPage, Module, ModuleEntry, ModuleVersion } from "./types.d.ts";
 import { assert } from "./util.ts";
 
 const CACHED_MODULE_COUNT =
@@ -30,8 +22,6 @@ const cachedModules = new Map<string, Module>();
 const cachedVersions = new WeakMap<Module, Map<string, ModuleVersion>>();
 const cachedEntries = new WeakMap<ModuleVersion, Map<string, ModuleEntry>>();
 const cachedInfoPages = new WeakMap<Module, Map<string, InfoPage>>();
-const cachedDocPages = new WeakMap<ModuleEntry, Map<string, DocPage>>();
-const cachedSourcePages = new WeakMap<ModuleVersion, Map<string, SourcePage>>();
 
 /** The "LRU" for modules names. */
 const cachedModuleNames = new Set<string>();
@@ -108,87 +98,6 @@ export function clear(module?: string) {
   }
 }
 
-export async function lookupSourcePage(
-  module: string,
-  version: string,
-  path: string,
-): Promise<SourcePage | undefined> {
-  let moduleItem = cachedModules.get(module);
-  let versionItem = moduleItem && cachedVersions.get(moduleItem)?.get(version);
-  let sourcePageItem = versionItem &&
-    cachedSourcePages.get(versionItem)?.get(path);
-  if (!sourcePageItem) {
-    datastore = datastore || await getDatastore();
-    const keys: Key[] = [];
-    if (!moduleItem) {
-      keys.push(datastore.key([kinds.MODULE_KIND, module]));
-    }
-    if (!versionItem) {
-      keys.push(datastore.key(
-        [kinds.MODULE_KIND, module],
-        [kinds.MODULE_VERSION_KIND, version],
-      ));
-    }
-    keys.push(datastore.key(
-      [kinds.MODULE_KIND, module],
-      [kinds.MODULE_VERSION_KIND, version],
-      [kinds.CODE_PAGE_KIND, path],
-    ));
-
-    const res = await datastore.lookup(keys);
-    if (res.found) {
-      for (const { entity } of res.found) {
-        assert(
-          entity.key,
-          "Entity assertion failed for " + JSON.stringify(res.found),
-        );
-        const entityKind = entity.key.path[entity.key.path.length - 1].kind;
-        switch (entityKind) {
-          case kinds.MODULE_KIND: {
-            moduleItem = entityToObject(entity);
-            cachedModules.set(module, moduleItem);
-            break;
-          }
-          case kinds.MODULE_VERSION_KIND: {
-            versionItem = entityToObject(entity);
-            assert(
-              moduleItem,
-              "ModuleItem assertion failed for " + JSON.stringify(res.found),
-            );
-            if (!cachedVersions.has(moduleItem)) {
-              cachedVersions.set(moduleItem, new Map());
-            }
-            const versions = cachedVersions.get(moduleItem)!;
-            versions.set(version, versionItem);
-            break;
-          }
-          case kinds.CODE_PAGE_KIND: {
-            sourcePageItem = entityToObject(entity);
-            assert(
-              versionItem,
-              "sourcePageItem assertion failed for " +
-                JSON.stringify(res.found),
-            );
-            if (!cachedSourcePages.has(versionItem)) {
-              cachedSourcePages.set(versionItem, new Map());
-            }
-            const sourcePages = cachedSourcePages.get(versionItem)!;
-            sourcePages.set(path, sourcePageItem);
-            break;
-          }
-          default:
-            throw new TypeError(`Unexpected kind "${entityKind}".`);
-        }
-      }
-    }
-  }
-  if (moduleItem) {
-    cachedModuleNames.add(module);
-    enqueuePrune();
-  }
-  return sourcePageItem;
-}
-
 export async function lookupInfoPage(
   module: string,
   version: string,
@@ -236,121 +145,6 @@ export async function lookupInfoPage(
     enqueuePrune();
   }
   return infoPageItem;
-}
-
-export async function lookupDocPage(
-  module: string,
-  version: string,
-  path: string,
-  symbol: string,
-): Promise<DocPage | undefined> {
-  if (!SYMBOL_REGEX.test(symbol)) {
-    return undefined;
-  }
-
-  let moduleItem = cachedModules.get(module);
-  let versionItem = moduleItem && cachedVersions.get(moduleItem)?.get(version);
-  let entryItem = versionItem && cachedEntries.get(versionItem)?.get(path);
-  let docPageItem = entryItem && cachedDocPages.get(entryItem)?.get(symbol);
-  if (!docPageItem) {
-    datastore = datastore || await getDatastore();
-    const keys: Key[] = [];
-    if (!moduleItem) {
-      keys.push(datastore.key(
-        [kinds.MODULE_KIND, module],
-      ));
-    }
-    if (!versionItem) {
-      keys.push(datastore.key(
-        [kinds.MODULE_KIND, module],
-        [kinds.MODULE_VERSION_KIND, version],
-      ));
-    }
-    if (!entryItem) {
-      keys.push(datastore.key(
-        [kinds.MODULE_KIND, module],
-        [kinds.MODULE_VERSION_KIND, version],
-        [kinds.MODULE_ENTRY_KIND, path],
-      ));
-    }
-    keys.push(datastore.key(
-      [kinds.MODULE_KIND, module],
-      [kinds.MODULE_VERSION_KIND, version],
-      [kinds.MODULE_ENTRY_KIND, path],
-      [kinds.DOC_PAGE_KIND, symbol],
-    ));
-
-    try {
-      const res = await datastore.lookup(keys);
-      if (res.found) {
-        let foundModuleVersion: ModuleVersion | undefined;
-        let foundModuleEntry: ModuleEntry | undefined;
-        let foundModuleDocPage: DocPage | undefined;
-        for (const { entity } of res.found) {
-          assert(entity.key);
-          const entityKind = entity.key.path[entity.key.path.length - 1].kind;
-          switch (entityKind) {
-            case kinds.MODULE_KIND:
-              moduleItem = entityToObject(entity);
-              cachedModules.set(module, moduleItem);
-              break;
-            case kinds.MODULE_VERSION_KIND: {
-              foundModuleVersion = versionItem = entityToObject(entity);
-              break;
-            }
-            case kinds.MODULE_ENTRY_KIND: {
-              foundModuleEntry = entryItem = entityToObject(entity);
-              break;
-            }
-            case kinds.DOC_PAGE_KIND: {
-              const docPage = entityToDocPage(entity);
-              if (
-                !((docPage.kind === "module" || docPage.kind === "symbol") &&
-                  !docPage.symbols)
-              ) {
-                foundModuleDocPage = docPageItem = entityToDocPage(entity);
-              }
-              break;
-            }
-            default:
-              throw new TypeError(`Unexpected kind "${entityKind}".`);
-          }
-        }
-
-        if (foundModuleVersion) {
-          assert(moduleItem);
-          if (!cachedVersions.has(moduleItem)) {
-            cachedVersions.set(moduleItem, new Map());
-          }
-          const versions = cachedVersions.get(moduleItem)!;
-          versions.set(version, foundModuleVersion);
-        }
-        if (foundModuleEntry) {
-          assert(versionItem);
-          if (!cachedEntries.has(versionItem)) {
-            cachedEntries.set(versionItem, new Map());
-          }
-          const entries = cachedEntries.get(versionItem)!;
-          entries.set(path, foundModuleEntry);
-        }
-        if (foundModuleDocPage) {
-          assert(entryItem);
-          if (!cachedDocPages.has(entryItem)) {
-            cachedDocPages.set(entryItem, new Map());
-          }
-          const docPages = cachedDocPages.get(entryItem)!;
-          docPages.set(symbol, foundModuleDocPage);
-        }
-      }
-    } catch (e) {
-      console.error(keys, e);
-    }
-  }
-  if (moduleItem) {
-    cachedModuleNames.add(module);
-    enqueuePrune();
-  }
-  return docPageItem;
 }
 
 export async function lookup(
@@ -487,53 +281,6 @@ export function cacheModuleEntry(
       const entries = cachedEntries.get(versionItem)!;
       entries.set(path, entry);
       cachedModuleNames.add(module);
-    }
-  }
-}
-
-export function cacheSourcePage(
-  module: string,
-  version: string,
-  path: string,
-  sourcePage: SourcePage,
-): void {
-  const moduleItem = cachedModules.get(module);
-  if (moduleItem) {
-    const versionItem = cachedVersions.get(moduleItem)?.get(version);
-    if (versionItem) {
-      if (!cachedSourcePages.has(versionItem)) {
-        cachedSourcePages.set(versionItem, new Map());
-      }
-      const sourcePages = cachedSourcePages.get(versionItem)!;
-      sourcePages.set(path, sourcePage);
-      cachedModuleNames.add(module);
-    }
-  }
-}
-
-export function cacheDocPage(
-  module: string,
-  version: string,
-  path: string,
-  symbol: string,
-  docPage: DocPage,
-): void {
-  const moduleItem = cachedModules.get(module);
-  if (moduleItem) {
-    const versionItem = cachedVersions.get(moduleItem)?.get(version);
-    if (versionItem) {
-      const entryItem = cachedEntries.get(versionItem)?.get(path);
-      if (entryItem) {
-        if (!cachedDocPages.has(entryItem)) {
-          cachedDocPages.set(entryItem, new Map());
-        }
-        const docPages = cachedDocPages.get(entryItem)!;
-        // the original doc page can get partially serialized after added to
-        // the cache, which causes problems when revisiting the page in the
-        // same isolate, so we do a structured clone when caching here.
-        docPages.set(symbol, structuredClone(docPage));
-        cachedModuleNames.add(module);
-      }
     }
   }
 }
