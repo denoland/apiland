@@ -83,9 +83,12 @@ const encoder = new TextEncoder();
 
 // ## R2 ##
 
-/** `Uint8Array` is generic over its backing buffer as of TypeScript 5.7, and
- * the web crypto and `fetch` signatures only accept the `ArrayBuffer` flavour. */
-type Bytes = Uint8Array<ArrayBuffer>;
+/** `Uint8Array` is generic over its backing buffer as of TypeScript 5.7, where
+ * the web crypto and `fetch` signatures only accept the `ArrayBuffer` flavour.
+ * Spelling it as the encoder's return type resolves to that flavour on newer
+ * libs and to plain `Uint8Array` on older ones, so this stays checkable under
+ * the Deno 1.x that CI pins as well as under current Deno. */
+type Bytes = ReturnType<TextEncoder["encode"]>;
 
 function toHex(bytes: Bytes): string {
   return [...bytes].map((b) => b.toString(16).padStart(2, "0")).join("");
