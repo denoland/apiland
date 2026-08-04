@@ -1,5 +1,15 @@
 # apiland
 
+> [!WARNING]
+> **This repository is legacy and archived.** apiland is retired and no longer
+> maintained or deployed; the endpoints documented below should not be relied
+> on. `deno.land/x` is read only, and the module metadata apiland served has
+> been migrated to static `{module}/meta/info.json` blobs read directly by
+> [dotcom](https://github.com/denoland/dotcom). The job which produced them is
+> `migrate_info_to_r2.ts`.
+>
+> Kept for historical reference only.
+
 The Deno API Server.
 
 ## Documentation

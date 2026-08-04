@@ -7,3 +7,4 @@
 /terraform/*.tfplan
 /terraform/*.tfstate
 /terraform/*.tfvars
+/migrated.log
